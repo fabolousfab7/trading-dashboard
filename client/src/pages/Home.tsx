@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X, Download, Upload } from "lucide-react";
+import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Download, Upload, Cpu, Zap, Activity } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function TradingDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -67,7 +68,7 @@ export default function TradingDashboard() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      toast({ title: "SYSTEM ERROR", description: error.message, variant: "destructive" });
     }
     setLoading(false);
   }
@@ -75,23 +76,17 @@ export default function TradingDashboard() {
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // Supabase allows disabling email confirmation in the project settings.
-    // We try to sign up; if settings allow, it works immediately.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
-      options: {
-        data: {
-          email_confirmed: true // This is a metadata hint, actual enforcement is in Supabase Dashboard
-        }
-      }
+      options: { data: { email_confirmed: true } }
     });
     if (error) {
-      toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
+      toast({ title: "INIT FAILED", description: error.message, variant: "destructive" });
     } else if (data.user && !data.session) {
-      toast({ title: "Account created", description: "Email confirmation might still be required based on Supabase project settings." });
+      toast({ title: "USER CREATED", description: "Verification required." });
     } else {
-      toast({ title: "Success", description: "Account created and logged in!" });
+      toast({ title: "ACCESS GRANTED", description: "Welcome to the terminal." });
     }
     setLoading(false);
   }
@@ -102,7 +97,7 @@ export default function TradingDashboard() {
 
   async function uploadFile(file: File) {
     if (selectedPhotos.length >= 2) {
-      toast({ title: "Limit reached", description: "Maximum 2 photos allowed", variant: "destructive" });
+      toast({ title: "DATA LIMIT", description: "Max 2 data units allowed", variant: "destructive" });
       return;
     }
 
@@ -116,7 +111,7 @@ export default function TradingDashboard() {
       .upload(filePath, file);
 
     if (uploadError) {
-      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      toast({ title: "UPLINK FAILED", description: uploadError.message, variant: "destructive" });
     } else {
       const { data: { publicUrl } } = supabase.storage
         .from('trade-photos')
@@ -150,12 +145,12 @@ export default function TradingDashboard() {
 
     const { data, error } = await supabase.from("trades").insert([newTrade]).select();
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "LOG ENTRY FAILED", description: error.message, variant: "destructive" });
     } else {
       setTrades([data[0], ...trades]);
       setSelectedPhotos([]);
       (e.target as HTMLFormElement).reset();
-      toast({ title: "Success", description: "Trade added successfully" });
+      toast({ title: "LOG SECURED", description: "Trade data committed to ledger." });
     }
   }
 
@@ -163,7 +158,7 @@ export default function TradingDashboard() {
     const { error } = await supabase.from("trades").delete().eq("id", id);
     if (!error) {
       setTrades(trades.filter(t => t.id !== id));
-      toast({ title: "Deleted", description: "Trade removed" });
+      toast({ title: "DATA PURGED", description: "Trade record deleted." });
     }
   }
 
@@ -171,7 +166,7 @@ export default function TradingDashboard() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trades));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "trades_export.json");
+    downloadAnchorNode.setAttribute("download", "terminal_export.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -187,48 +182,75 @@ export default function TradingDashboard() {
         if (Array.isArray(json)) {
           const tradesToImport = json.map(t => ({
             ...t,
-            id: undefined, // Let Supabase generate new IDs
+            id: undefined,
             user_id: user.id,
             created_at: undefined
           }));
           const { data, error } = await supabase.from("trades").insert(tradesToImport).select();
           if (error) throw error;
           setTrades([...(data || []), ...trades]);
-          toast({ title: "Imported", description: `${data?.length} trades imported successfully` });
+          toast({ title: "DATA SYNCED", description: `${data?.length} records integrated.` });
         }
       } catch (err: any) {
-        toast({ title: "Import failed", description: err.message, variant: "destructive" });
+        toast({ title: "SYNC FAILED", description: err.message, variant: "destructive" });
       }
     };
     reader.readAsText(file);
   };
 
-  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <motion.div 
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      >
+        <Loader2 className="h-12 w-12 text-primary" />
+      </motion.div>
+    </div>
+  );
 
   if (!user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Trading Dashboard Login</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" className="flex-1">Login</Button>
-                <Button type="button" variant="outline" onClick={handleSignUp} className="flex-1">Sign Up</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="flex h-screen items-center justify-center bg-background font-cyber overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md p-1 bg-gradient-to-br from-primary via-accent to-secondary rounded-xl"
+        >
+          <Card className="cyber-card border-none bg-[#0a0b10]">
+            <CardHeader className="text-center">
+              <CardTitle className="font-arcade text-lg text-primary glow-primary">NEURAL LOGIN</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-secondary font-arcade text-[10px]">ID_EMAIL</Label>
+                  <Input 
+                    type="email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    className="bg-background/50 border-white/10 focus:border-secondary transition-colors"
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-secondary font-arcade text-[10px]">AUTH_KEY</Label>
+                  <Input 
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    className="bg-background/50 border-white/10 focus:border-primary transition-colors"
+                    required 
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <Button type="submit" className="flex-1 bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px] h-10">CONNECT</Button>
+                  <Button type="button" variant="outline" onClick={handleSignUp} className="flex-1 border-secondary text-secondary hover:bg-secondary/10 font-arcade text-[10px] h-10">INITIALIZE</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
@@ -253,79 +275,79 @@ export default function TradingDashboard() {
   const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
 
   return (
-    <div className="min-h-screen bg-background p-4 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Trading Dashboard</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={exportJSON}><Download className="mr-2 h-4 w-4" /> Export</Button>
-            <div className="relative">
-              <Button variant="outline" size="sm" asChild>
-                <label className="cursor-pointer">
-                  <Upload className="mr-2 h-4 w-4" /> Import
-                  <input type="file" className="hidden" accept=".json" onChange={importJSON} />
-                </label>
-              </Button>
+    <div className="min-h-screen font-cyber pb-20">
+      <div className="mx-auto max-w-6xl p-4 lg:p-8 space-y-8">
+        <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/20 rounded-lg glow-primary">
+              <Activity className="h-6 w-6 text-primary" />
             </div>
-            <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</Button>
+            <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary glow-primary leading-tight">TERMINAL.EXE</h1>
           </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button variant="outline" size="sm" onClick={exportJSON} className="border-secondary/30 text-secondary hover:bg-secondary/10"><Download className="mr-2 h-4 w-4" /> EXPORT</Button>
+            <Button variant="outline" size="sm" asChild className="border-accent/30 text-accent hover:bg-accent/10">
+              <label className="cursor-pointer">
+                <Upload className="mr-2 h-4 w-4" /> IMPORT
+                <input type="file" className="hidden" accept=".json" onChange={importJSON} />
+              </label>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white/50 hover:text-white"><LogOut className="mr-2 h-4 w-4" /> TERMINATE</Button>
+          </div>
+        </header>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <AnimatePresence>
+            {[
+              { label: "NET_PROFIT", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown },
+              { label: "WIN_PROBABILITY", value: `${winRate}%`, color: "text-accent", icon: Zap },
+              { label: "DATA_POINTS", value: trades.length, color: "text-white", icon: Cpu }
+            ].map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.1 }}
+              >
+                <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="font-arcade text-[10px] text-white/50">{stat.label}</CardTitle>
+                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-3xl font-bold ${stat.color} tracking-tight`}>{stat.value}</div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total P/L</CardTitle>
-              {totalProfit >= 0 ? <TrendingUp className="text-green-500" /> : <TrendingDown className="text-red-500" />}
-            </CardHeader>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="cyber-card bg-[#0d0e14]/40">
+            <CardHeader><CardTitle className="font-arcade text-xs text-secondary">STRATEGY_ANALYSIS</CardTitle></CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                ${totalProfit.toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{winRate}%</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{trades.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Profit by Strategy</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {Object.entries(statsByStrategy).map(([strategy, data]: [string, any]) => (
-                  <div key={strategy} className="flex justify-between items-center text-sm border-b pb-1">
-                    <span>{strategy} ({data.count})</span>
-                    <span className={data.profit >= 0 ? "text-green-500" : "text-red-500 font-bold"}>
-                      ${data.profit.toLocaleString()}
+                  <div key={strategy} className="flex justify-between items-center group">
+                    <span className="text-white/60 group-hover:text-white transition-colors">{strategy} <span className="text-[10px] text-white/20">[{data.count}]</span></span>
+                    <span className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
+                      {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
                     </span>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Profit by Account</CardTitle></CardHeader>
+          <Card className="cyber-card bg-[#0d0e14]/40">
+            <CardHeader><CardTitle className="font-arcade text-xs text-accent">ACCOUNT_ANALYSIS</CardTitle></CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {Object.entries(statsByAccount).map(([account, data]: [string, any]) => (
-                  <div key={account} className="flex justify-between items-center text-sm border-b pb-1">
-                    <span>{account} ({data.count})</span>
-                    <span className={data.profit >= 0 ? "text-green-500" : "text-red-500 font-bold"}>
-                      ${data.profit.toLocaleString()}
+                  <div key={account} className="flex justify-between items-center group">
+                    <span className="text-white/60 group-hover:text-white transition-colors">{account} <span className="text-[10px] text-white/20">[{data.count}]</span></span>
+                    <span className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
+                      {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
                     </span>
                   </div>
                 ))}
@@ -334,116 +356,118 @@ export default function TradingDashboard() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Add New Trade</CardTitle>
-            <p className="text-xs text-muted-foreground">Tip: You can paste images from clipboard (Ctrl+V)</p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={addTrade} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Asset (Actif)</Label>
-                <Input name="actif" placeholder="e.g. BTC/USD" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select name="type" defaultValue="long">
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="long">Long</SelectItem>
-                    <SelectItem value="short">Short</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Result ($) (Profit)</Label>
-                <Input name="profit" type="number" step="0.01" placeholder="Profit/Loss amount" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Account (Compte)</Label>
-                <Input name="compte" placeholder="e.g. Main" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Strategy (Strategie)</Label>
-                <Input name="strategie" placeholder="e.g. Trend Follow" required />
-              </div>
-              <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                <Label>Photos (Max 2)</Label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedPhotos.map((url, i) => (
-                    <div key={i} className="relative w-20 h-20 border rounded overflow-hidden">
-                      <img src={url} className="w-full h-full object-cover" alt="Trade detail" />
-                      <button 
-                        type="button"
-                        onClick={() => setSelectedPhotos(selectedPhotos.filter((_, idx) => idx !== i))}
-                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-bl"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  {selectedPhotos.length < 2 && (
-                    <Label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-dashed rounded cursor-pointer hover:bg-muted">
-                      {uploading ? <Loader2 className="animate-spin h-6 w-6" /> : <Plus className="h-6 w-6" />}
-                      <span className="text-[10px] mt-1">Upload/Paste</span>
-                      <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
-                    </Label>
-                  )}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80">
+            <CardHeader>
+              <CardTitle className="font-arcade text-xs text-primary">INIT_LOG_ENTRY</CardTitle>
+              <p className="text-[10px] text-white/30">PASTE IMAGE DATA [CTRL+V] TO SYNC INTEL</p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={addTrade} className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">TIMESTAMP</Label>
+                  <Input name="date" type="date" className="bg-white/5 border-white/10 text-white" defaultValue={new Date().toISOString().split('T')[0]} required />
                 </div>
-              </div>
-              <div className="flex items-end lg:col-start-3">
-                <Button type="submit" className="w-full" disabled={uploading}>
-                  <Plus className="mr-2 h-4 w-4" /> Add Trade
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">ACTIF_ID</Label>
+                  <Input name="actif" className="bg-white/5 border-white/10 text-white" placeholder="e.g. BTC/USD" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">VECTOR_TYPE</Label>
+                  <Select name="type" defaultValue="long">
+                    <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-[#0d0e14] border-white/10">
+                      <SelectItem value="long">LONG_VECTOR</SelectItem>
+                      <SelectItem value="short">SHORT_VECTOR</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">YIELD_AMOUNT</Label>
+                  <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white" placeholder="0.00" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">SOURCE_ACCOUNT</Label>
+                  <Input name="compte" className="bg-white/5 border-white/10 text-white" placeholder="MAIN_CELL" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">PROTO_STRAT</Label>
+                  <Input name="strategie" className="bg-white/5 border-white/10 text-white" placeholder="ALPHA_CORE" required />
+                </div>
+                <div className="space-y-4 md:col-span-2 lg:col-span-3">
+                  <Label className="font-arcade text-[9px] text-white/50">VISUAL_INTEL [MAX_2]</Label>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    {selectedPhotos.map((url, i) => (
+                      <motion.div key={i} initial={{ scale: 0 }} animate={{ scale: 1 }} className="relative w-24 h-24 border border-white/10 rounded-lg overflow-hidden glow-secondary">
+                        <img src={url} className="w-full h-full object-cover" alt="Intel" />
+                        <button type="button" onClick={() => setSelectedPhotos(selectedPhotos.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 p-1 bg-primary text-white"><X size={12} /></button>
+                      </motion.div>
+                    ))}
+                    {selectedPhotos.length < 2 && (
+                      <Label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-all group">
+                        {uploading ? <Loader2 className="animate-spin h-6 w-6 text-secondary" /> : <Plus className="h-6 w-6 text-white/20 group-hover:text-secondary" />}
+                        <span className="text-[8px] mt-1 text-white/20 group-hover:text-secondary font-arcade">UPLOAD</span>
+                        <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
+                      </Label>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-end lg:col-start-3">
+                  <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px]" disabled={uploading}>COMMIT_DATA</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card>
-          <CardHeader><CardTitle>Recent Trades</CardTitle></CardHeader>
+        <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
+          <CardHeader><CardTitle className="font-arcade text-xs text-secondary">TRANSACTION_HISTORY</CardTitle></CardHeader>
           <CardContent>
             <div className="relative overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-[11px] font-mono">
                 <thead>
-                  <tr className="border-b">
-                    <th className="py-2 px-4">Date</th>
-                    <th className="py-2 px-4">Asset</th>
-                    <th className="py-2 px-4">Type</th>
-                    <th className="py-2 px-4">Result</th>
-                    <th className="py-2 px-4">Strategy</th>
-                    <th className="py-2 px-4">Photos</th>
-                    <th className="py-2 px-4">Action</th>
+                  <tr className="border-b border-white/5 text-white/40 uppercase font-arcade text-[8px]">
+                    <th className="py-4 px-4">TIMESTAMP</th>
+                    <th className="py-4 px-4">IDENTIFIER</th>
+                    <th className="py-4 px-4">VECTOR</th>
+                    <th className="py-4 px-4">YIELD</th>
+                    <th className="py-4 px-4">STRAT</th>
+                    <th className="py-4 px-4">INTEL</th>
+                    <th className="py-4 px-4">CMD</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map(trade => (
-                    <tr key={trade.id} className="border-b hover:bg-muted/50">
-                      <td className="py-2 px-4 text-muted-foreground">{new Date(trade.date).toLocaleDateString()}</td>
-                      <td className="py-2 px-4 font-medium">{trade.actif}</td>
-                      <td className="py-2 px-4 uppercase text-xs">{trade.type}</td>
-                      <td className={`py-2 px-4 font-bold ${Number(trade.profit) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ${Number(trade.profit).toLocaleString()}
-                      </td>
-                      <td className="py-2 px-4 text-muted-foreground">{trade.strategie}</td>
-                      <td className="py-2 px-4">
-                        <div className="flex gap-1">
-                          {trade.photos?.map((url: string, i: number) => (
-                            <img key={i} src={url} className="w-8 h-8 object-cover rounded border cursor-zoom-in" alt="Trade" onClick={() => window.open(url, '_blank')} />
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-2 px-4">
-                        <Button variant="ghost" size="icon" onClick={() => deleteTrade(trade.id)} className="text-red-500 hover:text-red-700">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  <AnimatePresence>
+                    {trades.map((trade, i) => (
+                      <motion.tr 
+                        key={trade.id} 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="border-b border-white/5 hover:bg-white/5 transition-colors group"
+                      >
+                        <td className="py-4 px-4 text-white/40">{new Date(trade.date).toLocaleDateString()}</td>
+                        <td className="py-4 px-4 text-white font-bold">{trade.actif}</td>
+                        <td className="py-4 px-4"><span className={`px-2 py-0.5 rounded text-[9px] border ${trade.type === 'long' ? 'border-secondary/50 text-secondary bg-secondary/10' : 'border-primary/50 text-primary bg-primary/10'}`}>{trade.type.toUpperCase()}</span></td>
+                        <td className={`py-4 px-4 font-bold ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                          {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()}
+                        </td>
+                        <td className="py-4 px-4 text-white/60">{trade.strategie}</td>
+                        <td className="py-4 px-4">
+                          <div className="flex gap-2">
+                            {trade.photos?.map((url: string, i: number) => (
+                              <img key={i} src={url} className="w-8 h-8 object-cover rounded border border-white/10 hover:border-secondary transition-colors cursor-zoom-in" alt="Intel" onClick={() => window.open(url, '_blank')} />
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Button variant="ghost" size="icon" onClick={() => deleteTrade(trade.id)} className="text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
                 </tbody>
               </table>
             </div>
