@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X } from "lucide-react";
 
 export default function TradingDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -14,6 +14,8 @@ export default function TradingDashboard() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -67,16 +69,53 @@ export default function TradingDashboard() {
     await supabase.auth.signOut();
   }
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (selectedPhotos.length + files.length > 2) {
+      toast({ title: "Limit reached", description: "Maximum 2 photos allowed", variant: "destructive" });
+      return;
+    }
+
+    setUploading(true);
+    const newPhotos = [...selectedPhotos];
+
+    for (const file of Array.from(files)) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('trade-photos')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('trade-photos')
+        .getPublicUrl(filePath);
+      
+      newPhotos.push(publicUrl);
+    }
+
+    setSelectedPhotos(newPhotos);
+    setUploading(false);
+  }
+
   async function addTrade(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const newTrade = {
-      asset: formData.get("asset"),
+      actif: formData.get("actif"),
       type: formData.get("type"),
-      result: parseFloat(formData.get("result") as string),
-      account: formData.get("account"),
-      strategy: formData.get("strategy"),
-      date: new Date().toISOString(),
+      profit: parseFloat(formData.get("profit") as string),
+      compte: formData.get("compte"),
+      strategie: formData.get("strategie"),
+      date: formData.get("date") || new Date().toISOString(),
+      photos: selectedPhotos,
       user_id: user.id
     };
 
@@ -85,13 +124,18 @@ export default function TradingDashboard() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       setTrades([data[0], ...trades]);
+      setSelectedPhotos([]);
       (e.target as HTMLFormElement).reset();
+      toast({ title: "Success", description: "Trade added successfully" });
     }
   }
 
   async function deleteTrade(id: number) {
     const { error } = await supabase.from("trades").delete().eq("id", id);
-    if (!error) setTrades(trades.filter(t => t.id !== id));
+    if (!error) {
+      setTrades(trades.filter(t => t.id !== id));
+      toast({ title: "Deleted", description: "Trade removed" });
+    }
   }
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
@@ -124,8 +168,8 @@ export default function TradingDashboard() {
     );
   }
 
-  const totalProfit = trades.reduce((acc, t) => acc + Number(t.result), 0);
-  const winRate = trades.length ? (trades.filter(t => Number(t.result) > 0).length / trades.length * 100).toFixed(1) : 0;
+  const totalProfit = trades.reduce((acc, t) => acc + Number(t.profit), 0);
+  const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
 
   return (
     <div className="min-h-screen bg-background p-4 lg:p-8">
@@ -170,8 +214,12 @@ export default function TradingDashboard() {
           <CardContent>
             <form onSubmit={addTrade} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
-                <Label>Asset</Label>
-                <Input name="asset" placeholder="e.g. BTC/USD" required />
+                <Label>Date</Label>
+                <Input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Asset (Actif)</Label>
+                <Input name="actif" placeholder="e.g. BTC/USD" required />
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
@@ -184,19 +232,45 @@ export default function TradingDashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Result ($)</Label>
-                <Input name="result" type="number" step="0.01" placeholder="Profit/Loss amount" required />
+                <Label>Result ($) (Profit)</Label>
+                <Input name="profit" type="number" step="0.01" placeholder="Profit/Loss amount" required />
               </div>
               <div className="space-y-2">
-                <Label>Account</Label>
-                <Input name="account" placeholder="e.g. Main" required />
+                <Label>Account (Compte)</Label>
+                <Input name="compte" placeholder="e.g. Main" required />
               </div>
               <div className="space-y-2">
-                <Label>Strategy</Label>
-                <Input name="strategy" placeholder="e.g. Trend Follow" required />
+                <Label>Strategy (Strategie)</Label>
+                <Input name="strategie" placeholder="e.g. Trend Follow" required />
               </div>
-              <div className="flex items-end">
-                <Button type="submit" className="w-full"><Plus className="mr-2 h-4 w-4" /> Add Trade</Button>
+              <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                <Label>Photos (Max 2)</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedPhotos.map((url, i) => (
+                    <div key={i} className="relative w-20 h-20 border rounded overflow-hidden">
+                      <img src={url} className="w-full h-full object-cover" alt="Trade detail" />
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedPhotos(selectedPhotos.filter((_, idx) => idx !== i))}
+                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-bl"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {selectedPhotos.length < 2 && (
+                    <Label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-dashed rounded cursor-pointer hover:bg-muted">
+                      {uploading ? <Loader2 className="animate-spin h-6 w-6" /> : <Plus className="h-6 w-6" />}
+                      <span className="text-[10px] mt-1">Upload</span>
+                      <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
+                    </Label>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-end lg:col-start-3">
+                <Button type="submit" className="w-full" disabled={uploading}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Trade
+                </Button>
               </div>
             </form>
           </CardContent>
@@ -214,6 +288,7 @@ export default function TradingDashboard() {
                     <th className="py-2 px-4">Type</th>
                     <th className="py-2 px-4">Result</th>
                     <th className="py-2 px-4">Strategy</th>
+                    <th className="py-2 px-4">Photos</th>
                     <th className="py-2 px-4">Action</th>
                   </tr>
                 </thead>
@@ -221,12 +296,19 @@ export default function TradingDashboard() {
                   {trades.map(trade => (
                     <tr key={trade.id} className="border-b hover:bg-muted/50">
                       <td className="py-2 px-4 text-muted-foreground">{new Date(trade.date).toLocaleDateString()}</td>
-                      <td className="py-2 px-4 font-medium">{trade.asset}</td>
+                      <td className="py-2 px-4 font-medium">{trade.actif}</td>
                       <td className="py-2 px-4 uppercase text-xs">{trade.type}</td>
-                      <td className={`py-2 px-4 font-bold ${Number(trade.result) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ${Number(trade.result).toLocaleString()}
+                      <td className={`py-2 px-4 font-bold ${Number(trade.profit) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ${Number(trade.profit).toLocaleString()}
                       </td>
-                      <td className="py-2 px-4 text-muted-foreground">{trade.strategy}</td>
+                      <td className="py-2 px-4 text-muted-foreground">{trade.strategie}</td>
+                      <td className="py-2 px-4">
+                        <div className="flex gap-1">
+                          {trade.photos?.map((url: string, i: number) => (
+                            <img key={i} src={url} className="w-8 h-8 object-cover rounded border" alt="Trade" />
+                          ))}
+                        </div>
+                      </td>
                       <td className="py-2 px-4">
                         <Button variant="ghost" size="icon" onClick={() => deleteTrade(trade.id)} className="text-red-500 hover:text-red-700">
                           <Trash2 className="h-4 w-4" />

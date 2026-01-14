@@ -76,12 +76,12 @@ export async function registerRoutes(
 
     const { data, error } = await supabase
       .from('trades')
-      .select('result')
+      .select('profit')
       .eq('user_id', user.id);
 
     if (error) return res.status(500).json({ message: error.message });
 
-    const results = data.map(t => Number(t.result));
+    const results = data.map(t => Number(t.profit));
     const totalProfit = results.reduce((a, b) => a + b, 0);
     const winRate = results.length ? (results.filter(r => r > 0).length / results.length) * 100 : 0;
     const bestTrade = results.length ? Math.max(...results) : 0;

@@ -7,10 +7,10 @@ export const trades = pgTable("trades", {
   userId: text("user_id").notNull(),
   date: timestamp("date").notNull().defaultNow(),
   type: text("type", { enum: ["long", "short"] }).notNull(),
-  asset: text("asset").notNull(),
-  account: text("account").notNull(),
-  strategy: text("strategy").notNull(),
-  result: numeric("result").notNull(), // profit or loss amount
+  actif: text("actif").notNull(),
+  compte: text("compte").notNull(),
+  strategie: text("strategie").notNull(),
+  profit: numeric("profit").notNull(), 
   photos: jsonb("photos").default([]), // array of image URLs
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -21,7 +21,7 @@ export const insertTradeSchema = createInsertSchema(trades).omit({
   createdAt: true 
 }).extend({
   date: z.coerce.date(),
-  result: z.coerce.number(),
+  profit: z.coerce.number(),
 });
 
 export type Trade = typeof trades.$inferSelect;
