@@ -68,7 +68,7 @@ export default function TradingDashboard() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      toast({ title: "SYSTEM ERROR", description: error.message, variant: "destructive" });
+      toast({ title: "Login failed", description: error.message, variant: "destructive" });
     }
     setLoading(false);
   }
@@ -82,11 +82,11 @@ export default function TradingDashboard() {
       options: { data: { email_confirmed: true } }
     });
     if (error) {
-      toast({ title: "INIT FAILED", description: error.message, variant: "destructive" });
+      toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
     } else if (data.user && !data.session) {
-      toast({ title: "USER CREATED", description: "Verification required." });
+      toast({ title: "Account created", description: "Verification required." });
     } else {
-      toast({ title: "ACCESS GRANTED", description: "Welcome to the terminal." });
+      toast({ title: "Success", description: "Account created and logged in!" });
     }
     setLoading(false);
   }
@@ -97,7 +97,7 @@ export default function TradingDashboard() {
 
   async function uploadFile(file: File) {
     if (selectedPhotos.length >= 2) {
-      toast({ title: "DATA LIMIT", description: "Max 2 data units allowed", variant: "destructive" });
+      toast({ title: "Limit reached", description: "Maximum 2 photos allowed", variant: "destructive" });
       return;
     }
 
@@ -111,7 +111,7 @@ export default function TradingDashboard() {
       .upload(filePath, file);
 
     if (uploadError) {
-      toast({ title: "UPLINK FAILED", description: uploadError.message, variant: "destructive" });
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     } else {
       const { data: { publicUrl } } = supabase.storage
         .from('trade-photos')
@@ -145,12 +145,12 @@ export default function TradingDashboard() {
 
     const { data, error } = await supabase.from("trades").insert([newTrade]).select();
     if (error) {
-      toast({ title: "LOG ENTRY FAILED", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       setTrades([data[0], ...trades]);
       setSelectedPhotos([]);
       (e.target as HTMLFormElement).reset();
-      toast({ title: "LOG SECURED", description: "Trade data committed to ledger." });
+      toast({ title: "Success", description: "Trade added successfully" });
     }
   }
 
@@ -158,7 +158,7 @@ export default function TradingDashboard() {
     const { error } = await supabase.from("trades").delete().eq("id", id);
     if (!error) {
       setTrades(trades.filter(t => t.id !== id));
-      toast({ title: "DATA PURGED", description: "Trade record deleted." });
+      toast({ title: "Deleted", description: "Trade removed" });
     }
   }
 
@@ -166,7 +166,7 @@ export default function TradingDashboard() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trades));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "terminal_export.json");
+    downloadAnchorNode.setAttribute("download", "trades_export.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -189,10 +189,10 @@ export default function TradingDashboard() {
           const { data, error } = await supabase.from("trades").insert(tradesToImport).select();
           if (error) throw error;
           setTrades([...(data || []), ...trades]);
-          toast({ title: "DATA SYNCED", description: `${data?.length} records integrated.` });
+          toast({ title: "Imported", description: `${data?.length} trades imported successfully` });
         }
       } catch (err: any) {
-        toast({ title: "SYNC FAILED", description: err.message, variant: "destructive" });
+        toast({ title: "Import failed", description: err.message, variant: "destructive" });
       }
     };
     reader.readAsText(file);
@@ -219,12 +219,12 @@ export default function TradingDashboard() {
         >
           <Card className="cyber-card border-none bg-[#0a0b10]">
             <CardHeader className="text-center">
-              <CardTitle className="font-arcade text-lg text-primary glow-primary">NEURAL LOGIN</CardTitle>
+              <CardTitle className="font-arcade text-lg text-primary glow-primary">Login</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[10px]">ID_EMAIL</Label>
+                  <Label className="text-secondary font-arcade text-[10px]">Email</Label>
                   <Input 
                     type="email" 
                     value={email} 
@@ -234,7 +234,7 @@ export default function TradingDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[10px]">AUTH_KEY</Label>
+                  <Label className="text-secondary font-arcade text-[10px]">Password</Label>
                   <Input 
                     type="password" 
                     value={password} 
@@ -244,8 +244,8 @@ export default function TradingDashboard() {
                   />
                 </div>
                 <div className="flex gap-4">
-                  <Button type="submit" className="flex-1 bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px] h-10">CONNECT</Button>
-                  <Button type="button" variant="outline" onClick={handleSignUp} className="flex-1 border-secondary text-secondary hover:bg-secondary/10 font-arcade text-[10px] h-10">INITIALIZE</Button>
+                  <Button type="submit" className="flex-1 bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px] h-10">Login</Button>
+                  <Button type="button" variant="outline" onClick={handleSignUp} className="flex-1 border-secondary text-secondary hover:bg-secondary/10 font-arcade text-[10px] h-10">Sign Up</Button>
                 </div>
               </form>
             </CardContent>
@@ -282,26 +282,26 @@ export default function TradingDashboard() {
             <div className="p-3 bg-primary/20 rounded-lg glow-primary">
               <Activity className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary glow-primary leading-tight">TERMINAL.EXE</h1>
+            <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary glow-primary leading-tight">Trading Dashboard</h1>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
-            <Button variant="outline" size="sm" onClick={exportJSON} className="border-secondary/30 text-secondary hover:bg-secondary/10"><Download className="mr-2 h-4 w-4" /> EXPORT</Button>
+            <Button variant="outline" size="sm" onClick={exportJSON} className="border-secondary/30 text-secondary hover:bg-secondary/10"><Download className="mr-2 h-4 w-4" /> Export</Button>
             <Button variant="outline" size="sm" asChild className="border-accent/30 text-accent hover:bg-accent/10">
               <label className="cursor-pointer">
-                <Upload className="mr-2 h-4 w-4" /> IMPORT
+                <Upload className="mr-2 h-4 w-4" /> Import
                 <input type="file" className="hidden" accept=".json" onChange={importJSON} />
               </label>
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white/50 hover:text-white"><LogOut className="mr-2 h-4 w-4" /> TERMINATE</Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white/50 hover:text-white"><LogOut className="mr-2 h-4 w-4" /> Logout</Button>
           </div>
         </header>
 
         <div className="grid gap-6 md:grid-cols-3">
           <AnimatePresence>
             {[
-              { label: "NET_PROFIT", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown },
-              { label: "WIN_PROBABILITY", value: `${winRate}%`, color: "text-accent", icon: Zap },
-              { label: "DATA_POINTS", value: trades.length, color: "text-white", icon: Cpu }
+              { label: "Total P/L", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown },
+              { label: "Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap },
+              { label: "Total Trades", value: trades.length, color: "text-white", icon: Cpu }
             ].map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -325,7 +325,7 @@ export default function TradingDashboard() {
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="cyber-card bg-[#0d0e14]/40">
-            <CardHeader><CardTitle className="font-arcade text-xs text-secondary">STRATEGY_ANALYSIS</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="font-arcade text-xs text-secondary">Profit by Strategy</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(statsByStrategy).map(([strategy, data]: [string, any]) => (
@@ -340,7 +340,7 @@ export default function TradingDashboard() {
             </CardContent>
           </Card>
           <Card className="cyber-card bg-[#0d0e14]/40">
-            <CardHeader><CardTitle className="font-arcade text-xs text-accent">ACCOUNT_ANALYSIS</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="font-arcade text-xs text-accent">Profit by Account</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(statsByAccount).map(([account, data]: [string, any]) => (
@@ -359,43 +359,43 @@ export default function TradingDashboard() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80">
             <CardHeader>
-              <CardTitle className="font-arcade text-xs text-primary">INIT_LOG_ENTRY</CardTitle>
-              <p className="text-[10px] text-white/30">PASTE IMAGE DATA [CTRL+V] TO SYNC INTEL</p>
+              <CardTitle className="font-arcade text-xs text-primary">Add New Trade</CardTitle>
+              <p className="text-[10px] text-white/30">Tip: You can paste images from clipboard (Ctrl+V)</p>
             </CardHeader>
             <CardContent>
               <form onSubmit={addTrade} className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">TIMESTAMP</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Date</Label>
                   <Input name="date" type="date" className="bg-white/5 border-white/10 text-white" defaultValue={new Date().toISOString().split('T')[0]} required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">ACTIF_ID</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Asset (Actif)</Label>
                   <Input name="actif" className="bg-white/5 border-white/10 text-white" placeholder="e.g. BTC/USD" required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">VECTOR_TYPE</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Type</Label>
                   <Select name="type" defaultValue="long">
                     <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10">
-                      <SelectItem value="long">LONG_VECTOR</SelectItem>
-                      <SelectItem value="short">SHORT_VECTOR</SelectItem>
+                      <SelectItem value="long">Long</SelectItem>
+                      <SelectItem value="short">Short</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">YIELD_AMOUNT</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Result ($) (Profit)</Label>
                   <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white" placeholder="0.00" required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">SOURCE_ACCOUNT</Label>
-                  <Input name="compte" className="bg-white/5 border-white/10 text-white" placeholder="MAIN_CELL" required />
+                  <Label className="font-arcade text-[9px] text-white/50">Account (Compte)</Label>
+                  <Input name="compte" className="bg-white/5 border-white/10 text-white" placeholder="e.g. Main" required />
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-arcade text-[9px] text-white/50">PROTO_STRAT</Label>
-                  <Input name="strategie" className="bg-white/5 border-white/10 text-white" placeholder="ALPHA_CORE" required />
+                  <Label className="font-arcade text-[9px] text-white/50">Strategy (Strategie)</Label>
+                  <Input name="strategie" className="bg-white/5 border-white/10 text-white" placeholder="e.g. Trend Follow" required />
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <Label className="font-arcade text-[9px] text-white/50">VISUAL_INTEL [MAX_2]</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Photos (Max 2)</Label>
                   <div className="flex flex-wrap gap-4 mt-2">
                     {selectedPhotos.map((url, i) => (
                       <motion.div key={i} initial={{ scale: 0 }} animate={{ scale: 1 }} className="relative w-24 h-24 border border-white/10 rounded-lg overflow-hidden glow-secondary">
@@ -406,14 +406,14 @@ export default function TradingDashboard() {
                     {selectedPhotos.length < 2 && (
                       <Label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-all group">
                         {uploading ? <Loader2 className="animate-spin h-6 w-6 text-secondary" /> : <Plus className="h-6 w-6 text-white/20 group-hover:text-secondary" />}
-                        <span className="text-[8px] mt-1 text-white/20 group-hover:text-secondary font-arcade">UPLOAD</span>
+                        <span className="text-[8px] mt-1 text-white/20 group-hover:text-secondary font-arcade">Upload</span>
                         <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
                       </Label>
                     )}
                   </div>
                 </div>
                 <div className="flex items-end lg:col-start-3">
-                  <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px]" disabled={uploading}>COMMIT_DATA</Button>
+                  <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px]" disabled={uploading}>Add Trade</Button>
                 </div>
               </form>
             </CardContent>
@@ -421,19 +421,19 @@ export default function TradingDashboard() {
         </motion.div>
 
         <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
-          <CardHeader><CardTitle className="font-arcade text-xs text-secondary">TRANSACTION_HISTORY</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="font-arcade text-xs text-secondary">Recent Trades</CardTitle></CardHeader>
           <CardContent>
             <div className="relative overflow-x-auto">
               <table className="w-full text-left text-[11px] font-mono">
                 <thead>
                   <tr className="border-b border-white/5 text-white/40 uppercase font-arcade text-[8px]">
-                    <th className="py-4 px-4">TIMESTAMP</th>
-                    <th className="py-4 px-4">IDENTIFIER</th>
-                    <th className="py-4 px-4">VECTOR</th>
-                    <th className="py-4 px-4">YIELD</th>
-                    <th className="py-4 px-4">STRAT</th>
-                    <th className="py-4 px-4">INTEL</th>
-                    <th className="py-4 px-4">CMD</th>
+                    <th className="py-4 px-4">Date</th>
+                    <th className="py-4 px-4">Asset</th>
+                    <th className="py-4 px-4">Type</th>
+                    <th className="py-4 px-4">Result</th>
+                    <th className="py-4 px-4">Strategy</th>
+                    <th className="py-4 px-4">Photos</th>
+                    <th className="py-4 px-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
