@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X } from "lucide-react";
+import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Image as ImageIcon, X, Download, Upload } from "lucide-react";
 
 export default function TradingDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -35,6 +35,25 @@ export default function TradingDashboard() {
     if (user) fetchTrades();
   }, [user]);
 
+  const onPaste = useCallback(async (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          uploadFile(file);
+        }
+      }
+    }
+  }, [user, selectedPhotos]);
+
+  useEffect(() => {
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [onPaste]);
+
   async function fetchTrades() {
     const { data, error } = await supabase
       .from("trades")
@@ -56,11 +75,23 @@ export default function TradingDashboard() {
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    // Supabase allows disabling email confirmation in the project settings.
+    // We try to sign up; if settings allow, it works immediately.
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          email_confirmed: true // This is a metadata hint, actual enforcement is in Supabase Dashboard
+        }
+      }
+    });
     if (error) {
       toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
+    } else if (data.user && !data.session) {
+      toast({ title: "Account created", description: "Email confirmation might still be required based on Supabase project settings." });
     } else {
-      toast({ title: "Check your email", description: "Confirmation link sent." });
+      toast({ title: "Success", description: "Account created and logged in!" });
     }
     setLoading(false);
   }
@@ -69,40 +100,38 @@ export default function TradingDashboard() {
     await supabase.auth.signOut();
   }
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (selectedPhotos.length + files.length > 2) {
+  async function uploadFile(file: File) {
+    if (selectedPhotos.length >= 2) {
       toast({ title: "Limit reached", description: "Maximum 2 photos allowed", variant: "destructive" });
       return;
     }
 
     setUploading(true);
-    const newPhotos = [...selectedPhotos];
+    const fileExt = file.name ? file.name.split('.').pop() : 'png';
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
 
-    for (const file of Array.from(files)) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+    const { error: uploadError } = await supabase.storage
+      .from('trade-photos')
+      .upload(filePath, file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('trade-photos')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-        continue;
-      }
-
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+    } else {
       const { data: { publicUrl } } = supabase.storage
         .from('trade-photos')
         .getPublicUrl(filePath);
-      
-      newPhotos.push(publicUrl);
+      setSelectedPhotos(prev => [...prev, publicUrl]);
     }
-
-    setSelectedPhotos(newPhotos);
     setUploading(false);
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      await uploadFile(file);
+    }
   }
 
   async function addTrade(e: React.FormEvent<HTMLFormElement>) {
@@ -138,6 +167,42 @@ export default function TradingDashboard() {
     }
   }
 
+  const exportJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trades));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "trades_export.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const importJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (Array.isArray(json)) {
+          const tradesToImport = json.map(t => ({
+            ...t,
+            id: undefined, // Let Supabase generate new IDs
+            user_id: user.id,
+            created_at: undefined
+          }));
+          const { data, error } = await supabase.from("trades").insert(tradesToImport).select();
+          if (error) throw error;
+          setTrades([...(data || []), ...trades]);
+          toast({ title: "Imported", description: `${data?.length} trades imported successfully` });
+        }
+      } catch (err: any) {
+        toast({ title: "Import failed", description: err.message, variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
   if (!user) {
@@ -168,6 +233,22 @@ export default function TradingDashboard() {
     );
   }
 
+  const statsByStrategy = trades.reduce((acc: any, t) => {
+    const s = t.strategie || "Unknown";
+    if (!acc[s]) acc[s] = { profit: 0, count: 0 };
+    acc[s].profit += Number(t.profit);
+    acc[s].count += 1;
+    return acc;
+  }, {});
+
+  const statsByAccount = trades.reduce((acc: any, t) => {
+    const a = t.compte || "Unknown";
+    if (!acc[a]) acc[a] = { profit: 0, count: 0 };
+    acc[a].profit += Number(t.profit);
+    acc[a].count += 1;
+    return acc;
+  }, {});
+
   const totalProfit = trades.reduce((acc, t) => acc + Number(t.profit), 0);
   const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
 
@@ -176,7 +257,18 @@ export default function TradingDashboard() {
       <div className="mx-auto max-w-6xl space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Trading Dashboard</h1>
-          <Button variant="ghost" onClick={handleLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={exportJSON}><Download className="mr-2 h-4 w-4" /> Export</Button>
+            <div className="relative">
+              <Button variant="outline" size="sm" asChild>
+                <label className="cursor-pointer">
+                  <Upload className="mr-2 h-4 w-4" /> Import
+                  <input type="file" className="hidden" accept=".json" onChange={importJSON} />
+                </label>
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="mr-2 h-4 w-4" /> Logout</Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -209,8 +301,44 @@ export default function TradingDashboard() {
           </Card>
         </div>
 
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Profit by Strategy</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(statsByStrategy).map(([strategy, data]: [string, any]) => (
+                  <div key={strategy} className="flex justify-between items-center text-sm border-b pb-1">
+                    <span>{strategy} ({data.count})</span>
+                    <span className={data.profit >= 0 ? "text-green-500" : "text-red-500 font-bold"}>
+                      ${data.profit.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Profit by Account</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(statsByAccount).map(([account, data]: [string, any]) => (
+                  <div key={account} className="flex justify-between items-center text-sm border-b pb-1">
+                    <span>{account} ({data.count})</span>
+                    <span className={data.profit >= 0 ? "text-green-500" : "text-red-500 font-bold"}>
+                      ${data.profit.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
-          <CardHeader><CardTitle>Add New Trade</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Add New Trade</CardTitle>
+            <p className="text-xs text-muted-foreground">Tip: You can paste images from clipboard (Ctrl+V)</p>
+          </CardHeader>
           <CardContent>
             <form onSubmit={addTrade} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
@@ -261,7 +389,7 @@ export default function TradingDashboard() {
                   {selectedPhotos.length < 2 && (
                     <Label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-dashed rounded cursor-pointer hover:bg-muted">
                       {uploading ? <Loader2 className="animate-spin h-6 w-6" /> : <Plus className="h-6 w-6" />}
-                      <span className="text-[10px] mt-1">Upload</span>
+                      <span className="text-[10px] mt-1">Upload/Paste</span>
                       <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
                     </Label>
                   )}
@@ -305,7 +433,7 @@ export default function TradingDashboard() {
                       <td className="py-2 px-4">
                         <div className="flex gap-1">
                           {trade.photos?.map((url: string, i: number) => (
-                            <img key={i} src={url} className="w-8 h-8 object-cover rounded border" alt="Trade" />
+                            <img key={i} src={url} className="w-8 h-8 object-cover rounded border cursor-zoom-in" alt="Trade" onClick={() => window.open(url, '_blank')} />
                           ))}
                         </div>
                       </td>
