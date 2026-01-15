@@ -11,10 +11,10 @@ export const trades = pgTable("trades", {
   compte: text("compte").notNull(),
   strategie: text("strategie").notNull(),
   profit: numeric("profit").notNull(), 
-  risk: numeric("max_loss").notNull(), // Maximum loss in dollars (mapped to max_loss in DB)
-  timeframe: text("timeframe").notNull(), // 1m, 5m, etc.
+  risk: numeric("risk").notNull(), // Now directly mapped to 'risk' column
+  timeframe: text("timeframe").notNull(), 
   observations: text("observations"),
-  photos: jsonb("photos").default([]), // array of image URLs
+  photos: jsonb("photos").default([]), 
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -33,7 +33,6 @@ export const insertTradeSchema = createInsertSchema(trades).omit({
 export type Trade = typeof trades.$inferSelect;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;
 
-// Auth types for Supabase
 export interface UserProfile {
   id: string;
   email: string;
