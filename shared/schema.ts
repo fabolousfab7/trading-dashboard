@@ -11,6 +11,8 @@ export const trades = pgTable("trades", {
   compte: text("compte").notNull(),
   strategie: text("strategie").notNull(),
   profit: numeric("profit").notNull(), 
+  risk: numeric("risk").notNull(), // Maximum loss in dollars
+  timeframe: text("timeframe").notNull(), // 1m, 5m, etc.
   observations: text("observations"),
   photos: jsonb("photos").default([]), // array of image URLs
   createdAt: timestamp("created_at").defaultNow(),
@@ -23,6 +25,8 @@ export const insertTradeSchema = createInsertSchema(trades).omit({
 }).extend({
   date: z.coerce.date(),
   profit: z.coerce.number(),
+  risk: z.coerce.number(),
+  timeframe: z.string(),
   observations: z.string().optional(),
 });
 

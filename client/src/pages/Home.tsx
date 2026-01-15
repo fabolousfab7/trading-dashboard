@@ -33,7 +33,9 @@ import {
   Calendar,
   Layers,
   Wallet,
-  Target
+  Target,
+  Clock,
+  ShieldAlert
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -126,8 +128,8 @@ export default function TradingDashboard() {
   }
 
   async function uploadFile(file: File) {
-    if (selectedPhotos.length >= 2) {
-      toast({ title: "Limit reached", description: "Maximum 2 photos allowed", variant: "destructive" });
+    if (selectedPhotos.length >= 3) {
+      toast({ title: "Limit reached", description: "Maximum 3 photos allowed", variant: "destructive" });
       return;
     }
 
@@ -166,6 +168,8 @@ export default function TradingDashboard() {
       actif: formData.get("actif"),
       type: formData.get("type"),
       profit: parseFloat(formData.get("profit") as string),
+      risk: parseFloat(formData.get("risk") as string),
+      timeframe: formData.get("timeframe"),
       compte: formData.get("compte"),
       strategie: formData.get("strategie"),
       observations: formData.get("observations"),
@@ -310,24 +314,38 @@ export default function TradingDashboard() {
     );
   }
 
+  const getR = (profit: number, risk: number) => {
+    if (!risk || risk === 0) return 0;
+    return profit / risk;
+  };
+
   const statsByStrategy = trades.reduce((acc: any, t) => {
     const s = t.strategie || "Unknown";
-    if (!acc[s]) acc[s] = { profit: 0, count: 0 };
+    if (!acc[s]) acc[s] = { profit: 0, count: 0, rTotal: 0 };
     acc[s].profit += Number(t.profit);
     acc[s].count += 1;
+    acc[s].rTotal += getR(Number(t.profit), Number(t.risk));
     return acc;
   }, {});
 
   const statsByAccount = trades.reduce((acc: any, t) => {
     const a = t.compte || "Unknown";
-    if (!acc[a]) acc[a] = { profit: 0, count: 0 };
+    if (!acc[a]) acc[a] = { profit: 0, count: 0, rTotal: 0 };
     acc[a].profit += Number(t.profit);
     acc[a].count += 1;
+    acc[a].rTotal += getR(Number(t.profit), Number(t.risk));
     return acc;
   }, {});
 
   const totalProfit = trades.reduce((acc, t) => acc + Number(t.profit), 0);
   const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
+  
+  const rValues = trades.map(t => getR(Number(t.profit), Number(t.risk)));
+  const avgR = rValues.length ? (rValues.reduce((a, b) => a + b, 0) / rValues.length).toFixed(2) : "0.00";
+  const bestR = rValues.length ? Math.max(...rValues).toFixed(2) : "0.00";
+  const worstR = rValues.length ? Math.min(...rValues).toFixed(2) : "0.00";
+
+  const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
   return (
     <div className="min-h-screen font-cyber pb-20">
@@ -378,6 +396,33 @@ export default function TradingDashboard() {
           </AnimatePresence>
         </div>
 
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-arcade text-[10px] text-white/50">Average R</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${Number(avgR) >= 0 ? 'text-secondary' : 'text-primary'}`}>{avgR}R</div>
+            </CardContent>
+          </Card>
+          <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-arcade text-[10px] text-white/50">Best R</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-secondary">{bestR}R</div>
+            </CardContent>
+          </Card>
+          <Card className="cyber-card bg-[#0d0e14]/60 border-white/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-arcade text-[10px] text-white/50">Worst R</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{worstR}R</div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="cyber-card bg-[#0d0e14]/40">
             <CardHeader><CardTitle className="font-arcade text-xs text-secondary">Profit by Strategy</CardTitle></CardHeader>
@@ -386,9 +431,12 @@ export default function TradingDashboard() {
                 {Object.entries(statsByStrategy).map(([strategy, data]: [string, any]) => (
                   <div key={strategy} className="flex justify-between items-center group">
                     <span className="text-white/60 group-hover:text-white transition-colors">{strategy} <span className="text-[10px] text-white/20">[{data.count}]</span></span>
-                    <span className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
-                      {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
-                    </span>
+                    <div className="text-right">
+                      <div className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
+                        {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-white/40">Avg: {(data.rTotal / data.count).toFixed(2)}R</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -401,9 +449,12 @@ export default function TradingDashboard() {
                 {Object.entries(statsByAccount).map(([account, data]: [string, any]) => (
                   <div key={account} className="flex justify-between items-center group">
                     <span className="text-white/60 group-hover:text-white transition-colors">{account} <span className="text-[10px] text-white/20">[{data.count}]</span></span>
-                    <span className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
-                      {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
-                    </span>
+                    <div className="text-right">
+                      <div className={`font-mono ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
+                        {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-white/40">Avg: {(data.rTotal / data.count).toFixed(2)}R</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -428,6 +479,15 @@ export default function TradingDashboard() {
                   <Input name="actif" className="bg-white/5 border-white/10 text-white" placeholder="e.g. BTC/USD" required />
                 </div>
                 <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">Timeframe</Label>
+                  <Select name="timeframe" defaultValue="1H">
+                    <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-[#0d0e14] border-white/10">
+                      {timeframes.map(tf => <SelectItem key={tf} value={tf}>{tf}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label className="font-arcade text-[9px] text-white/50">Type</Label>
                   <Select name="type" defaultValue="long">
                     <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
@@ -442,6 +502,10 @@ export default function TradingDashboard() {
                   <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white" placeholder="0.00" required />
                 </div>
                 <div className="space-y-2">
+                  <Label className="font-arcade text-[9px] text-white/50">Max Loss ($) (Risk)</Label>
+                  <Input name="risk" type="number" step="0.01" className="bg-white/5 border-white/10 text-white" placeholder="100.00" required />
+                </div>
+                <div className="space-y-2">
                   <Label className="font-arcade text-[9px] text-white/50">Account (Compte)</Label>
                   <Input name="compte" className="bg-white/5 border-white/10 text-white" placeholder="e.g. Main" required />
                 </div>
@@ -449,12 +513,15 @@ export default function TradingDashboard() {
                   <Label className="font-arcade text-[9px] text-white/50">Strategy (Strategie)</Label>
                   <Input name="strategie" className="bg-white/5 border-white/10 text-white" placeholder="e.g. Trend Follow" required />
                 </div>
+                <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                  {/* Empty div to balance grid if needed */}
+                </div>
                 <div className="space-y-2 md:col-span-2 lg:col-span-3">
                   <Label className="font-arcade text-[9px] text-white/50">Observations</Label>
                   <Textarea name="observations" className="bg-white/5 border-white/10 text-white min-h-[100px]" placeholder="Market conditions, feelings, lessons..." />
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <Label className="font-arcade text-[9px] text-white/50">Photos (Max 2)</Label>
+                  <Label className="font-arcade text-[9px] text-white/50">Photos (Max 3)</Label>
                   <div className="flex flex-wrap gap-4 mt-2">
                     {selectedPhotos.map((url, i) => (
                       <motion.div key={i} initial={{ scale: 0 }} animate={{ scale: 1 }} className="relative w-24 h-24 border border-white/10 rounded-lg overflow-hidden glow-secondary">
@@ -462,7 +529,7 @@ export default function TradingDashboard() {
                         <button type="button" onClick={() => setSelectedPhotos(selectedPhotos.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 p-1 bg-primary text-white"><X size={12} /></button>
                       </motion.div>
                     ))}
-                    {selectedPhotos.length < 2 && (
+                    {selectedPhotos.length < 3 && (
                       <Label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-all group">
                         {uploading ? <Loader2 className="animate-spin h-6 w-6 text-secondary" /> : <Plus className="h-6 w-6 text-white/20 group-hover:text-secondary" />}
                         <span className="text-[8px] mt-1 text-white/20 group-hover:text-secondary font-arcade">Upload</span>
@@ -488,58 +555,61 @@ export default function TradingDashboard() {
                   <tr className="border-b border-white/5 text-white/40 uppercase font-arcade text-[8px]">
                     <th className="py-4 px-4">Date</th>
                     <th className="py-4 px-4">Asset</th>
-                    <th className="py-4 px-4">Type</th>
                     <th className="py-4 px-4">Result</th>
-                    <th className="py-4 px-4">Strategy</th>
+                    <th className="py-4 px-4">Ratio</th>
                     <th className="py-4 px-4">Photos</th>
                     <th className="py-4 px-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <AnimatePresence>
-                    {trades.map((trade, i) => (
-                      <motion.tr 
-                        key={trade.id} 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="border-b border-white/5 hover:bg-white/5 transition-colors group cursor-pointer"
-                        onClick={() => setSelectedTrade(trade)}
-                      >
-                        <td className="py-4 px-4 text-white/40">{new Date(trade.date).toLocaleDateString()}</td>
-                        <td className="py-4 px-4 text-white font-bold">{trade.actif}</td>
-                        <td className="py-4 px-4"><span className={`px-2 py-0.5 rounded text-[9px] border ${trade.type === 'long' ? 'border-secondary/50 text-secondary bg-secondary/10' : 'border-primary/50 text-primary bg-primary/10'}`}>{trade.type.toUpperCase()}</span></td>
-                        <td className={`py-4 px-4 font-bold ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
-                          {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()}
-                        </td>
-                        <td className="py-4 px-4 text-white/60">{trade.strategie}</td>
-                        <td className="py-4 px-4">
-                          <div className="flex gap-2">
-                            {trade.photos?.map((url: string, i: number) => (
-                              <div key={i} className="relative group/img">
-                                <img 
-                                  src={url} 
-                                  className="w-8 h-8 object-cover rounded border border-white/10 hover:border-secondary transition-colors cursor-zoom-in" 
-                                  alt="Intel" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewPhoto({ url, index: i, photos: trade.photos });
-                                  }} 
-                                />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center pointer-events-none transition-opacity">
-                                  <Maximize2 size={10} className="text-white" />
+                    {trades.map((trade, i) => {
+                      const r = getR(Number(trade.profit), Number(trade.risk));
+                      return (
+                        <motion.tr 
+                          key={trade.id} 
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          className="border-b border-white/5 hover:bg-white/5 transition-colors group cursor-pointer"
+                          onClick={() => setSelectedTrade(trade)}
+                        >
+                          <td className="py-4 px-4 text-white/40">{new Date(trade.date).toLocaleDateString()}</td>
+                          <td className="py-4 px-4">
+                            <div className="text-white font-bold">{trade.actif}</div>
+                            <div className="text-[9px] text-white/30">{trade.timeframe}</div>
+                          </td>
+                          <td className={`py-4 px-4 font-bold ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                            {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()}
+                          </td>
+                          <td className={`py-4 px-4 font-bold ${r >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                            {r >= 0 ? "+" : ""}{r.toFixed(2)}R
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex gap-2">
+                              {trade.photos?.map((url: string, i: number) => (
+                                <div key={i} className="relative group/img">
+                                  <img 
+                                    src={url} 
+                                    className="w-8 h-8 object-cover rounded border border-white/10 hover:border-secondary transition-colors cursor-zoom-in" 
+                                    alt="Intel" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPreviewPhoto({ url, index: i, photos: trade.photos });
+                                    }} 
+                                  />
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <Button variant="ghost" size="icon" onClick={(e) => deleteTrade(trade.id, e)} className="text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </motion.tr>
-                    ))}
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <Button variant="ghost" size="icon" onClick={(e) => deleteTrade(trade.id, e)} className="text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </AnimatePresence>
                 </tbody>
               </table>
@@ -629,15 +699,27 @@ export default function TradingDashboard() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
-                    <Wallet className="h-3 w-3" /> SOURCE_ACCOUNT
+                    <Clock className="h-3 w-3" /> TIMEFRAME
                   </Label>
-                  <p className="font-mono text-sm">{selectedTrade.compte}</p>
+                  <p className="font-mono text-sm">{selectedTrade.timeframe}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
                     <Layers className="h-3 w-3" /> PROTO_STRAT
                   </Label>
                   <p className="font-mono text-sm">{selectedTrade.strategie}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <Wallet className="h-3 w-3" /> SOURCE_ACCOUNT
+                  </Label>
+                  <p className="font-mono text-sm">{selectedTrade.compte}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <ShieldAlert className="h-3 w-3" /> RISK_VAL
+                  </Label>
+                  <p className="font-mono text-sm">${Number(selectedTrade.risk).toLocaleString()}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-arcade text-white/40">VECTOR</Label>
@@ -649,9 +731,14 @@ export default function TradingDashboard() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-arcade text-white/40">YIELD_RESULT</Label>
-                  <p className={`font-mono text-xl font-bold ${Number(selectedTrade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
-                    {Number(selectedTrade.profit) >= 0 ? "+" : ""}${Number(selectedTrade.profit).toLocaleString()}
-                  </p>
+                  <div className="flex flex-col">
+                    <span className={`font-mono text-xl font-bold ${Number(selectedTrade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                      {Number(selectedTrade.profit) >= 0 ? "+" : ""}${Number(selectedTrade.profit).toLocaleString()}
+                    </span>
+                    <span className={`text-xs font-bold ${getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                      ({getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "+" : ""}{getR(Number(selectedTrade.profit), Number(selectedTrade.risk)).toFixed(2)}R)
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -665,7 +752,7 @@ export default function TradingDashboard() {
               {selectedTrade.photos?.length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-[10px] font-arcade text-white/40">VISUAL_INTEL_GALLERY</Label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-2">
                     {selectedTrade.photos.map((url: string, i: number) => (
                       <div 
                         key={i} 
@@ -673,9 +760,6 @@ export default function TradingDashboard() {
                         onClick={() => setPreviewPhoto({ url, index: i, photos: selectedTrade.photos })}
                       >
                         <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <Maximize2 className="text-white" />
-                        </div>
                       </div>
                     ))}
                   </div>
