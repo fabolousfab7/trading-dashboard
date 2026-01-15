@@ -23,7 +23,14 @@ export async function registerRoutes(
       .eq('user_id', user.id);
 
     if (error) return res.status(500).json({ message: error.message });
-    res.json(data);
+    
+    // Map max_loss from DB to risk in frontend if needed
+    const mappedData = data.map(t => ({
+      ...t,
+      risk: t.max_loss
+    }));
+    
+    res.json(mappedData);
   });
 
   app.post(api.trades.create.path, async (req, res) => {
@@ -35,7 +42,13 @@ export async function registerRoutes(
     
     if (authError || !user) return res.status(401).json({ message: "Unauthorized" });
 
-    const tradeData = { ...req.body, user_id: user.id };
+    const { risk, ...rest } = req.body;
+    const tradeData = { 
+      ...rest, 
+      max_loss: risk,
+      user_id: user.id 
+    };
+
     const { data, error } = await supabase
       .from('trades')
       .insert([tradeData])
@@ -43,7 +56,13 @@ export async function registerRoutes(
       .single();
 
     if (error) return res.status(400).json({ message: error.message });
-    res.status(201).json(data);
+    
+    const mappedResult = {
+      ...data,
+      risk: data.max_loss
+    };
+    
+    res.status(201).json(mappedResult);
   });
 
   app.delete(api.trades.delete.path, async (req, res) => {
@@ -76,12 +95,14 @@ export async function registerRoutes(
 
     const { data, error } = await supabase
       .from('trades')
-      .select('profit')
+      .select('profit, max_loss')
       .eq('user_id', user.id);
 
     if (error) return res.status(500).json({ message: error.message });
 
     const results = data.map(t => Number(t.profit));
+    const risks = data.map(t => Number(t.max_loss));
+    
     const totalProfit = results.reduce((a, b) => a + b, 0);
     const winRate = results.length ? (results.filter(r => r > 0).length / results.length) * 100 : 0;
     const bestTrade = results.length ? Math.max(...results) : 0;

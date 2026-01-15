@@ -11,7 +11,7 @@ export const trades = pgTable("trades", {
   compte: text("compte").notNull(),
   strategie: text("strategie").notNull(),
   profit: numeric("profit").notNull(), 
-  risk: numeric("risk").notNull(), // Maximum loss in dollars
+  risk: numeric("max_loss").notNull(), // Maximum loss in dollars (mapped to max_loss in DB)
   timeframe: text("timeframe").notNull(), // 1m, 5m, etc.
   observations: text("observations"),
   photos: jsonb("photos").default([]), // array of image URLs
