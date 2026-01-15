@@ -356,12 +356,14 @@ export default function TradingDashboard() {
 
   const getR = (profit: number, risk: number) => {
     if (!risk || risk === 0) return 0;
-    // R is Profit / Risk. The sign should match profit's outcome.
+    // Calculation: Profit / Risk
+    // Math Proof: profit=$23, risk=$25 -> 23 / 25 = 0.92
+    // If profit is negative: -25 / 25 = -1.00
     return profit / risk;
   };
 
   const formatR = (r: number) => {
-    const sign = r >= 0 ? "+" : "";
+    const sign = r > 0 ? "+" : "";
     return `${sign}${r.toFixed(2)}R`;
   };
 
@@ -403,7 +405,7 @@ export default function TradingDashboard() {
               <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider uppercase">Trading Terminal</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                <p className="text-[9px] font-arcade text-secondary/70 uppercase tracking-widest">System Online // Logged in as {user.email}</p>
+                <p className="text-[9px] font-arcade text-secondary/70 uppercase tracking-widest">Active Session</p>
               </div>
             </div>
           </div>
@@ -432,7 +434,7 @@ export default function TradingDashboard() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "Total Profit/Loss", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown, glow: totalProfit >= 0 ? "shadow-secondary/20" : "shadow-primary/20" },
-              { label: "Execution Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap, glow: "shadow-accent/20" },
+              { label: "Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap, glow: "shadow-accent/20" },
               { label: "Total Trades", value: trades.length, color: "text-white", icon: History, glow: "shadow-white/5" },
               { label: "Total R-Ratio", value: formatR(totalR), color: totalR >= 0 ? "text-secondary" : "text-primary", icon: Activity, glow: totalR >= 0 ? "shadow-secondary/20" : "shadow-primary/20" }
             ].map((stat, i) => (
