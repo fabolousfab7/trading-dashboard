@@ -24,8 +24,6 @@ import {
   Trash2, 
   Download, 
   Upload, 
-  Cpu, 
-  Zap, 
   Activity, 
   X, 
   ChevronLeft, 
@@ -40,7 +38,8 @@ import {
   Edit2,
   Save,
   BarChart3,
-  History
+  History,
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -322,7 +321,7 @@ export default function TradingDashboard() {
             <CardContent className="pb-8">
               <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">User ID (Email)</Label>
+                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">Email</Label>
                   <Input 
                     type="email" 
                     value={email} 
@@ -333,7 +332,7 @@ export default function TradingDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">Access Key (Password)</Label>
+                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">Password</Label>
                   <Input 
                     type="password" 
                     value={password} 
@@ -357,7 +356,13 @@ export default function TradingDashboard() {
 
   const getR = (profit: number, risk: number) => {
     if (!risk || risk === 0) return 0;
+    // R is Profit / Risk. The sign should match profit's outcome.
     return profit / risk;
+  };
+
+  const formatR = (r: number) => {
+    const sign = r >= 0 ? "+" : "";
+    return `${sign}${r.toFixed(2)}R`;
   };
 
   const statsByStrategy = trades.reduce((acc: any, t) => {
@@ -382,9 +387,7 @@ export default function TradingDashboard() {
   const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
   
   const rValues = trades.map(t => getR(Number(t.profit), Number(t.risk)));
-  const avgR = rValues.length ? (rValues.reduce((a, b) => a + b, 0) / rValues.length).toFixed(2) : "0.00";
-  const bestR = rValues.length ? Math.max(...rValues).toFixed(2) : "0.00";
-  const worstR = rValues.length ? Math.min(...rValues).toFixed(2) : "0.00";
+  const totalR = rValues.reduce((a, b) => a + b, 0);
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
@@ -397,7 +400,7 @@ export default function TradingDashboard() {
               <Activity className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider">TRADING DASHBOARD</h1>
+              <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider uppercase">Trading Terminal</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
                 <p className="text-[9px] font-arcade text-secondary/70 uppercase tracking-widest">System Online // Logged in as {user.email}</p>
@@ -424,13 +427,14 @@ export default function TradingDashboard() {
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2 px-2">
             <BarChart3 className="h-5 w-5 text-secondary" />
-            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Performance Matrix</h2>
+            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Performance Metrics</h2>
           </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "Total Profit/Loss", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown, glow: totalProfit >= 0 ? "shadow-secondary/20" : "shadow-primary/20" },
               { label: "Execution Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap, glow: "shadow-accent/20" },
-              { label: "System Data Points", value: trades.length, color: "text-white", icon: Cpu, glow: "shadow-white/5" }
+              { label: "Total Trades", value: trades.length, color: "text-white", icon: History, glow: "shadow-white/5" },
+              { label: "Total R-Ratio", value: formatR(totalR), color: totalR >= 0 ? "text-secondary" : "text-primary", icon: Activity, glow: totalR >= 0 ? "shadow-secondary/20" : "shadow-primary/20" }
             ].map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -440,13 +444,13 @@ export default function TradingDashboard() {
               >
                 <Card className={`cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl shadow-xl ${stat.glow}`}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                    <CardTitle className="font-arcade text-[9px] text-white/40 tracking-widest">{stat.label}</CardTitle>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">{stat.label}</CardTitle>
                     <div className={`p-2 rounded-lg bg-white/5 border border-white/5`}>
                       <stat.icon className={`h-4 w-4 ${stat.color}`} />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-4xl font-bold ${stat.color} tracking-tight font-cyber`}>{stat.value}</div>
+                    <div className={`text-3xl font-bold ${stat.color} tracking-tight font-cyber`}>{stat.value}</div>
                     <div className="h-1 w-full bg-white/5 rounded-full mt-6 overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }} 
@@ -459,35 +463,11 @@ export default function TradingDashboard() {
               </motion.div>
             ))}
           </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              { label: "Average Efficiency", value: `${avgR}R`, color: Number(avgR) >= 0 ? 'text-secondary' : 'text-primary' },
-              { label: "Peak Performance", value: `${bestR}R`, color: 'text-secondary' },
-              { label: "Critical Risk Point", value: `${worstR}R`, color: 'text-primary' }
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
-              >
-                <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl hover:border-white/20 transition-all">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="font-arcade text-[8px] text-white/30 tracking-widest">{stat.label}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold ${stat.color} font-cyber`}>{stat.value}</div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
         </section>
 
         <div className="grid gap-8 lg:grid-cols-2">
           <Card className="cyber-card bg-[#0d0e14]/40 border-secondary/10 rounded-2xl">
-            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-secondary tracking-widest">STRATEGY VECTOR BREAKDOWN</CardTitle></CardHeader>
+            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-secondary tracking-widest uppercase">Performance by Strategy</CardTitle></CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-5">
                 {Object.entries(statsByStrategy).length === 0 ? (
@@ -496,13 +476,13 @@ export default function TradingDashboard() {
                   <div key={strategy} className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all">
                     <div className="space-y-1">
                       <span className="text-white/80 group-hover:text-white transition-colors font-medium">{strategy}</span>
-                      <div className="text-[9px] text-white/30 font-arcade">SAMPLES: {data.count}</div>
+                      <div className="text-[9px] text-white/30 font-arcade uppercase">Trades: {data.count}</div>
                     </div>
                     <div className="text-right">
                       <div className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
                         {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-white/40 font-mono tracking-tighter">AVG EFFICIENCY: {(data.rTotal / data.count).toFixed(2)}R</div>
+                      <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">Total Ratio: {formatR(data.rTotal)}</div>
                     </div>
                   </div>
                 ))}
@@ -510,7 +490,7 @@ export default function TradingDashboard() {
             </CardContent>
           </Card>
           <Card className="cyber-card bg-[#0d0e14]/40 border-accent/10 rounded-2xl">
-            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-accent tracking-widest">ACCOUNT CLUSTER ANALYSIS</CardTitle></CardHeader>
+            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-accent tracking-widest uppercase">Performance by Account</CardTitle></CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-5">
                 {Object.entries(statsByAccount).length === 0 ? (
@@ -519,13 +499,13 @@ export default function TradingDashboard() {
                   <div key={account} className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all">
                     <div className="space-y-1">
                       <span className="text-white/80 group-hover:text-white transition-colors font-medium">{account}</span>
-                      <div className="text-[9px] text-white/30 font-arcade">SAMPLES: {data.count}</div>
+                      <div className="text-[9px] text-white/30 font-arcade uppercase">Trades: {data.count}</div>
                     </div>
                     <div className="text-right">
                       <div className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}>
                         {data.profit >= 0 ? "+" : ""}${data.profit.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-white/40 font-mono tracking-tighter">AVG EFFICIENCY: {(data.rTotal / data.count).toFixed(2)}R</div>
+                      <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">Total Ratio: {formatR(data.rTotal)}</div>
                     </div>
                   </div>
                 ))}
@@ -542,21 +522,21 @@ export default function TradingDashboard() {
         >
           <div className="flex items-center gap-3 mb-2 px-2">
             <Plus className="h-5 w-5 text-primary" />
-            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Add New Trade</h2>
+            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Log New Trade</h2>
           </div>
           <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
             <CardContent className="p-8">
               <form onSubmit={addTrade} className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Calendar className="h-3 w-3" /> Date</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Calendar className="h-3 w-3" /> Date</Label>
                   <Input name="date" type="date" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" defaultValue={new Date().toISOString().split('T')[0]} required />
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Target className="h-3 w-3" /> Asset (Actif)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Target className="h-3 w-3" /> Asset</Label>
                   <Input name="actif" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. BTC/USD" required />
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Clock className="h-3 w-3" /> Timeframe</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Clock className="h-3 w-3" /> Timeframe</Label>
                   <Select name="timeframe" defaultValue="1H">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -565,7 +545,7 @@ export default function TradingDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Activity className="h-3 w-3" /> Type</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Activity className="h-3 w-3" /> Type</Label>
                   <Select name="type" defaultValue="long">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -575,28 +555,28 @@ export default function TradingDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><TrendingUp className="h-3 w-3" /> Result ($) (Profit)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><TrendingUp className="h-3 w-3" /> Profit / Loss ($)</Label>
                   <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11" placeholder="0.00" required />
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><ShieldAlert className="h-3 w-3" /> Max Loss ($) (Risk)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><ShieldAlert className="h-3 w-3" /> Max Risk ($)</Label>
                   <Input name="risk" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="100.00" required />
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Wallet className="h-3 w-3" /> Account (Compte)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Wallet className="h-3 w-3" /> Account</Label>
                   <Input name="compte" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Main" required />
                 </div>
                 <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2"><Layers className="h-3 w-3" /> Strategy (Strategie)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Layers className="h-3 w-3" /> Strategy</Label>
                   <Input name="strategie" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Trend Follow" required />
                 </div>
                 <div className="space-y-3 md:col-span-2 lg:col-span-4">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest">Observations</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">Observations</Label>
                   <Textarea name="observations" className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20" placeholder="Analyze market behavior, emotional state, and core learnings..." />
-                  <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2">CTRL+V TO PASTE IMAGE INTEL</p>
+                  <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">CTRL+V TO PASTE SCREENSHOTS</p>
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest">Photos (Max 3)</Label>
+                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">Photos (Max 3)</Label>
                   <div className="flex flex-wrap gap-5 mt-2">
                     {selectedPhotos.map((url, i) => (
                       <motion.div key={i} initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }} className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50">
@@ -616,7 +596,7 @@ export default function TradingDashboard() {
                   </div>
                 </div>
                 <div className="flex items-end lg:col-start-4">
-                  <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[11px] h-14 rounded-2xl shadow-xl shadow-primary/10 transition-all active:scale-[0.98]" disabled={uploading}>Add Trade</Button>
+                  <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[11px] h-14 rounded-2xl shadow-xl shadow-primary/10 transition-all active:scale-[0.98]" disabled={uploading}>Save Trade</Button>
                 </div>
               </form>
             </CardContent>
@@ -636,17 +616,16 @@ export default function TradingDashboard() {
                     <tr className="border-b border-white/5 bg-white/[0.02] text-white/30 uppercase font-arcade text-[8px] tracking-[0.2em]">
                       <th className="py-6 px-6">Date</th>
                       <th className="py-6 px-6">Asset</th>
-                      <th className="py-6 px-6">Result</th>
-                      <th className="py-6 px-6">Ratio</th>
+                      <th className="py-6 px-6">Result (R-Ratio)</th>
                       <th className="py-6 px-6">Visuals</th>
-                      <th className="py-6 px-6 text-right">Command</th>
+                      <th className="py-6 px-6 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     <AnimatePresence>
                       {trades.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest">No trade logs detected</td>
+                          <td colSpan={5} className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase">No trades found</td>
                         </tr>
                       ) : trades.map((trade, i) => {
                         const r = getR(Number(trade.profit), Number(trade.risk));
@@ -664,13 +643,9 @@ export default function TradingDashboard() {
                               <div className="text-white font-bold text-sm tracking-tight">{trade.actif}</div>
                               <div className="text-[9px] text-secondary/50 font-arcade uppercase mt-1 tracking-widest">{trade.timeframe} // {trade.type}</div>
                             </td>
-                            <td className={`py-6 px-6 font-bold text-base ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
-                              {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()}
-                            </td>
-                            <td className={`py-6 px-6`}>
-                              <div className={`font-bold text-sm ${r >= 0 ? 'text-secondary' : 'text-primary'} flex items-center gap-2`}>
-                                <div className={`w-1 h-4 rounded-full ${r >= 0 ? 'bg-secondary/40' : 'bg-primary/40'}`} />
-                                {r >= 0 ? "+" : ""}{r.toFixed(2)}R
+                            <td className={`py-6 px-6 font-bold`}>
+                              <div className={`text-base ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                                {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()} ({formatR(r)})
                               </div>
                             </td>
                             <td className="py-6 px-6">
@@ -680,7 +655,7 @@ export default function TradingDashboard() {
                                     key={i} 
                                     src={url} 
                                     className="w-8 h-8 object-cover rounded-lg border border-white/20 shadow-lg transition-transform hover:scale-110 hover:z-10" 
-                                    alt="Intel" 
+                                    alt="Trade Snapshot" 
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setPreviewPhoto({ url, index: i, photos: trade.photos });
@@ -788,8 +763,8 @@ export default function TradingDashboard() {
                 {isEditing ? <Edit2 className="h-5 w-5" /> : <Activity className="h-5 w-5" />}
               </div>
               <div className="flex flex-col">
-                <span className="text-[12px] tracking-[0.3em] uppercase">{isEditing ? 'EDIT_TRADE_LOG' : 'TRADE_DETAILS'}</span>
-                <span className="text-[10px] text-white/30 font-mono">ID: {selectedTrade?.id}</span>
+                <span className="text-[12px] tracking-[0.3em] uppercase">{isEditing ? 'Edit Trade' : 'Trade Details'}</span>
+                <span className="text-[10px] text-white/30 font-mono uppercase">ID: {selectedTrade?.id}</span>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -799,7 +774,7 @@ export default function TradingDashboard() {
               {isEditing ? (
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Date</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Date</Label>
                     <Input 
                       type="date" 
                       value={editData?.date?.split('T')[0]} 
@@ -808,7 +783,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Asset (Actif)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Asset</Label>
                     <Input 
                       value={editData?.actif} 
                       onChange={e => setEditData({...editData, actif: e.target.value})}
@@ -816,7 +791,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Timeframe</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Timeframe</Label>
                     <Select value={editData?.timeframe} onValueChange={v => setEditData({...editData, timeframe: v})}>
                       <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -825,7 +800,7 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Type</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Type</Label>
                     <Select value={editData?.type} onValueChange={v => setEditData({...editData, type: v})}>
                       <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -835,7 +810,7 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Result ($) (Profit)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Profit / Loss ($)</Label>
                     <Input 
                       type="number"
                       value={editData?.profit} 
@@ -844,7 +819,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Max Loss ($) (Risk)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Max Risk ($)</Label>
                     <Input 
                       type="number"
                       value={editData?.risk} 
@@ -853,7 +828,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Account (Compte)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Account</Label>
                     <Input 
                       value={editData?.compte} 
                       onChange={e => setEditData({...editData, compte: e.target.value})}
@@ -861,7 +836,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Strategy (Strategie)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Strategy</Label>
                     <Input 
                       value={editData?.strategie} 
                       onChange={e => setEditData({...editData, strategie: e.target.value})}
@@ -869,7 +844,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Observations</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Observations</Label>
                     <Textarea 
                       value={editData?.observations} 
                       onChange={e => setEditData({...editData, observations: e.target.value})}
@@ -877,7 +852,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-white/40">Photos (Max 3)</Label>
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">Photos (Max 3)</Label>
                     <div className="flex flex-wrap gap-4 mt-2">
                       {editData.photos?.map((url: string, i: number) => (
                         <div key={i} className="relative w-20 h-20 border border-white/10 rounded-xl overflow-hidden group">
@@ -948,7 +923,7 @@ export default function TradingDashboard() {
                           {Number(selectedTrade.profit) >= 0 ? "+" : ""}${Number(selectedTrade.profit).toLocaleString()}
                         </span>
                         <span className={`text-[10px] font-bold ${getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? 'text-secondary/50' : 'text-primary/50'}`}>
-                          ({getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "+" : ""}{getR(Number(selectedTrade.profit), Number(selectedTrade.risk)).toFixed(2)}R)
+                          ({formatR(getR(Number(selectedTrade.profit), Number(selectedTrade.risk)))})
                         </span>
                       </div>
                     </div>
