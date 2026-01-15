@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 230 25% 5%;
+    --background: 230 25% 4%;
     --foreground: 0 0% 100%;
-    --card: 230 25% 7%;
+    --card: 230 25% 6%;
     --card-foreground: 0 0% 100%;
-    --popover: 230 25% 7%;
+    --popover: 230 25% 6%;
     --popover-foreground: 0 0% 100%;
     --primary: 320 100% 60%;
     --primary-foreground: 0 0% 100%;
     --secondary: 190 100% 50%;
     --secondary-foreground: 230 25% 5%;
-    --muted: 230 25% 15%;
+    --muted: 230 25% 12%;
     --muted-foreground: 230 10% 70%;
     --accent: 280 100% 60%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 100% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 25% 15%;
-    --input: 230 25% 15%;
+    --border: 230 25% 12%;
+    --input: 230 25% 12%;
     --ring: 320 100% 60%;
-    --radius: 0.25rem;
+    --radius: 0.75rem;
   }
 }
 
@@ -34,47 +34,68 @@
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/30;
     background-image: 
-      radial-gradient(circle at 50% 50%, rgba(255, 0, 128, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 100% 0%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
-      linear-gradient(rgba(13, 14, 18, 0.9) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(13, 14, 18, 0.9) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+      radial-gradient(circle at 50% 0%, rgba(255, 0, 128, 0.08) 0%, transparent 60%),
+      radial-gradient(circle at 100% 100%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
     background-attachment: fixed;
   }
 }
 
 @layer components {
   .cyber-card {
-    @apply relative bg-card/40 backdrop-blur-md border border-white/10 overflow-hidden;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    @apply relative bg-card/60 backdrop-blur-xl border border-white/5 overflow-hidden transition-all duration-300 shadow-2xl;
   }
   
-  .cyber-card::before {
+  .cyber-card::after {
     content: "";
-    @apply absolute inset-0 opacity-20 pointer-events-none;
-    background: linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.1) 45%, rgba(255, 255, 255, 0.1) 55%, transparent 60%);
-    animation: shine 5s infinite;
+    @apply absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500;
+    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  }
+
+  .cyber-card:hover::after {
+    @apply opacity-100;
   }
 
   .glow-primary {
-    @apply shadow-[0_0_15px_rgba(255,0,128,0.4)] hover:shadow-[0_0_25px_rgba(255,0,128,0.6)] transition-all;
+    @apply shadow-[0_0_20px_rgba(255,0,128,0.3)] hover:shadow-[0_0_35px_rgba(255,0,128,0.5)] transition-all;
   }
 
   .glow-secondary {
-    @apply shadow-[0_0_15px_rgba(0,255,255,0.4)] hover:shadow-[0_0_25px_rgba(0,255,255,0.6)] transition-all;
+    @apply shadow-[0_0_20px_rgba(0,255,255,0.3)] hover:shadow-[0_0_35px_rgba(0,255,255,0.5)] transition-all;
   }
 
   .font-arcade {
     font-family: 'Press Start 2P', cursive;
-    @apply tracking-tighter;
+    @apply tracking-widest leading-relaxed;
   }
 
   .font-cyber {
     font-family: 'Space Grotesk', sans-serif;
   }
+
+  .animate-gradient-x {
+    background-size: 200% 200%;
+    animation: gradient-x 15s ease infinite;
+  }
 }
 
-@keyframes shine {
-  0% { transform: translateX(-100%) translateY(-100%); }
-  100% { transform: translateX(100%) translateY(100%); }
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
 }
