@@ -39,7 +39,8 @@ import {
   Save,
   BarChart3,
   History,
-  Zap
+  Zap,
+  Terminal
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -313,10 +314,9 @@ export default function TradingDashboard() {
           <Card className="cyber-card border-none bg-[#0a0b10] rounded-2xl">
             <CardHeader className="text-center pt-8">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20 glow-primary">
-                <Activity className="h-8 w-8 text-primary" />
+                <Terminal className="h-8 w-8 text-primary" />
               </div>
-              <CardTitle className="font-arcade text-xl text-primary tracking-widest">NEURAL TERMINAL</CardTitle>
-              <p className="text-[10px] text-white/40 mt-2 font-arcade uppercase">Authorized personnel only</p>
+              <CardTitle className="font-arcade text-xl text-primary tracking-widest">TRADING TERMINAL</CardTitle>
             </CardHeader>
             <CardContent className="pb-8">
               <form onSubmit={handleLogin} className="space-y-6">
@@ -344,7 +344,7 @@ export default function TradingDashboard() {
                 </div>
                 <div className="flex flex-col gap-3 pt-4">
                   <Button type="submit" className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]">CONNECT</Button>
-                  <Button type="button" variant="ghost" onClick={handleSignUp} className="w-full text-white/50 hover:text-white font-arcade text-[10px] h-10 transition-all">INITIALIZE NEW ACCOUNT</Button>
+                  <Button type="button" variant="ghost" onClick={handleSignUp} className="w-full text-white/50 hover:text-white font-arcade text-[10px] h-10 transition-all">SIGN UP</Button>
                 </div>
               </form>
             </CardContent>
@@ -359,7 +359,8 @@ export default function TradingDashboard() {
     // Calculation: Profit / Risk
     // Math Proof: profit=$23, risk=$25 -> 23 / 25 = 0.92
     // If profit is negative: -25 / 25 = -1.00
-    return profit / risk;
+    // Force risk to absolute to ensure profit sign dictates R sign
+    return profit / Math.abs(risk);
   };
 
   const formatR = (r: number) => {
@@ -399,14 +400,10 @@ export default function TradingDashboard() {
         <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-white/10 pb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 glow-primary shadow-lg shadow-primary/10">
-              <Activity className="h-8 w-8 text-primary" />
+              <Terminal className="h-8 w-8 text-primary" />
             </div>
             <div>
               <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider uppercase">Trading Terminal</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                <p className="text-[9px] font-arcade text-secondary/70 uppercase tracking-widest">Active Session</p>
-              </div>
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
@@ -950,8 +947,8 @@ export default function TradingDashboard() {
                             className="relative aspect-video rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group shadow-lg"
                             onClick={() => setPreviewPhoto({ url, index: i, photos: selectedTrade.photos })}
                           >
-                            <img src={url} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                            <img src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                            <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
                               <Maximize2 className="text-white h-5 w-5" />
                             </div>
                           </motion.div>
