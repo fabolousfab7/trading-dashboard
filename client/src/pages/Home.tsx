@@ -5,8 +5,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, LogOut, TrendingUp, TrendingDown, Trash2, Download, Upload, Cpu, Zap, Activity } from "lucide-react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogClose 
+} from "@/components/ui/dialog";
+import { 
+  Loader2, 
+  Plus, 
+  LogOut, 
+  TrendingUp, 
+  TrendingDown, 
+  Trash2, 
+  Download, 
+  Upload, 
+  Cpu, 
+  Zap, 
+  Activity, 
+  X, 
+  ChevronLeft, 
+  ChevronRight,
+  Maximize2,
+  Calendar,
+  Layers,
+  Wallet,
+  Target
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function TradingDashboard() {
@@ -17,6 +45,8 @@ export default function TradingDashboard() {
   const [trades, setTrades] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [selectedTrade, setSelectedTrade] = useState<any>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string, index: number, photos: string[] } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -138,6 +168,7 @@ export default function TradingDashboard() {
       profit: parseFloat(formData.get("profit") as string),
       compte: formData.get("compte"),
       strategie: formData.get("strategie"),
+      observations: formData.get("observations"),
       date: formData.get("date") || new Date().toISOString(),
       photos: selectedPhotos,
       user_id: user.id
@@ -154,10 +185,12 @@ export default function TradingDashboard() {
     }
   }
 
-  async function deleteTrade(id: number) {
+  async function deleteTrade(id: number, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
     const { error } = await supabase.from("trades").delete().eq("id", id);
     if (!error) {
       setTrades(trades.filter(t => t.id !== id));
+      if (selectedTrade?.id === id) setSelectedTrade(null);
       toast({ title: "Deleted", description: "Trade removed" });
     }
   }
@@ -196,6 +229,28 @@ export default function TradingDashboard() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const nextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!previewPhoto) return;
+    const nextIdx = (previewPhoto.index + 1) % previewPhoto.photos.length;
+    setPreviewPhoto({
+      ...previewPhoto,
+      index: nextIdx,
+      url: previewPhoto.photos[nextIdx]
+    });
+  };
+
+  const prevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!previewPhoto) return;
+    const prevIdx = (previewPhoto.index - 1 + previewPhoto.photos.length) % previewPhoto.photos.length;
+    setPreviewPhoto({
+      ...previewPhoto,
+      index: prevIdx,
+      url: previewPhoto.photos[prevIdx]
+    });
   };
 
   if (loading) return (
@@ -394,6 +449,10 @@ export default function TradingDashboard() {
                   <Label className="font-arcade text-[9px] text-white/50">Strategy (Strategie)</Label>
                   <Input name="strategie" className="bg-white/5 border-white/10 text-white" placeholder="e.g. Trend Follow" required />
                 </div>
+                <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                  <Label className="font-arcade text-[9px] text-white/50">Observations</Label>
+                  <Textarea name="observations" className="bg-white/5 border-white/10 text-white min-h-[100px]" placeholder="Market conditions, feelings, lessons..." />
+                </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
                   <Label className="font-arcade text-[9px] text-white/50">Photos (Max 2)</Label>
                   <div className="flex flex-wrap gap-4 mt-2">
@@ -444,7 +503,8 @@ export default function TradingDashboard() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="border-b border-white/5 hover:bg-white/5 transition-colors group"
+                        className="border-b border-white/5 hover:bg-white/5 transition-colors group cursor-pointer"
+                        onClick={() => setSelectedTrade(trade)}
                       >
                         <td className="py-4 px-4 text-white/40">{new Date(trade.date).toLocaleDateString()}</td>
                         <td className="py-4 px-4 text-white font-bold">{trade.actif}</td>
@@ -456,12 +516,25 @@ export default function TradingDashboard() {
                         <td className="py-4 px-4">
                           <div className="flex gap-2">
                             {trade.photos?.map((url: string, i: number) => (
-                              <img key={i} src={url} className="w-8 h-8 object-cover rounded border border-white/10 hover:border-secondary transition-colors cursor-zoom-in" alt="Intel" onClick={() => window.open(url, '_blank')} />
+                              <div key={i} className="relative group/img">
+                                <img 
+                                  src={url} 
+                                  className="w-8 h-8 object-cover rounded border border-white/10 hover:border-secondary transition-colors cursor-zoom-in" 
+                                  alt="Intel" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewPhoto({ url, index: i, photos: trade.photos });
+                                  }} 
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center pointer-events-none transition-opacity">
+                                  <Maximize2 size={10} className="text-white" />
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </td>
                         <td className="py-4 px-4">
-                          <Button variant="ghost" size="icon" onClick={() => deleteTrade(trade.id)} className="text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
+                          <Button variant="ghost" size="icon" onClick={(e) => deleteTrade(trade.id, e)} className="text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </td>
@@ -474,6 +547,160 @@ export default function TradingDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* PHOTO PREVIEW MODAL */}
+      <Dialog open={!!previewPhoto} onOpenChange={() => setPreviewPhoto(null)}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/90 border-white/10 overflow-hidden flex flex-col cyber-card">
+          <div className="relative flex-1 flex items-center justify-center p-4 min-h-[500px]">
+            <AnimatePresence mode="wait">
+              <motion.img
+                key={previewPhoto?.url}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                src={previewPhoto?.url}
+                className="max-w-full max-h-[80vh] object-contain shadow-2xl"
+              />
+            </AnimatePresence>
+
+            {previewPhoto && previewPhoto.photos.length > 1 && (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white hover:bg-black/70 rounded-full"
+                  onClick={prevPhoto}
+                >
+                  <ChevronLeft className="h-8 w-8" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white hover:bg-black/70 rounded-full"
+                  onClick={nextPhoto}
+                >
+                  <ChevronRight className="h-8 w-8" />
+                </Button>
+              </>
+            )}
+
+            <DialogClose className="absolute top-4 right-4 p-2 bg-black/50 text-white hover:bg-black/70 rounded-full">
+              <X className="h-6 w-6" />
+            </DialogClose>
+          </div>
+          {previewPhoto && previewPhoto.photos.length > 1 && (
+            <div className="p-4 flex justify-center gap-2 bg-black/50 border-t border-white/10">
+              {previewPhoto.photos.map((url, i) => (
+                <div 
+                  key={i} 
+                  className={`w-16 h-16 border-2 rounded overflow-hidden cursor-pointer transition-all ${i === previewPhoto.index ? 'border-primary' : 'border-transparent opacity-50'}`}
+                  onClick={() => setPreviewPhoto({ ...previewPhoto, url, index: i })}
+                >
+                  <img src={url} className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* TRADE DETAILS MODAL */}
+      <Dialog open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
+        <DialogContent className="max-w-2xl bg-[#0d0e14] border-primary/30 text-white cyber-card">
+          <DialogHeader>
+            <DialogTitle className="font-arcade text-primary text-sm flex items-center gap-2">
+              <Activity className="h-4 w-4" /> TRADE_INTEL_REPORT
+            </DialogTitle>
+          </DialogHeader>
+          {selectedTrade && (
+            <div className="space-y-6 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> TIMESTAMP
+                  </Label>
+                  <p className="font-mono text-sm">{new Date(selectedTrade.date).toLocaleDateString()} {new Date(selectedTrade.date).toLocaleTimeString()}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <Target className="h-3 w-3" /> IDENTIFIER
+                  </Label>
+                  <p className="font-mono text-sm font-bold text-secondary">{selectedTrade.actif}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <Wallet className="h-3 w-3" /> SOURCE_ACCOUNT
+                  </Label>
+                  <p className="font-mono text-sm">{selectedTrade.compte}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40 flex items-center gap-1">
+                    <Layers className="h-3 w-3" /> PROTO_STRAT
+                  </Label>
+                  <p className="font-mono text-sm">{selectedTrade.strategie}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40">VECTOR</Label>
+                  <div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] border ${selectedTrade.type === 'long' ? 'border-secondary/50 text-secondary bg-secondary/10' : 'border-primary/50 text-primary bg-primary/10'}`}>
+                      {selectedTrade.type.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-arcade text-white/40">YIELD_RESULT</Label>
+                  <p className={`font-mono text-xl font-bold ${Number(selectedTrade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                    {Number(selectedTrade.profit) >= 0 ? "+" : ""}${Number(selectedTrade.profit).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {selectedTrade.observations && (
+                <div className="space-y-2 p-4 bg-white/5 rounded-lg border border-white/10">
+                  <Label className="text-[10px] font-arcade text-white/40">OBSERVATIONS_LOG</Label>
+                  <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{selectedTrade.observations}</p>
+                </div>
+              )}
+
+              {selectedTrade.photos?.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-arcade text-white/40">VISUAL_INTEL_GALLERY</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedTrade.photos.map((url: string, i: number) => (
+                      <div 
+                        key={i} 
+                        className="relative group cursor-zoom-in rounded-lg overflow-hidden border border-white/10 hover:border-secondary transition-all aspect-video"
+                        onClick={() => setPreviewPhoto({ url, index: i, photos: selectedTrade.photos })}
+                      >
+                        <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Maximize2 className="text-white" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  className="border-red-500/50 text-red-500 hover:bg-red-500/10 font-arcade text-[10px]"
+                  onClick={() => deleteTrade(selectedTrade.id)}
+                >
+                  PURGE_RECORD
+                </Button>
+                <Button 
+                  className="bg-primary hover:bg-primary/80 font-arcade text-[10px]"
+                  onClick={() => setSelectedTrade(null)}
+                >
+                  CLOSE_TERMINAL
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

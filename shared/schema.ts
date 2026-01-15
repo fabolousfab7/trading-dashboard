@@ -11,6 +11,7 @@ export const trades = pgTable("trades", {
   compte: text("compte").notNull(),
   strategie: text("strategie").notNull(),
   profit: numeric("profit").notNull(), 
+  observations: text("observations"),
   photos: jsonb("photos").default([]), // array of image URLs
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -22,6 +23,7 @@ export const insertTradeSchema = createInsertSchema(trades).omit({
 }).extend({
   date: z.coerce.date(),
   profit: z.coerce.number(),
+  observations: z.string().optional(),
 });
 
 export type Trade = typeof trades.$inferSelect;
