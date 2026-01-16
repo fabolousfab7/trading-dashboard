@@ -390,6 +390,8 @@ export default function TradingDashboard() {
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
+  const sectionTitleStyle = "font-arcade text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary drop-shadow-[0_0_8px_rgba(255,0,128,0.3)] tracking-[0.2em] uppercase";
+
   return (
     <div className="min-h-screen font-cyber pb-20 selection:bg-primary/30">
       <div className="mx-auto max-w-7xl p-4 lg:p-8 space-y-10">
@@ -422,7 +424,7 @@ export default function TradingDashboard() {
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2 px-2">
             <BarChart3 className="h-5 w-5 text-secondary" />
-            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Performance Metrics</h2>
+            <h2 className={sectionTitleStyle}>Performance Metrics</h2>
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {[
@@ -462,7 +464,9 @@ export default function TradingDashboard() {
 
         <div className="grid gap-8 lg:grid-cols-2">
           <Card className="cyber-card bg-[#0d0e14]/40 border-secondary/10 rounded-2xl">
-            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-secondary tracking-widest uppercase">Performance by Strategy</CardTitle></CardHeader>
+            <CardHeader className="border-b border-white/5">
+              <CardTitle className={sectionTitleStyle}>Strategy Vector Breakdown</CardTitle>
+            </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-5">
                 {Object.entries(statsByStrategy).length === 0 ? (
@@ -485,7 +489,9 @@ export default function TradingDashboard() {
             </CardContent>
           </Card>
           <Card className="cyber-card bg-[#0d0e14]/40 border-accent/10 rounded-2xl">
-            <CardHeader className="border-b border-white/5"><CardTitle className="font-arcade text-[10px] text-accent tracking-widest uppercase">Performance by Account</CardTitle></CardHeader>
+            <CardHeader className="border-b border-white/5">
+              <CardTitle className={sectionTitleStyle}>Account Cluster Analysis</CardTitle>
+            </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-5">
                 {Object.entries(statsByAccount).length === 0 ? (
@@ -517,26 +523,26 @@ export default function TradingDashboard() {
         >
           <div className="flex items-center gap-3 mb-2 px-2">
             <Plus className="h-5 w-5 text-primary" />
-            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Log New Trade</h2>
+            <h2 className={sectionTitleStyle}>Add New Trade</h2>
           </div>
           <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
             <CardContent className="p-8">
               <form onSubmit={addTrade} className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
-                    <Calendar className="h-4 w-4" /> Date
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Calendar className="h-4 w-4 text-secondary" /> Date
                   </Label>
                   <Input name="date" type="date" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" defaultValue={new Date().toISOString().split('T')[0]} required />
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
-                    <Target className="h-4 w-4" /> Asset
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Target className="h-4 w-4 text-primary" /> Asset (Actif)
                   </Label>
                   <Input name="actif" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. BTC/USD" required />
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
-                    <Clock className="h-4 w-4" /> Timeframe
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Clock className="h-4 w-4 text-secondary" /> Timeframe
                   </Label>
                   <Select name="timeframe" defaultValue="1H">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
@@ -546,48 +552,48 @@ export default function TradingDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
-                    <Activity className="h-4 w-4" /> Type
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Activity className="h-4 w-4 text-primary" /> Type
                   </Label>
                   <Select name="type" defaultValue="long">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
                       <SelectItem value="long" className="text-secondary">Long</SelectItem>
-                      <SelectItem value="short" className="text-primary">Short</SelectItem>
+                      <SelectItem value="short" className="text-destructive">Short</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
-                    <TrendingUp className="h-4 w-4" /> Profit / Loss ($)
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <TrendingUp className="h-4 w-4 text-secondary" /> Result ($)
                   </Label>
                   <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11" placeholder="0.00" required />
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
-                    <ShieldAlert className="h-4 w-4" /> Max Risk ($)
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <ShieldAlert className="h-4 w-4 text-primary" /> Max Loss ($)
                   </Label>
                   <Input name="risk" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="100.00" required />
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
-                    <Wallet className="h-4 w-4" /> Account
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Wallet className="h-4 w-4 text-secondary" /> Account
                   </Label>
                   <Input name="compte" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Main" required />
                 </div>
                 <div className="space-y-4">
-                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
-                    <Layers className="h-4 w-4" /> Strategy
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                    <Layers className="h-4 w-4 text-primary" /> Strategy
                   </Label>
                   <Input name="strategie" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Trend Follow" required />
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-4">
-                  <Label className="font-arcade text-[10px] text-white tracking-[0.2em] uppercase font-semibold glow-white-text">Observations</Label>
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">Observations</Label>
                   <Textarea name="observations" className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20" placeholder="Analyze market behavior, emotional state, and core learnings..." />
                   <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">CTRL+V TO PASTE SCREENSHOTS</p>
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <Label className="font-arcade text-[10px] text-white tracking-[0.2em] uppercase font-semibold glow-white-text">Photos (Max 3)</Label>
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">Photos (Max 3)</Label>
                   <div className="flex flex-wrap gap-5 mt-2">
                     {selectedPhotos.map((url, i) => (
                       <motion.div key={i} initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }} className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50">
@@ -617,26 +623,29 @@ export default function TradingDashboard() {
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2 px-2">
             <History className="h-5 w-5 text-accent" />
-            <h2 className="font-arcade text-xs text-white/50 tracking-widest uppercase">Recent Trades</h2>
+            <h2 className={sectionTitleStyle}>Recent Trades</h2>
           </div>
           <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
             <CardContent className="p-0">
               <div className="relative overflow-x-auto">
                 <table className="w-full text-left text-[12px] font-cyber">
                   <thead>
-                    <tr className="border-b border-white/10 bg-white/[0.04] text-white font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
-                      <th className="py-6 px-6 text-secondary glow-secondary">Date</th>
-                      <th className="py-6 px-6 text-white/90">Asset</th>
-                      <th className="py-6 px-6 text-accent">Result (R-Ratio)</th>
-                      <th className="py-6 px-6 text-white/90">Visuals</th>
-                      <th className="py-6 px-6 text-right text-primary">Actions</th>
+                    <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
+                      <th className="py-6 px-6">Date</th>
+                      <th className="py-6 px-6">Asset</th>
+                      <th className="py-6 px-6">Timeframe</th>
+                      <th className="py-6 px-6">Type</th>
+                      <th className="py-6 px-6">Result ($)</th>
+                      <th className="py-6 px-6">R-Ratio</th>
+                      <th className="py-6 px-6">Visuals</th>
+                      <th className="py-6 px-6 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     <AnimatePresence>
                       {trades.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase">No trades found</td>
+                          <td colSpan={8} className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase">No trades found</td>
                         </tr>
                       ) : trades.map((trade, i) => {
                         const r = getR(Number(trade.profit), Number(trade.risk));
@@ -649,15 +658,17 @@ export default function TradingDashboard() {
                             className="border-b border-white/5 hover:bg-white/[0.03] transition-all group cursor-pointer relative"
                             onClick={() => setSelectedTrade(trade)}
                           >
-                            <td className="py-6 px-6 text-white/40 font-mono tracking-tighter">{new Date(trade.date).toLocaleDateString()}</td>
-                            <td className="py-6 px-6">
-                              <div className="text-white font-bold text-sm tracking-tight">{trade.actif}</div>
-                              <div className="text-[9px] text-secondary/50 font-arcade uppercase mt-1 tracking-widest">{trade.timeframe} // {trade.type}</div>
+                            <td className="py-6 px-6 text-white font-mono tracking-tighter">{new Date(trade.date).toLocaleDateString()}</td>
+                            <td className="py-6 px-6 text-white font-bold">{trade.actif}</td>
+                            <td className="py-6 px-6 text-white/70">{trade.timeframe}</td>
+                            <td className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === 'long' ? 'text-secondary' : 'text-destructive'}`}>
+                              {trade.type}
                             </td>
-                            <td className={`py-6 px-6 font-bold`}>
-                              <div className={`text-base ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
-                                {Number(trade.profit) >= 0 ? "+" : ""}${Number(trade.profit).toLocaleString()} ({formatR(r)})
-                              </div>
+                            <td className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                              {Number(trade.profit) >= 0 ? "+" : ""}${Math.abs(Number(trade.profit)).toLocaleString()}
+                            </td>
+                            <td className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                              {formatR(getR(Number(trade.profit), Number(trade.risk)))}
                             </td>
                             <td className="py-6 px-6">
                               <div className="flex -space-x-2 group-hover:space-x-1 transition-all duration-300">
