@@ -27,7 +27,7 @@ import {
   Activity, 
   X, 
   ChevronLeft, 
-  ChevronRight,
+  ChevronRight, 
   Maximize2,
   Calendar,
   Layers,
@@ -40,7 +40,7 @@ import {
   BarChart3,
   History,
   Zap,
-  LineChart
+  Hexagon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -314,9 +314,9 @@ export default function TradingDashboard() {
           <Card className="cyber-card border-none bg-[#0a0b10] rounded-2xl">
             <CardHeader className="text-center pt-8">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20 glow-primary">
-                <LineChart className="h-8 w-8 text-primary" />
+                <Hexagon className="h-8 w-8 text-primary animate-pulse" />
               </div>
-              <CardTitle className="font-arcade text-xl text-primary tracking-widest">TRADING TERMINAL</CardTitle>
+              <CardTitle className="font-arcade text-xl text-primary tracking-widest drop-shadow-[0_0_8px_rgba(255,0,128,0.5)]">TRADING TERMINAL</CardTitle>
             </CardHeader>
             <CardContent className="pb-8">
               <form onSubmit={handleLogin} className="space-y-6">
@@ -396,10 +396,10 @@ export default function TradingDashboard() {
         <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-white/10 pb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 glow-primary shadow-lg shadow-primary/10">
-              <LineChart className="h-8 w-8 text-primary" />
+              <Hexagon className="h-8 w-8 text-primary animate-pulse" />
             </div>
             <div>
-              <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider uppercase">Trading Terminal</h1>
+              <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary drop-shadow-[0_0_10px_rgba(255,0,128,0.3)] leading-tight tracking-wider uppercase">Trading Terminal</h1>
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
@@ -426,7 +426,7 @@ export default function TradingDashboard() {
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Total Profit/Loss", value: `$${totalProfit.toLocaleString()}`, color: totalProfit >= 0 ? "text-secondary" : "text-primary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown, glow: totalProfit >= 0 ? "shadow-secondary/20" : "shadow-primary/20" },
+              { label: "Total Profit/Loss", value: `$${totalProfit.toLocaleString()}`, color: "text-secondary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown, glow: totalProfit >= 0 ? "shadow-secondary/20" : "shadow-primary/20" },
               { label: "Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap, glow: "shadow-accent/20" },
               { label: "Total Trades", value: trades.length, color: "text-white", icon: History, glow: "shadow-white/5" },
               { label: "Total R-Ratio", value: formatR(totalR), color: totalR >= 0 ? "text-secondary" : "text-primary", icon: Activity, glow: totalR >= 0 ? "shadow-secondary/20" : "shadow-primary/20" }
@@ -522,16 +522,22 @@ export default function TradingDashboard() {
           <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
             <CardContent className="p-8">
               <form onSubmit={addTrade} className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Calendar className="h-3 w-3" /> Date</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
+                    <Calendar className="h-4 w-4" /> Date
+                  </Label>
                   <Input name="date" type="date" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" defaultValue={new Date().toISOString().split('T')[0]} required />
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Target className="h-3 w-3" /> Asset</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
+                    <Target className="h-4 w-4" /> Asset
+                  </Label>
                   <Input name="actif" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. BTC/USD" required />
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Clock className="h-3 w-3" /> Timeframe</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
+                    <Clock className="h-4 w-4" /> Timeframe
+                  </Label>
                   <Select name="timeframe" defaultValue="1H">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -539,8 +545,10 @@ export default function TradingDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Activity className="h-3 w-3" /> Type</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
+                    <Activity className="h-4 w-4" /> Type
+                  </Label>
                   <Select name="type" defaultValue="long">
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
@@ -549,29 +557,37 @@ export default function TradingDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><TrendingUp className="h-3 w-3" /> Profit / Loss ($)</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
+                    <TrendingUp className="h-4 w-4" /> Profit / Loss ($)
+                  </Label>
                   <Input name="profit" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11" placeholder="0.00" required />
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><ShieldAlert className="h-3 w-3" /> Max Risk ($)</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
+                    <ShieldAlert className="h-4 w-4" /> Max Risk ($)
+                  </Label>
                   <Input name="risk" type="number" step="0.01" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="100.00" required />
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Wallet className="h-3 w-3" /> Account</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-secondary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-secondary-text">
+                    <Wallet className="h-4 w-4" /> Account
+                  </Label>
                   <Input name="compte" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Main" required />
                 </div>
-                <div className="space-y-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest flex items-center gap-2 uppercase"><Layers className="h-3 w-3" /> Strategy</Label>
+                <div className="space-y-4">
+                  <Label className="font-arcade text-[10px] text-primary tracking-[0.2em] flex items-center gap-3 uppercase font-semibold glow-primary-text">
+                    <Layers className="h-4 w-4" /> Strategy
+                  </Label>
                   <Input name="strategie" className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11" placeholder="e.g. Trend Follow" required />
                 </div>
-                <div className="space-y-3 md:col-span-2 lg:col-span-4">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">Observations</Label>
+                <div className="space-y-4 md:col-span-2 lg:col-span-4">
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.2em] uppercase font-semibold glow-white-text">Observations</Label>
                   <Textarea name="observations" className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20" placeholder="Analyze market behavior, emotional state, and core learnings..." />
                   <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">CTRL+V TO PASTE SCREENSHOTS</p>
                 </div>
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <Label className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">Photos (Max 3)</Label>
+                  <Label className="font-arcade text-[10px] text-white tracking-[0.2em] uppercase font-semibold glow-white-text">Photos (Max 3)</Label>
                   <div className="flex flex-wrap gap-5 mt-2">
                     {selectedPhotos.map((url, i) => (
                       <motion.div key={i} initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }} className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50">

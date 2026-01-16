@@ -66,6 +66,18 @@
     @apply shadow-[0_0_20px_rgba(0,255,255,0.3)] hover:shadow-[0_0_35px_rgba(0,255,255,0.5)] transition-all;
   }
 
+  .glow-primary-text {
+    @apply drop-shadow-[0_0_5px_rgba(255,0,128,0.5)];
+  }
+
+  .glow-secondary-text {
+    @apply drop-shadow-[0_0_5px_rgba(0,255,255,0.5)];
+  }
+
+  .glow-white-text {
+    @apply drop-shadow-[0_0_5px_rgba(255,255,255,0.3)];
+  }
+
   .font-arcade {
     font-family: 'Press Start 2P', cursive;
     @apply tracking-widest leading-relaxed;
