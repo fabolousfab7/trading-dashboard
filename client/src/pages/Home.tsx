@@ -40,7 +40,7 @@ import {
   BarChart3,
   History,
   Zap,
-  Terminal
+  LineChart
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -314,7 +314,7 @@ export default function TradingDashboard() {
           <Card className="cyber-card border-none bg-[#0a0b10] rounded-2xl">
             <CardHeader className="text-center pt-8">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20 glow-primary">
-                <Terminal className="h-8 w-8 text-primary" />
+                <LineChart className="h-8 w-8 text-primary" />
               </div>
               <CardTitle className="font-arcade text-xl text-primary tracking-widest">TRADING TERMINAL</CardTitle>
             </CardHeader>
@@ -356,10 +356,6 @@ export default function TradingDashboard() {
 
   const getR = (profit: number, risk: number) => {
     if (!risk || risk === 0) return 0;
-    // Calculation: Profit / Risk
-    // Math Proof: profit=$23, risk=$25 -> 23 / 25 = 0.92
-    // If profit is negative: -25 / 25 = -1.00
-    // Force risk to absolute to ensure profit sign dictates R sign
     return profit / Math.abs(risk);
   };
 
@@ -400,7 +396,7 @@ export default function TradingDashboard() {
         <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-white/10 pb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 glow-primary shadow-lg shadow-primary/10">
-              <Terminal className="h-8 w-8 text-primary" />
+              <LineChart className="h-8 w-8 text-primary" />
             </div>
             <div>
               <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary glow-primary leading-tight tracking-wider uppercase">Trading Terminal</h1>
@@ -612,12 +608,12 @@ export default function TradingDashboard() {
               <div className="relative overflow-x-auto">
                 <table className="w-full text-left text-[12px] font-cyber">
                   <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02] text-white/30 uppercase font-arcade text-[8px] tracking-[0.2em]">
-                      <th className="py-6 px-6">Date</th>
-                      <th className="py-6 px-6">Asset</th>
-                      <th className="py-6 px-6">Result (R-Ratio)</th>
-                      <th className="py-6 px-6">Visuals</th>
-                      <th className="py-6 px-6 text-right">Actions</th>
+                    <tr className="border-b border-white/10 bg-white/[0.04] text-white font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
+                      <th className="py-6 px-6 text-secondary glow-secondary">Date</th>
+                      <th className="py-6 px-6 text-white/90">Asset</th>
+                      <th className="py-6 px-6 text-accent">Result (R-Ratio)</th>
+                      <th className="py-6 px-6 text-white/90">Visuals</th>
+                      <th className="py-6 px-6 text-right text-primary">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -947,8 +943,8 @@ export default function TradingDashboard() {
                             className="relative aspect-video rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group shadow-lg"
                             onClick={() => setPreviewPhoto({ url, index: i, photos: selectedTrade.photos })}
                           >
-                            <img src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                            <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
+                            <img src={url} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
                               <Maximize2 className="text-white h-5 w-5" />
                             </div>
                           </motion.div>
