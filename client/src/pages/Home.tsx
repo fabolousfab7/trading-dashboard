@@ -114,7 +114,6 @@ export default function TradingDashboard() {
   useEffect(() => {
     if (user) {
       fetchTrades();
-      // Load profit goal from localStorage
       const savedGoal = localStorage.getItem(`profitGoal_${user.id}`);
       if (savedGoal) setProfitGoal(parseFloat(savedGoal));
     }
@@ -899,6 +898,566 @@ export default function TradingDashboard() {
               </div>
             </section>
 
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 mb-2 px-2">
+                <Plus className="h-5 w-5 text-primary" />
+                <h2 className={sectionTitleStyle}>Add New Trade</h2>
+              </div>
+              <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
+                <CardContent className="p-8">
+                  <form
+                    onSubmit={addTrade}
+                    className="grid gap-8 md:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Calendar className="h-4 w-4 text-secondary" /> Date
+                      </Label>
+                      <Input
+                        name="date"
+                        type="date"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        defaultValue={new Date().toISOString().split("T")[0]}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Target className="h-4 w-4 text-primary" /> Asset
+                        (Actif)
+                      </Label>
+                      <Input
+                        name="actif"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        placeholder="e.g. BTC/USD"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Clock className="h-4 w-4 text-secondary" /> Timeframe
+                      </Label>
+                      <Select name="timeframe" defaultValue="1H">
+                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                          {timeframes.map((tf) => (
+                            <SelectItem
+                              key={tf}
+                              value={tf}
+                              className="hover:bg-primary/20 focus:bg-primary/20"
+                            >
+                              {tf}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Activity className="h-4 w-4 text-primary" /> Type
+                      </Label>
+                      <Select name="type" defaultValue="long">
+                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                          <SelectItem value="long" className="text-secondary">
+                            Long
+                          </SelectItem>
+                          <SelectItem
+                            value="short"
+                            className="text-destructive"
+                          >
+                            Short
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <TrendingUp className="h-4 w-4 text-secondary" /> Result
+                        ($)
+                      </Label>
+                      <Input
+                        name="profit"
+                        type="number"
+                        step="0.01"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <ShieldAlert className="h-4 w-4 text-primary" /> Max
+                        Loss ($)
+                      </Label>
+                      <Input
+                        name="risk"
+                        type="number"
+                        step="0.01"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        placeholder="100.00"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Wallet className="h-4 w-4 text-secondary" /> Account
+                      </Label>
+                      <Input
+                        name="compte"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        placeholder="e.g. Main"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Layers className="h-4 w-4 text-primary" /> Strategy
+                      </Label>
+                      <Input
+                        name="strategie"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        placeholder="e.g. Trend Follow"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4 md:col-span-2 lg:col-span-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
+                        Observations
+                      </Label>
+                      <Textarea
+                        name="observations"
+                        className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20"
+                        placeholder="Analyze market behavior, emotional state, and core learnings..."
+                      />
+                      <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">
+                        CTRL+V TO PASTE SCREENSHOTS
+                      </p>
+                    </div>
+                    <div className="space-y-4 md:col-span-2 lg:col-span-3">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
+                        Photos (Max 3)
+                      </Label>
+                      <div className="flex flex-wrap gap-5 mt-2">
+                        {selectedPhotos.map((url, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ scale: 0, rotate: -10 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50"
+                          >
+                            <img
+                              src={url}
+                              className="w-full h-full object-cover"
+                              alt="Intel"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedPhotos(
+                                    selectedPhotos.filter(
+                                      (_, idx) => idx !== i,
+                                    ),
+                                  )
+                                }
+                                className="p-2 bg-primary/80 text-white rounded-xl hover:bg-primary transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))}
+                        {selectedPhotos.length < 3 && (
+                          <Label className="flex flex-col items-center justify-center w-28 h-28 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:border-secondary/50 hover:bg-secondary/5 transition-all group shadow-inner">
+                            {uploading ? (
+                              <Loader2 className="animate-spin h-6 w-6 text-secondary" />
+                            ) : (
+                              <Plus className="h-7 w-7 text-white/20 group-hover:text-secondary group-hover:scale-110 transition-transform" />
+                            )}
+                            <span className="text-[8px] mt-2 text-white/20 group-hover:text-secondary font-arcade uppercase tracking-tighter">
+                              Upload
+                            </span>
+                            <Input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={handlePhotoUpload}
+                              disabled={uploading}
+                            />
+                          </Label>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-end lg:col-start-4">
+                      <Button
+                        type="submit"
+                        className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[11px] h-14 rounded-2xl shadow-xl shadow-primary/10 transition-all active:scale-[0.98]"
+                        disabled={uploading}
+                      >
+                        Save Trade
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </motion.section>
+
+            <section className="space-y-6">
+              <div className="flex items-center gap-3 mb-2 px-2">
+                <History className="h-5 w-5 text-accent" />
+                <h2 className={sectionTitleStyle}>Recent Trades</h2>
+              </div>
+              <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="relative overflow-x-auto">
+                    <table className="w-full text-left text-[12px] font-cyber">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
+                          <th className="py-6 px-6">Date</th>
+                          <th className="py-6 px-6">Asset</th>
+                          <th className="py-6 px-6">Timeframe</th>
+                          <th className="py-6 px-6">Type</th>
+                          <th className="py-6 px-6">Result</th>
+                          <th className="py-6 px-6">R-Ratio</th>
+                          <th className="py-6 px-6">Visuals</th>
+                          <th className="py-6 px-6 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <AnimatePresence>
+                          {filteredTrades.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={8}
+                                className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase"
+                              >
+                                No trades found
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredTrades.map((trade, i) => {
+                              const r = getR(
+                                Number(trade.profit),
+                                Number(trade.risk),
+                              );
+                              return (
+                                <motion.tr
+                                  key={trade.id}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: i * 0.05 }}
+                                  className="border-b border-white/5 hover:bg-white/[0.03] transition-all group cursor-pointer relative"
+                                  onClick={() => setSelectedTrade(trade)}
+                                >
+                                  <td className="py-6 px-6 text-white font-mono tracking-tighter">
+                                    {new Date(trade.date).toLocaleDateString()}
+                                  </td>
+                                  <td className="py-6 px-6 text-white font-bold">
+                                    {trade.actif}
+                                  </td>
+                                  <td className="py-6 px-6 text-white/70">
+                                    {trade.timeframe}
+                                  </td>
+                                  <td
+                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-secondary" : "text-destructive"}`}
+                                  >
+                                    {trade.type === "long" ? "Long" : "Short"}
+                                  </td>
+                                  <td
+                                    className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-secondary" : "text-primary"}`}
+                                  >
+                                    {Number(trade.profit) >= 0 ? "+" : ""}$
+                                    {Math.abs(
+                                      Number(trade.profit),
+                                    ).toLocaleString()}
+                                  </td>
+                                  <td
+                                    className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? "text-secondary" : "text-primary"}`}
+                                  >
+                                    {formatR(
+                                      getR(
+                                        Number(trade.profit),
+                                        Number(trade.risk),
+                                      ),
+                                    )}
+                                  </td>
+                                  <td className="py-6 px-6">
+                                    <div className="flex -space-x-2 group-hover:space-x-1 transition-all duration-300">
+                                      {trade.photos?.map(
+                                        (url: string, i: number) => (
+                                          <img
+                                            key={i}
+                                            src={url}
+                                            className="w-8 h-8 object-cover rounded-lg border border-white/20 shadow-lg transition-transform hover:scale-110 hover:z-10"
+                                            alt="Trade Snapshot"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPreviewPhoto({
+                                                url,
+                                                index: i,
+                                                photos: trade.photos,
+                                              });
+                                            }}
+                                          />
+                                        ),
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-6 px-6 text-right">
+                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-white/30 hover:text-white hover:bg-white/10 rounded-lg"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedTrade(trade);
+                                          setIsEditing(true);
+                                          setEditData({ ...trade });
+                                        }}
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) =>
+                                          deleteTrade(trade.id, e)
+                                        }
+                                        className="text-white/20 hover:text-primary hover:bg-primary/10 rounded-lg"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </motion.tr>
+                              );
+                            })
+                          )}
+                        </AnimatePresence>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-10 mt-10">
+            {/* Strategy and Account breakdowns */}
+            <div className="grid gap-8 lg:grid-cols-2">
+              <Card className="cyber-card bg-[#0d0e14]/40 border-secondary/10 rounded-2xl">
+                <CardHeader className="border-b border-white/5">
+                  <CardTitle className={sectionTitleStyle}>
+                    Strategy Vector Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-5">
+                    {Object.entries(statsByStrategy).length === 0 ? (
+                      <p className="text-center py-10 text-white/20 font-arcade text-[10px]">
+                        No strategy data detected
+                      </p>
+                    ) : (
+                      Object.entries(statsByStrategy).map(
+                        ([strategy, data]: [string, any]) => (
+                          <div
+                            key={strategy}
+                            className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-white/80 group-hover:text-white transition-colors font-medium">
+                                {strategy}
+                              </span>
+                              <div className="text-[9px] text-white/30 font-arcade uppercase">
+                                Trades: {data.count}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div
+                                className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}
+                              >
+                                {data.profit >= 0 ? "+" : ""}$
+                                {data.profit.toLocaleString()}
+                              </div>
+                              <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">
+                                Total Ratio: {formatR(data.rTotal)}
+                              </div>
+                            </div>
+                          </div>
+                        ),
+                      )
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="cyber-card bg-[#0d0e14]/40 border-accent/10 rounded-2xl">
+                <CardHeader className="border-b border-white/5">
+                  <CardTitle className={sectionTitleStyle}>
+                    Account Cluster Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-5">
+                    {Object.entries(statsByAccount).length === 0 ? (
+                      <p className="text-center py-10 text-white/20 font-arcade text-[10px]">
+                        No account data detected
+                      </p>
+                    ) : (
+                      Object.entries(statsByAccount).map(
+                        ([account, data]: [string, any]) => (
+                          <div
+                            key={account}
+                            className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-white/80 group-hover:text-white transition-colors font-medium">
+                                {account}
+                              </span>
+                              <div className="text-[9px] text-white/30 font-arcade uppercase">
+                                Trades: {data.count}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div
+                                className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}
+                              >
+                                {data.profit >= 0 ? "+" : ""}$
+                                {data.profit.toLocaleString()}
+                              </div>
+                              <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">
+                                Total Ratio: {formatR(data.rTotal)}
+                              </div>
+                            </div>
+                          </div>
+                        ),
+                      )
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters */}
+            <Card className="cyber-card bg-[#0d0e14]/40 border-white/5 rounded-2xl">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <Filter className="h-4 w-4 text-accent" />
+                  <h3 className="font-arcade text-[9px] text-white/60 uppercase tracking-wider">
+                    Filters
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="ml-auto text-white/40 hover:text-white h-7 px-3 font-arcade text-[8px]"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-2" /> RESET
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                      Strategy
+                    </Label>
+                    <Select
+                      value={filterStrategy}
+                      onValueChange={setFilterStrategy}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                        <SelectItem value="all">All Strategies</SelectItem>
+                        {strategies.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                      Account
+                    </Label>
+                    <Select
+                      value={filterAccount}
+                      onValueChange={setFilterAccount}
+                    >
+                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                        <SelectItem value="all">All Accounts</SelectItem>
+                        {accounts.map((a) => (
+                          <SelectItem key={a} value={a}>
+                            {a}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                      Type
+                    </Label>
+                    <Select value={filterType} onValueChange={setFilterType}>
+                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="long">Long</SelectItem>
+                        <SelectItem value="short">Short</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                      From
+                    </Label>
+                    <Input
+                      type="date"
+                      value={filterDateStart}
+                      onChange={(e) => setFilterDateStart(e.target.value)}
+                      className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                      To
+                    </Label>
+                    <Input
+                      type="date"
+                      value={filterDateEnd}
+                      onChange={(e) => setFilterDateEnd(e.target.value)}
+                      className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+                    />
+                  </div>
+                </div>
+                {(filterStrategy !== "all" ||
+                  filterAccount !== "all" ||
+                  filterType !== "all" ||
+                  filterDateStart ||
+                  filterDateEnd) && (
+                  <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
+                    Showing {filteredTrades.length} of {trades.length} trades
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Equity Curve */}
             {equityCurve.length > 0 && (
               <motion.section
@@ -1248,566 +1807,10 @@ export default function TradingDashboard() {
                 </CardContent>
               </Card>
             </motion.section>
-
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Card className="cyber-card bg-[#0d0e14]/40 border-secondary/10 rounded-2xl">
-                <CardHeader className="border-b border-white/5">
-                  <CardTitle className={sectionTitleStyle}>
-                    Strategy Vector Breakdown
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-5">
-                    {Object.entries(statsByStrategy).length === 0 ? (
-                      <p className="text-center py-10 text-white/20 font-arcade text-[10px]">
-                        No strategy data detected
-                      </p>
-                    ) : (
-                      Object.entries(statsByStrategy).map(
-                        ([strategy, data]: [string, any]) => (
-                          <div
-                            key={strategy}
-                            className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all"
-                          >
-                            <div className="space-y-1">
-                              <span className="text-white/80 group-hover:text-white transition-colors font-medium">
-                                {strategy}
-                              </span>
-                              <div className="text-[9px] text-white/30 font-arcade uppercase">
-                                Trades: {data.count}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div
-                                className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}
-                              >
-                                {data.profit >= 0 ? "+" : ""}$
-                                {data.profit.toLocaleString()}
-                              </div>
-                              <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">
-                                Total Ratio: {formatR(data.rTotal)}
-                              </div>
-                            </div>
-                          </div>
-                        ),
-                      )
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="cyber-card bg-[#0d0e14]/40 border-accent/10 rounded-2xl">
-                <CardHeader className="border-b border-white/5">
-                  <CardTitle className={sectionTitleStyle}>
-                    Account Cluster Analysis
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-5">
-                    {Object.entries(statsByAccount).length === 0 ? (
-                      <p className="text-center py-10 text-white/20 font-arcade text-[10px]">
-                        No account data detected
-                      </p>
-                    ) : (
-                      Object.entries(statsByAccount).map(
-                        ([account, data]: [string, any]) => (
-                          <div
-                            key={account}
-                            className="flex justify-between items-center group p-3 rounded-xl hover:bg-white/5 transition-all"
-                          >
-                            <div className="space-y-1">
-                              <span className="text-white/80 group-hover:text-white transition-colors font-medium">
-                                {account}
-                              </span>
-                              <div className="text-[9px] text-white/30 font-arcade uppercase">
-                                Trades: {data.count}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div
-                                className={`text-lg font-bold font-cyber ${data.profit >= 0 ? "text-secondary" : "text-primary"}`}
-                              >
-                                {data.profit >= 0 ? "+" : ""}$
-                                {data.profit.toLocaleString()}
-                              </div>
-                              <div className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">
-                                Total Ratio: {formatR(data.rTotal)}
-                              </div>
-                            </div>
-                          </div>
-                        ),
-                      )
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <Plus className="h-5 w-5 text-primary" />
-                <h2 className={sectionTitleStyle}>Add New Trade</h2>
-              </div>
-              <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
-                <CardContent className="p-8">
-                  <form
-                    onSubmit={addTrade}
-                    className="grid gap-8 md:grid-cols-2 lg:grid-cols-4"
-                  >
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Calendar className="h-4 w-4 text-secondary" /> Date
-                      </Label>
-                      <Input
-                        name="date"
-                        type="date"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
-                        defaultValue={new Date().toISOString().split("T")[0]}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Target className="h-4 w-4 text-primary" /> Asset
-                        (Actif)
-                      </Label>
-                      <Input
-                        name="actif"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
-                        placeholder="e.g. BTC/USD"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Clock className="h-4 w-4 text-secondary" /> Timeframe
-                      </Label>
-                      <Select name="timeframe" defaultValue="1H">
-                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          {timeframes.map((tf) => (
-                            <SelectItem
-                              key={tf}
-                              value={tf}
-                              className="hover:bg-primary/20 focus:bg-primary/20"
-                            >
-                              {tf}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Activity className="h-4 w-4 text-primary" /> Type
-                      </Label>
-                      <Select name="type" defaultValue="long">
-                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          <SelectItem value="long" className="text-secondary">
-                            Long
-                          </SelectItem>
-                          <SelectItem
-                            value="short"
-                            className="text-destructive"
-                          >
-                            Short
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <TrendingUp className="h-4 w-4 text-secondary" /> Result
-                        ($)
-                      </Label>
-                      <Input
-                        name="profit"
-                        type="number"
-                        step="0.01"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11"
-                        placeholder="0.00"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <ShieldAlert className="h-4 w-4 text-primary" /> Max
-                        Loss ($)
-                      </Label>
-                      <Input
-                        name="risk"
-                        type="number"
-                        step="0.01"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
-                        placeholder="100.00"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Wallet className="h-4 w-4 text-secondary" /> Account
-                      </Label>
-                      <Input
-                        name="compte"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
-                        placeholder="e.g. Main"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Layers className="h-4 w-4 text-primary" /> Strategy
-                      </Label>
-                      <Input
-                        name="strategie"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
-                        placeholder="e.g. Trend Follow"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4 md:col-span-2 lg:col-span-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
-                        Observations
-                      </Label>
-                      <Textarea
-                        name="observations"
-                        className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20"
-                        placeholder="Analyze market behavior, emotional state, and core learnings..."
-                      />
-                      <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">
-                        CTRL+V TO PASTE SCREENSHOTS
-                      </p>
-                    </div>
-                    <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
-                        Photos (Max 3)
-                      </Label>
-                      <div className="flex flex-wrap gap-5 mt-2">
-                        {selectedPhotos.map((url, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ scale: 0, rotate: -10 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50"
-                          >
-                            <img
-                              src={url}
-                              className="w-full h-full object-cover"
-                              alt="Intel"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedPhotos(
-                                    selectedPhotos.filter(
-                                      (_, idx) => idx !== i,
-                                    ),
-                                  )
-                                }
-                                className="p-2 bg-primary/80 text-white rounded-xl hover:bg-primary transition-colors"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))}
-                        {selectedPhotos.length < 3 && (
-                          <Label className="flex flex-col items-center justify-center w-28 h-28 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:border-secondary/50 hover:bg-secondary/5 transition-all group shadow-inner">
-                            {uploading ? (
-                              <Loader2 className="animate-spin h-6 w-6 text-secondary" />
-                            ) : (
-                              <Plus className="h-7 w-7 text-white/20 group-hover:text-secondary group-hover:scale-110 transition-transform" />
-                            )}
-                            <span className="text-[8px] mt-2 text-white/20 group-hover:text-secondary font-arcade uppercase tracking-tighter">
-                              Upload
-                            </span>
-                            <Input
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={handlePhotoUpload}
-                              disabled={uploading}
-                            />
-                          </Label>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-end lg:col-start-4">
-                      <Button
-                        type="submit"
-                        className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[11px] h-14 rounded-2xl shadow-xl shadow-primary/10 transition-all active:scale-[0.98]"
-                        disabled={uploading}
-                      >
-                        Save Trade
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </motion.section>
-
-            {/* Filters Section */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <History className="h-5 w-5 text-accent" />
-                <h2 className={sectionTitleStyle}>Recent Trades</h2>
-              </div>
-
-              <Card className="cyber-card bg-[#0d0e14]/40 border-white/5 rounded-2xl">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Filter className="h-4 w-4 text-accent" />
-                    <h3 className="font-arcade text-[9px] text-white/60 uppercase tracking-wider">
-                      Filters
-                    </h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={resetFilters}
-                      className="ml-auto text-white/40 hover:text-white h-7 px-3 font-arcade text-[8px]"
-                    >
-                      <RefreshCw className="h-3 w-3 mr-2" /> RESET
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                    <div className="space-y-2">
-                      <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                        Strategy
-                      </Label>
-                      <Select
-                        value={filterStrategy}
-                        onValueChange={setFilterStrategy}
-                      >
-                        <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          <SelectItem value="all">All Strategies</SelectItem>
-                          {strategies.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                        Account
-                      </Label>
-                      <Select
-                        value={filterAccount}
-                        onValueChange={setFilterAccount}
-                      >
-                        <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          <SelectItem value="all">All Accounts</SelectItem>
-                          {accounts.map((a) => (
-                            <SelectItem key={a} value={a}>
-                              {a}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                        Type
-                      </Label>
-                      <Select value={filterType} onValueChange={setFilterType}>
-                        <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          <SelectItem value="all">All Types</SelectItem>
-                          <SelectItem value="long">Long</SelectItem>
-                          <SelectItem value="short">Short</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                        From
-                      </Label>
-                      <Input
-                        type="date"
-                        value={filterDateStart}
-                        onChange={(e) => setFilterDateStart(e.target.value)}
-                        className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                        To
-                      </Label>
-                      <Input
-                        type="date"
-                        value={filterDateEnd}
-                        onChange={(e) => setFilterDateEnd(e.target.value)}
-                        className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
-                      />
-                    </div>
-                  </div>
-                  {(filterStrategy !== "all" ||
-                    filterAccount !== "all" ||
-                    filterType !== "all" ||
-                    filterDateStart ||
-                    filterDateEnd) && (
-                    <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
-                      Showing {filteredTrades.length} of {trades.length} trades
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="relative overflow-x-auto">
-                    <table className="w-full text-left text-[12px] font-cyber">
-                      <thead>
-                        <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
-                          <th className="py-6 px-6">Date</th>
-                          <th className="py-6 px-6">Asset</th>
-                          <th className="py-6 px-6">Timeframe</th>
-                          <th className="py-6 px-6">Type</th>
-                          <th className="py-6 px-6">Result</th>
-                          <th className="py-6 px-6">R-Ratio</th>
-                          <th className="py-6 px-6">Visuals</th>
-                          <th className="py-6 px-6 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <AnimatePresence>
-                          {filteredTrades.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={8}
-                                className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase"
-                              >
-                                No trades found
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredTrades.map((trade, i) => {
-                              const r = getR(
-                                Number(trade.profit),
-                                Number(trade.risk),
-                              );
-                              return (
-                            <motion.tr
-                              key={trade.id}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: i * 0.05 }}
-                              className="border-b border-white/5 hover:bg-white/[0.03] transition-all group cursor-pointer relative"
-                              onClick={() => setSelectedTrade(trade)}
-                            >
-                              <td className="py-6 px-6 text-white font-mono tracking-tighter">
-                                {new Date(trade.date).toLocaleDateString()}
-                              </td>
-                              <td className="py-6 px-6 text-white font-bold">
-                                {trade.actif}
-                              </td>
-                              <td className="py-6 px-6 text-white/70">
-                                {trade.timeframe}
-                              </td>
-                              <td
-                                className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-secondary" : "text-destructive"}`}
-                              >
-                                {trade.type === "long" ? "Long" : "Short"}
-                              </td>
-                              <td
-                                className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-secondary" : "text-primary"}`}
-                              >
-                                {Number(trade.profit) >= 0 ? "+" : ""}$
-                                {Math.abs(Number(trade.profit)).toLocaleString()}
-                              </td>
-                              <td
-                                className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? "text-secondary" : "text-primary"}`}
-                              >
-                                {formatR(getR(Number(trade.profit), Number(trade.risk)))}
-                              </td>
-                                  <td className="py-6 px-6">
-                                    <div className="flex -space-x-2 group-hover:space-x-1 transition-all duration-300">
-                                      {trade.photos?.map(
-                                        (url: string, i: number) => (
-                                          <img
-                                            key={i}
-                                            src={url}
-                                            className="w-8 h-8 object-cover rounded-lg border border-white/20 shadow-lg transition-transform hover:scale-110 hover:z-10"
-                                            alt="Trade Snapshot"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setPreviewPhoto({
-                                                url,
-                                                index: i,
-                                                photos: trade.photos,
-                                              });
-                                            }}
-                                          />
-                                        ),
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-6 px-6 text-right">
-                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-white/30 hover:text-white hover:bg-white/10 rounded-lg"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedTrade(trade);
-                                          setIsEditing(true);
-                                          setEditData({ ...trade });
-                                        }}
-                                      >
-                                        <Edit2 className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) =>
-                                          deleteTrade(trade.id, e)
-                                        }
-                                        className="text-white/20 hover:text-primary hover:bg-primary/10 rounded-lg"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </motion.tr>
-                              );
-                            })
-                          )}
-                        </AnimatePresence>
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-10 mt-10">
-            <p className="text-center text-white/40 font-arcade text-sm py-20">
-              ANALYTICS - Coming soon...
-            </p>
           </TabsContent>
         </Tabs>
       </div>
+
       {/* PHOTO PREVIEW MODAL */}
       <Dialog open={!!previewPhoto} onOpenChange={() => setPreviewPhoto(null)}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none shadow-none flex flex-col justify-center items-center">
@@ -1964,9 +1967,7 @@ export default function TradingDashboard() {
                     </Label>
                     <Select
                       value={editData?.type}
-                      onValueChange={(v) =>
-                        setEditData({ ...editData, type: v })
-                      }
+                      onValueChange={(v) => setEditData({ ...editData, type: v })}
                     >
                       <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11">
                         <SelectValue />

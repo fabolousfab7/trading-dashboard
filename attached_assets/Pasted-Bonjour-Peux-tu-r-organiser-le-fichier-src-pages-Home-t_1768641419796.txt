@@ -1,0 +1,99 @@
+Bonjour ! Peux-tu réorganiser le fichier src/pages/Home.tsx pour mieux séparer Dashboard et Analytics ?
+
+OBJECTIF :
+- Onglet DASHBOARD = Interface simple (stats de base + formulaire + tableau)
+- Onglet ANALYTICS = Stats avancées (breakdowns + graphiques + calendrier + filtres)
+
+MODIFICATIONS À FAIRE :
+
+1. DÉPLACER ces sections de l'onglet Dashboard vers l'onglet Analytics :
+   - La section "Strategy Vector Breakdown" (le Card avec statsByStrategy)
+   - La section "Account Cluster Analysis" (le Card avec statsByAccount)
+
+2. Dans l'onglet Analytics, APRÈS ces 2 sections déplacées, AJOUTER les filtres :
+
+<Card className="cyber-card bg-[#0d0e14]/40 border-white/5 rounded-2xl">
+  <CardContent className="p-6">
+    <div className="flex items-center gap-3 mb-4">
+      <Filter className="h-4 w-4 text-accent" />
+      <h3 className="font-arcade text-[9px] text-white/60 uppercase tracking-wider">Filters</h3>
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={resetFilters}
+        className="ml-auto text-white/40 hover:text-white h-7 px-3 font-arcade text-[8px]"
+      >
+        <RefreshCw className="h-3 w-3 mr-2" /> RESET
+      </Button>
+    </div>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="space-y-2">
+        <Label className="font-arcade text-[8px] text-white/40 uppercase">Strategy</Label>
+        <Select value={filterStrategy} onValueChange={setFilterStrategy}>
+          <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+            <SelectItem value="all">All Strategies</SelectItem>
+            {strategies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label className="font-arcade text-[8px] text-white/40 uppercase">Account</Label>
+        <Select value={filterAccount} onValueChange={setFilterAccount}>
+          <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+            <SelectItem value="all">All Accounts</SelectItem>
+            {accounts.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label className="font-arcade text-[8px] text-white/40 uppercase">Type</Label>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="long">Long</SelectItem>
+            <SelectItem value="short">Short</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label className="font-arcade text-[8px] text-white/40 uppercase">From</Label>
+        <Input 
+          type="date" 
+          value={filterDateStart}
+          onChange={e => setFilterDateStart(e.target.value)}
+          className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label className="font-arcade text-[8px] text-white/40 uppercase">To</Label>
+        <Input 
+          type="date" 
+          value={filterDateEnd}
+          onChange={e => setFilterDateEnd(e.target.value)}
+          className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+        />
+      </div>
+    </div>
+    {(filterStrategy !== "all" || filterAccount !== "all" || filterType !== "all" || filterDateStart || filterDateEnd) && (
+      <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
+        Showing {filteredTrades.length} of {trades.length} trades
+      </div>
+    )}
+  </CardContent>
+</Card>
+
+3. S'assurer que l'onglet Dashboard reste simple avec juste :
+   - Les 4 cartes de stats (Total P&L, Win Rate, etc.)
+   - Le formulaire Add New Trade
+   - Le tableau Recent Trades
+
+Peux-tu faire ces modifications s'il te plaît ? Merci !
