@@ -40,9 +40,12 @@ import {
   BarChart3,
   History,
   Zap,
-  Hexagon
+  Hexagon,
+  Filter,
+  RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, Cell } from "recharts";
 
 export default function TradingDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -56,6 +59,16 @@ export default function TradingDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string, index: number, photos: string[] } | null>(null);
+  const [profitGoal, setProfitGoal] = useState<number>(10000);
+  const [showGoalInput, setShowGoalInput] = useState(false);
+  
+  // Filters
+  const [filterStrategy, setFilterStrategy] = useState<string>("all");
+  const [filterAccount, setFilterAccount] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterDateStart, setFilterDateStart] = useState<string>("");
+  const [filterDateEnd, setFilterDateEnd] = useState<string>("");
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,7 +85,12 @@ export default function TradingDashboard() {
   }, []);
 
   useEffect(() => {
-    if (user) fetchTrades();
+    if (user) {
+      fetchTrades();
+      // Load profit goal from localStorage
+      const savedGoal = localStorage.getItem(`profitGoal_${user.id}`);
+      if (savedGoal) setProfitGoal(parseFloat(savedGoal));
+    }
   }, [user]);
 
   const onPaste = useCallback(async (e: ClipboardEvent) => {
@@ -292,6 +310,22 @@ export default function TradingDashboard() {
     });
   };
 
+  const saveGoal = () => {
+    if (user) {
+      localStorage.setItem(`profitGoal_${user.id}`, profitGoal.toString());
+      setShowGoalInput(false);
+      toast({ title: "Goal saved", description: `Target set to $${profitGoal.toLocaleString()}` });
+    }
+  };
+
+  const resetFilters = () => {
+    setFilterStrategy("all");
+    setFilterAccount("all");
+    setFilterType("all");
+    setFilterDateStart("");
+    setFilterDateEnd("");
+  };
+
   if (loading && !trades.length) return (
     <div className="flex h-screen items-center justify-center bg-background">
       <motion.div 
@@ -364,7 +398,17 @@ export default function TradingDashboard() {
     return `${sign}${r.toFixed(2)}R`;
   };
 
-  const statsByStrategy = trades.reduce((acc: any, t) => {
+  // Apply filters
+  const filteredTrades = trades.filter(t => {
+    if (filterStrategy !== "all" && t.strategie !== filterStrategy) return false;
+    if (filterAccount !== "all" && t.compte !== filterAccount) return false;
+    if (filterType !== "all" && t.type !== filterType) return false;
+    if (filterDateStart && new Date(t.date) < new Date(filterDateStart)) return false;
+    if (filterDateEnd && new Date(t.date) > new Date(filterDateEnd)) return false;
+    return true;
+  });
+
+  const statsByStrategy = filteredTrades.reduce((acc: any, t) => {
     const s = t.strategie || "Unknown";
     if (!acc[s]) acc[s] = { profit: 0, count: 0, rTotal: 0 };
     acc[s].profit += Number(t.profit);
@@ -373,7 +417,7 @@ export default function TradingDashboard() {
     return acc;
   }, {});
 
-  const statsByAccount = trades.reduce((acc: any, t) => {
+  const statsByAccount = filteredTrades.reduce((acc: any, t) => {
     const a = t.compte || "Unknown";
     if (!acc[a]) acc[a] = { profit: 0, count: 0, rTotal: 0 };
     acc[a].profit += Number(t.profit);
@@ -382,15 +426,103 @@ export default function TradingDashboard() {
     return acc;
   }, {});
 
-  const totalProfit = trades.reduce((acc, t) => acc + Number(t.profit), 0);
-  const winRate = trades.length ? (trades.filter(t => Number(t.profit) > 0).length / trades.length * 100).toFixed(1) : 0;
+  const totalProfit = filteredTrades.reduce((acc, t) => acc + Number(t.profit), 0);
+  const winRate = filteredTrades.length ? (filteredTrades.filter(t => Number(t.profit) > 0).length / filteredTrades.length * 100).toFixed(1) : 0;
   
-  const rValues = trades.map(t => getR(Number(t.profit), Number(t.risk)));
+  const rValues = filteredTrades.map(t => getR(Number(t.profit), Number(t.risk)));
   const totalR = rValues.reduce((a, b) => a + b, 0);
+
+  // Calculate equity curve
+  const sortedTrades = [...filteredTrades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  let runningBalance = 0;
+  const equityCurve = sortedTrades.map((t, i) => {
+    runningBalance += Number(t.profit);
+    return {
+      date: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      balance: runningBalance,
+      index: i
+    };
+  });
+
+  // Calculate monthly performance
+  const monthlyPerf = filteredTrades.reduce((acc: any, t) => {
+    const month = new Date(t.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    if (!acc[month]) acc[month] = 0;
+    acc[month] += Number(t.profit);
+    return acc;
+  }, {});
+  
+  const monthlyData = Object.entries(monthlyPerf).map(([month, profit]) => ({
+    month,
+    profit: profit as number
+  })).sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
+
+  // Advanced stats
+  const winningTrades = filteredTrades.filter(t => Number(t.profit) > 0);
+  const losingTrades = filteredTrades.filter(t => Number(t.profit) < 0);
+  const bestTrade = filteredTrades.length ? filteredTrades.reduce((best, t) => Number(t.profit) > Number(best.profit) ? t : best, filteredTrades[0]) : null;
+  const worstTrade = filteredTrades.length ? filteredTrades.reduce((worst, t) => Number(t.profit) < Number(worst.profit) ? t : worst, filteredTrades[0]) : null;
+  
+  // Calculate max drawdown
+  let peak = 0;
+  let maxDrawdown = 0;
+  runningBalance = 0;
+  sortedTrades.forEach(t => {
+    runningBalance += Number(t.profit);
+    if (runningBalance > peak) peak = runningBalance;
+    const drawdown = peak - runningBalance;
+    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+  });
+
+  // Calculate streaks
+  let currentStreak = 0;
+  let bestStreak = 0;
+  let worstStreak = 0;
+  let tempStreak = 0;
+  
+  sortedTrades.forEach((t, i) => {
+    const profit = Number(t.profit);
+    if (i === 0) {
+      tempStreak = profit > 0 ? 1 : profit < 0 ? -1 : 0;
+    } else {
+      const prevProfit = Number(sortedTrades[i-1].profit);
+      if ((profit > 0 && prevProfit > 0) || (profit < 0 && prevProfit < 0)) {
+        tempStreak = profit > 0 ? tempStreak + 1 : tempStreak - 1;
+      } else {
+        tempStreak = profit > 0 ? 1 : profit < 0 ? -1 : 0;
+      }
+    }
+    
+    if (tempStreak > bestStreak) bestStreak = tempStreak;
+    if (tempStreak < worstStreak) worstStreak = tempStreak;
+    if (i === sortedTrades.length - 1) currentStreak = tempStreak;
+  });
+
+  // Get unique values for filters
+  const strategies = Array.from(new Set(trades.map(t => t.strategie).filter(Boolean)));
+  const accounts = Array.from(new Set(trades.map(t => t.compte).filter(Boolean)));
+
+  // Calendar data - last 60 days
+  const calendarData: any[] = [];
+  const today = new Date();
+  for (let i = 59; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    const dayTrades = filteredTrades.filter(t => t.date.startsWith(dateStr));
+    const dayProfit = dayTrades.reduce((sum, t) => sum + Number(t.profit), 0);
+    calendarData.push({
+      date: dateStr,
+      profit: dayProfit,
+      count: dayTrades.length
+    });
+  }
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
   const sectionTitleStyle = "font-arcade text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary drop-shadow-[0_0_8px_rgba(255,0,128,0.3)] tracking-[0.2em] uppercase";
+
+  const goalProgress = (totalProfit / profitGoal) * 100;
 
   return (
     <div className="min-h-screen font-cyber pb-20 selection:bg-primary/30">
@@ -421,6 +553,74 @@ export default function TradingDashboard() {
           </div>
         </header>
 
+        {/* Profit Goal Card */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="cyber-card bg-gradient-to-br from-primary/10 via-accent/5 to-secondary/10 border-primary/20 rounded-2xl shadow-xl shadow-primary/5">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Target className="h-5 w-5 text-primary" />
+                  <h3 className="font-arcade text-[10px] text-white/60 uppercase tracking-wider">Profit Goal</h3>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowGoalInput(!showGoalInput)}
+                  className="text-white/40 hover:text-white h-8 px-3"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+              </div>
+              
+              {showGoalInput ? (
+                <div className="flex gap-3 items-end mb-4">
+                  <div className="flex-1">
+                    <Input 
+                      type="number" 
+                      value={profitGoal}
+                      onChange={e => setProfitGoal(parseFloat(e.target.value) || 0)}
+                      className="bg-white/5 border-white/10 h-10 rounded-xl"
+                      placeholder="Enter goal"
+                    />
+                  </div>
+                  <Button onClick={saveGoal} className="bg-primary hover:bg-primary/80 h-10 px-6 rounded-xl font-arcade text-[9px]">
+                    <Save className="mr-2 h-3 w-3" /> SAVE
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <div className="flex items-baseline gap-3 mb-2">
+                    <span className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                      ${totalProfit.toLocaleString()}
+                    </span>
+                    <span className="text-white/40 font-cyber">/ ${profitGoal.toLocaleString()}</span>
+                  </div>
+                  <div className="text-sm text-white/60 font-arcade text-[9px] tracking-wider">
+                    {goalProgress.toFixed(1)}% COMPLETE
+                  </div>
+                </div>
+              )}
+
+              <div className="relative h-3 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(goalProgress, 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className={`h-full rounded-full ${
+                    goalProgress >= 100 ? 'bg-gradient-to-r from-secondary via-accent to-secondary' :
+                    goalProgress >= 75 ? 'bg-gradient-to-r from-secondary/80 to-secondary' :
+                    goalProgress >= 50 ? 'bg-gradient-to-r from-accent/80 to-accent' :
+                    'bg-gradient-to-r from-primary/80 to-primary'
+                  } shadow-lg`}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </motion.section>
+
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2 px-2">
             <BarChart3 className="h-5 w-5 text-secondary" />
@@ -430,7 +630,7 @@ export default function TradingDashboard() {
             {[
               { label: "Total Profit/Loss", value: `$${totalProfit.toLocaleString()}`, color: "text-secondary", icon: totalProfit >= 0 ? TrendingUp : TrendingDown, glow: totalProfit >= 0 ? "shadow-secondary/20" : "shadow-primary/20" },
               { label: "Win Rate", value: `${winRate}%`, color: "text-accent", icon: Zap, glow: "shadow-accent/20" },
-              { label: "Total Trades", value: trades.length, color: "text-white", icon: History, glow: "shadow-white/5" },
+              { label: "Total Trades", value: filteredTrades.length, color: "text-white", icon: History, glow: "shadow-white/5" },
               { label: "Total R-Ratio", value: formatR(totalR), color: totalR >= 0 ? "text-secondary" : "text-primary", icon: Activity, glow: totalR >= 0 ? "shadow-secondary/20" : "shadow-primary/20" }
             ].map((stat, i) => (
               <motion.div
@@ -461,6 +661,262 @@ export default function TradingDashboard() {
             ))}
           </div>
         </section>
+
+        {/* Equity Curve */}
+        {equityCurve.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-3 mb-2 px-2">
+              <Activity className="h-5 w-5 text-accent" />
+              <h2 className={sectionTitleStyle}>Equity Curve</h2>
+            </div>
+            <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-2xl">
+              <CardContent className="p-8">
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={equityCurve}>
+                    <defs>
+                      <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00ffff" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#00ffff" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="rgba(255,255,255,0.3)" 
+                      style={{ fontSize: '10px', fontFamily: 'monospace' }}
+                      tick={{ fill: 'rgba(255,255,255,0.4)' }}
+                    />
+                    <YAxis 
+                      stroke="rgba(255,255,255,0.3)" 
+                      style={{ fontSize: '10px', fontFamily: 'monospace' }}
+                      tick={{ fill: 'rgba(255,255,255,0.4)' }}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(13, 14, 20, 0.95)', 
+                        border: '1px solid rgba(0, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        boxShadow: '0 0 20px rgba(0, 255, 255, 0.1)'
+                      }}
+                      labelStyle={{ color: '#00ffff', fontWeight: 'bold' }}
+                      formatter={(value: any) => [`$${value.toLocaleString()}`, 'Balance']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="balance" 
+                      stroke="#00ffff" 
+                      strokeWidth={2}
+                      fill="url(#colorBalance)"
+                      animationDuration={2000}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.section>
+        )}
+
+        {/* Monthly Performance */}
+        {monthlyData.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-3 mb-2 px-2">
+              <Calendar className="h-5 w-5 text-secondary" />
+              <h2 className={sectionTitleStyle}>Monthly Performance</h2>
+            </div>
+            <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
+              <CardContent className="p-8">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="rgba(255,255,255,0.3)" 
+                      style={{ fontSize: '10px', fontFamily: 'monospace' }}
+                      tick={{ fill: 'rgba(255,255,255,0.4)' }}
+                    />
+                    <YAxis 
+                      stroke="rgba(255,255,255,0.3)" 
+                      style={{ fontSize: '10px', fontFamily: 'monospace' }}
+                      tick={{ fill: 'rgba(255,255,255,0.4)' }}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(13, 14, 20, 0.95)', 
+                        border: '1px solid rgba(0, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        boxShadow: '0 0 20px rgba(0, 255, 255, 0.1)'
+                      }}
+                      formatter={(value: any) => [`$${value.toLocaleString()}`, 'Profit/Loss']}
+                      labelStyle={{ color: '#00ffff', fontWeight: 'bold' }}
+                    />
+                    <Bar 
+                      dataKey="profit" 
+                      radius={[8, 8, 0, 0]}
+                      animationDuration={1500}
+                    >
+                      {monthlyData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#00ff88' : '#ff0080'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </motion.section>
+        )}
+
+        {/* Advanced Stats */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <Activity className="h-5 w-5 text-primary" />
+            <h2 className={sectionTitleStyle}>Advanced Analytics</h2>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Max Drawdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary font-cyber">-${maxDrawdown.toLocaleString()}</div>
+                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Largest capital decline</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Best Trade</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {bestTrade ? (
+                  <>
+                    <div className="text-2xl font-bold text-secondary font-cyber">+${Number(bestTrade.profit).toLocaleString()}</div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">{bestTrade.actif} • {new Date(bestTrade.date).toLocaleDateString()}</p>
+                  </>
+                ) : (
+                  <div className="text-white/20 font-arcade text-[9px]">No data</div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Worst Trade</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {worstTrade ? (
+                  <>
+                    <div className="text-2xl font-bold text-primary font-cyber">${Number(worstTrade.profit).toLocaleString()}</div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">{worstTrade.actif} • {new Date(worstTrade.date).toLocaleDateString()}</p>
+                  </>
+                ) : (
+                  <div className="text-white/20 font-arcade text-[9px]">No data</div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Win Streak</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-secondary font-cyber">{bestStreak}</div>
+                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Consecutive wins</p>
+              </CardContent>
+            </Card>
+
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Loss Streak</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary font-cyber">{Math.abs(worstStreak)}</div>
+                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Consecutive losses</p>
+              </CardContent>
+            </Card>
+
+            <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Current Streak</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold font-cyber ${currentStreak >= 0 ? 'text-secondary' : 'text-primary'}`}>
+                  {currentStreak > 0 ? '+' : ''}{currentStreak}
+                </div>
+                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">{currentStreak > 0 ? 'Winning' : currentStreak < 0 ? 'Losing' : 'Neutral'}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Calendar View - Last 60 days */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="space-y-6"
+        >
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <Calendar className="h-5 w-5 text-accent" />
+            <h2 className={sectionTitleStyle}>Trading Calendar (Last 60 Days)</h2>
+          </div>
+          <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-10 gap-2">
+                {calendarData.map((day, i) => {
+                  const intensity = day.count === 0 ? 0 : Math.min(Math.abs(day.profit) / 500, 1);
+                  const color = day.count === 0 ? 'bg-white/5' : 
+                               day.profit > 0 ? `bg-secondary` : 'bg-primary';
+                  return (
+                    <div
+                      key={i}
+                      className={`aspect-square rounded-lg ${color} border border-white/10 hover:scale-110 transition-all cursor-pointer relative group`}
+                      style={{ opacity: day.count === 0 ? 0.3 : 0.4 + (intensity * 0.6) }}
+                      title={`${new Date(day.date).toLocaleDateString()}\n${day.count} trades\n$${day.profit.toLocaleString()}`}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[8px] font-bold text-white">{day.count}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between mt-6 text-[8px] font-arcade text-white/30 uppercase">
+                <span>60 days ago</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-white/5 rounded border border-white/10" />
+                    <span>No trades</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-secondary/60 rounded border border-white/10" />
+                    <span>Profit</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-primary/60 rounded border border-white/10" />
+                    <span>Loss</span>
+                  </div>
+                </div>
+                <span>Today</span>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.section>
 
         <div className="grid gap-8 lg:grid-cols-2">
           <Card className="cyber-card bg-[#0d0e14]/40 border-secondary/10 rounded-2xl">
@@ -620,11 +1076,92 @@ export default function TradingDashboard() {
           </Card>
         </motion.section>
 
+        {/* Filters Section */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2 px-2">
             <History className="h-5 w-5 text-accent" />
             <h2 className={sectionTitleStyle}>Recent Trades</h2>
           </div>
+          
+          <Card className="cyber-card bg-[#0d0e14]/40 border-white/5 rounded-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Filter className="h-4 w-4 text-accent" />
+                <h3 className="font-arcade text-[9px] text-white/60 uppercase tracking-wider">Filters</h3>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={resetFilters}
+                  className="ml-auto text-white/40 hover:text-white h-7 px-3 font-arcade text-[8px]"
+                >
+                  <RefreshCw className="h-3 w-3 mr-2" /> RESET
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[8px] text-white/40 uppercase">Strategy</Label>
+                  <Select value={filterStrategy} onValueChange={setFilterStrategy}>
+                    <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectItem value="all">All Strategies</SelectItem>
+                      {strategies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[8px] text-white/40 uppercase">Account</Label>
+                  <Select value={filterAccount} onValueChange={setFilterAccount}>
+                    <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectItem value="all">All Accounts</SelectItem>
+                      {accounts.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[8px] text-white/40 uppercase">Type</Label>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="long">Long</SelectItem>
+                      <SelectItem value="short">Short</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[8px] text-white/40 uppercase">From</Label>
+                  <Input 
+                    type="date" 
+                    value={filterDateStart}
+                    onChange={e => setFilterDateStart(e.target.value)}
+                    className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-arcade text-[8px] text-white/40 uppercase">To</Label>
+                  <Input 
+                    type="date" 
+                    value={filterDateEnd}
+                    onChange={e => setFilterDateEnd(e.target.value)}
+                    className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+              {(filterStrategy !== "all" || filterAccount !== "all" || filterType !== "all" || filterDateStart || filterDateEnd) && (
+                <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
+                  Showing {filteredTrades.length} of {trades.length} trades
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
             <CardContent className="p-0">
               <div className="relative overflow-x-auto">
@@ -643,11 +1180,11 @@ export default function TradingDashboard() {
                   </thead>
                   <tbody>
                     <AnimatePresence>
-                      {trades.length === 0 ? (
+                      {filteredTrades.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase">No trades found</td>
                         </tr>
-                      ) : trades.map((trade, i) => {
+                      ) : filteredTrades.map((trade, i) => {
                         const r = getR(Number(trade.profit), Number(trade.risk));
                         return (
                           <motion.tr 
