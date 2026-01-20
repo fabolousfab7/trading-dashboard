@@ -121,7 +121,7 @@ export default function TradingDashboard() {
 
   const onPaste = useCallback(
     async (e: ClipboardEvent) => {
-      if (isEditing || !user) return;
+      if (!user) return;
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -1984,6 +1984,7 @@ export default function TradingDashboard() {
                     </Label>
                     <Input
                       type="number"
+                      step="0.01"
                       value={editData?.profit}
                       onChange={(e) =>
                         setEditData({
@@ -2000,6 +2001,7 @@ export default function TradingDashboard() {
                     </Label>
                     <Input
                       type="number"
+                      step="0.01"
                       value={editData?.risk}
                       onChange={(e) =>
                         setEditData({
