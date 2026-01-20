@@ -641,6 +641,15 @@ export default function TradingDashboard() {
     if (i === sortedTrades.length - 1) currentStreak = tempStreak;
   });
 
+  // Calculate Sharpe Ratio
+  const returns = filteredTrades.map(t => Number(t.profit));
+  const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
+  const variance = returns.length > 1 
+    ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1)
+    : 0;
+  const stdDev = Math.sqrt(variance);
+  const sharpeRatio = stdDev !== 0 ? avgReturn / stdDev : 0;
+
   // Get unique values for filters
   const strategies = Array.from(
     new Set(trades.map((t) => t.strategie).filter(Boolean)),
@@ -1624,7 +1633,7 @@ export default function TradingDashboard() {
                 <Activity className="h-5 w-5 text-primary" />
                 <h2 className={sectionTitleStyle}>Advanced Analytics</h2>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
                   <CardHeader>
                     <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
@@ -1743,6 +1752,18 @@ export default function TradingDashboard() {
                           ? "Losing"
                           : "Neutral"}
                     </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Sharpe Ratio</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold font-cyber ${sharpeRatio >= 1 ? 'text-secondary' : sharpeRatio >= 0 ? 'text-accent' : 'text-primary'}`}>
+                      {sharpeRatio.toFixed(2)}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Risk-adjusted return</p>
                   </CardContent>
                 </Card>
               </div>
