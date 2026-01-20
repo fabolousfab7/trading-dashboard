@@ -284,9 +284,17 @@ export default function TradingDashboard() {
   async function handleUpdateTrade() {
     if (!editData) return;
     setLoading(true);
+    
+    // Convert back to numbers before saving
+    const dataToSave = {
+      ...editData,
+      profit: parseFloat(editData.profit) || 0,
+      risk: parseFloat(editData.risk) || 0,
+    };
+
     const { data, error } = await supabase
       .from("trades")
-      .update(editData)
+      .update(dataToSave)
       .eq("id", editData.id)
       .select()
       .single();
@@ -1983,15 +1991,17 @@ export default function TradingDashboard() {
                       Profit / Loss ($)
                     </Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
                       value={editData?.profit}
-                      onChange={(e) =>
-                        setEditData({
-                          ...editData,
-                          profit: parseFloat(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || val === "-" || !isNaN(Number(val))) {
+                          setEditData({
+                            ...editData,
+                            profit: val,
+                          });
+                        }
+                      }}
                       className="bg-white/5 border-white/10 rounded-xl h-11"
                     />
                   </div>
@@ -2000,15 +2010,17 @@ export default function TradingDashboard() {
                       Max Risk ($)
                     </Label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
                       value={editData?.risk}
-                      onChange={(e) =>
-                        setEditData({
-                          ...editData,
-                          risk: parseFloat(e.target.value),
-                        })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || val === "-" || !isNaN(Number(val))) {
+                          setEditData({
+                            ...editData,
+                            risk: val,
+                          });
+                        }
+                      }}
                       className="bg-white/5 border-white/10 rounded-xl h-11"
                     />
                   </div>
