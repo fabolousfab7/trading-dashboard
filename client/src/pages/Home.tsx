@@ -990,7 +990,7 @@ export default function TradingDashboard() {
                           </SelectItem>
                           <SelectItem
                             value="short"
-                            className="text-destructive"
+                            className="text-primary"
                           >
                             Short
                           </SelectItem>
@@ -1186,14 +1186,14 @@ export default function TradingDashboard() {
                                     {trade.timeframe}
                                   </td>
                                   <td
-                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-secondary" : "text-destructive"}`}
+                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-secondary" : "text-primary"}`}
                                   >
                                     {trade.type === "long" ? "Long" : "Short"}
                                   </td>
                                   <td
                                     className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-secondary" : "text-primary"}`}
                                   >
-                                    {Number(trade.profit) >= 0 ? "+" : ""}$
+                                    {Number(trade.profit) >= 0 ? "+" : "-"}$
                                     {Math.abs(
                                       Number(trade.profit),
                                     ).toLocaleString()}
