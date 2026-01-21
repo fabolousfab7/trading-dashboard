@@ -849,6 +849,8 @@ export default function TradingDashboard() {
                 </p>
               </CardContent>
             </Card>
+          </section>
+
           <section className="space-y-6">
             <div className="flex items-center gap-3 mb-2 px-2">
               <BarChart3 className="h-5 w-5 text-secondary" />
@@ -1487,92 +1489,6 @@ export default function TradingDashboard() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Performance Metrics (Duplicated from dashboard, filtered) */}
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered Profit
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-secondary" : "text-primary"} drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]`}
-                  >
-                    {totalProfit >= 0 ? "+" : "-"}$
-                    {Math.abs(totalProfit).toLocaleString()}
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    Filtered net performance
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered WinRate
-                  </CardTitle>
-                  <Target className="h-4 w-4 text-secondary" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-secondary font-cyber drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]">
-                    {winRate}%
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    {filteredTrades.length} filtered trades
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-xl hover:shadow-accent/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Profit Goal (Global)
-                  </CardTitle>
-                  <Zap className="h-4 w-4 text-accent" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-end justify-between">
-                    <div className="text-3xl font-bold text-accent font-cyber">
-                      {goalProgress.toFixed(1)}%
-                    </div>
-                    <div className="text-[10px] text-white/40 font-mono">
-                      / ${profitGoal.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(goalProgress, 100)}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered Yield
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-secondary" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-secondary" : "text-primary"}`}
-                  >
-                    {formatR(totalR)}
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    Filtered R-multiple
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
 
             {/* Performance Metrics (Duplicated from dashboard, filtered) */}
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
