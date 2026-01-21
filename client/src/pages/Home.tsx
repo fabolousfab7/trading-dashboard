@@ -849,43 +849,84 @@ export default function TradingDashboard() {
                 </p>
               </CardContent>
             </Card>
-          </section>
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
+          <section className="space-y-6">
+            <div className="flex items-center gap-3 mb-2 px-2">
+              <BarChart3 className="h-5 w-5 text-secondary" />
+              <h2 className={sectionTitleStyle}>Performance Metrics</h2>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Total Profit/Loss",
+                  value: `$${globalProfit.toLocaleString()}`,
+                  color: "text-secondary",
+                  icon: globalProfit >= 0 ? TrendingUp : TrendingDown,
+                  glow:
+                    globalProfit >= 0
+                      ? "shadow-secondary/20"
+                      : "shadow-primary/20",
+                },
+                {
+                  label: "Win Rate",
+                  value: `${globalWinRate}%`,
+                  color: "text-accent",
+                  icon: Zap,
+                  glow: "shadow-accent/20",
+                },
+                {
+                  label: "Total Trades",
+                  value: globalCount,
+                  color: "text-white",
+                  icon: History,
+                  glow: "shadow-white/5",
+                },
+                {
+                  label: "Total R-Ratio",
+                  value: formatR(globalTotalR),
+                  color: globalTotalR >= 0 ? "text-secondary" : "text-primary",
+                  icon: Activity,
+                  glow:
+                    globalTotalR >= 0
+                      ? "shadow-secondary/20"
+                      : "shadow-primary/20",
+                },
+              ].map((stat, i) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <Card
+                    className={`cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl shadow-xl ${stat.glow}`}
                   >
-                    <Card
-                      className={`cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl shadow-xl ${stat.glow}`}
-                    >
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                        <CardTitle className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">
-                          {stat.label}
-                        </CardTitle>
-                        <div
-                          className={`p-2 rounded-lg bg-white/5 border border-white/5`}
-                        >
-                          <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div
-                          className={`text-3xl font-bold ${stat.color} tracking-tight font-cyber`}
-                        >
-                          {stat.value}
-                        </div>
-                        <div className="h-1 w-full bg-white/5 rounded-full mt-6 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: "100%" }}
-                            className={`h-full bg-gradient-to-r from-transparent via-${stat.color.split("-")[1]}/30 to-${stat.color.split("-")[1]}`}
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                      <CardTitle className="font-arcade text-[9px] text-white/40 tracking-widest uppercase">
+                        {stat.label}
+                      </CardTitle>
+                      <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+                        <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div
+                        className={`text-3xl font-bold ${stat.color} tracking-tight font-cyber`}
+                      >
+                        {stat.value}
+                      </div>
+                      <div className="h-1 w-full bg-white/5 rounded-full mt-6 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: "100%" }}
+                          className={`h-full bg-gradient-to-r from-transparent via-${stat.color.split("-")[1] || "primary"}/30 to-${stat.color.split("-")[1] || "primary"}`}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </section>
 
             <motion.section
               initial={{ opacity: 0, y: 20 }}
