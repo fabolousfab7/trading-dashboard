@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { supabase } from "./supabase";
-import { api } from "@shared/routes";
+import { api } from "../shared/routes";
 
 export async function registerRoutes(
   httpServer: Server,
