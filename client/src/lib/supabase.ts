@@ -10,6 +10,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Use placeholder values if missing so createClient doesn't throw with an empty URL.
 // The app will show the login screen and fail gracefully on any Supabase call.
 export const supabase = createClient(
-  supabaseUrl ?? 'https://placeholder.supabase.co',
-  supabaseAnonKey ?? 'placeholder-anon-key'
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key'
 );
