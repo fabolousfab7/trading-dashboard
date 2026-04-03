@@ -160,9 +160,15 @@ export default function TradingDashboard() {
       password,
     });
     if (error) {
+      const isUnconfirmed =
+        error.message.toLowerCase().includes("email") ||
+        error.message.toLowerCase().includes("confirm") ||
+        error.message.toLowerCase().includes("invalid");
       toast({
         title: "Login failed",
-        description: error.message,
+        description: isUnconfirmed
+          ? `${error.message} — Si votre compte est nouveau, confirmez votre email ou désactivez "Confirm email" dans Supabase Auth.`
+          : error.message,
         variant: "destructive",
       });
     }
@@ -175,7 +181,6 @@ export default function TradingDashboard() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { email_confirmed: true } },
     });
     if (error) {
       toast({
@@ -185,13 +190,13 @@ export default function TradingDashboard() {
       });
     } else if (data.user && !data.session) {
       toast({
-        title: "Account created",
-        description: "Verification required.",
+        title: "Vérification requise",
+        description: "Un email de confirmation a été envoyé. Confirmez-le puis connectez-vous. Ou désactivez 'Confirm email' dans Supabase Auth pour vous connecter directement.",
       });
     } else {
       toast({
-        title: "Success",
-        description: "Account created and logged in!",
+        title: "Compte créé",
+        description: "Connecté avec succès !",
       });
     }
     setLoading(false);
