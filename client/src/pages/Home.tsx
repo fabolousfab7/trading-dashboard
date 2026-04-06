@@ -583,31 +583,6 @@ export default function TradingDashboard() {
     return acc;
   }, {});
 
-  const statsByTimeframe = Object.entries(
-    filteredTrades.reduce(
-      (
-        acc: Record<string, { profit: number; count: number; wins: number }>,
-        t,
-      ) => {
-        const tf = t.timeframe || "Unknown";
-        if (!acc[tf]) acc[tf] = { profit: 0, count: 0, wins: 0 };
-        const profit = Number(t.profit);
-        acc[tf].profit += profit;
-        acc[tf].count += 1;
-        if (profit > 0) acc[tf].wins += 1;
-        return acc;
-      },
-      {},
-    ),
-  )
-    .map(([timeframe, data]) => ({
-      timeframe,
-      profit: data.profit,
-      count: data.count,
-      winRate: data.count ? (data.wins / data.count) * 100 : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-
   const totalProfit = filteredTrades.reduce(
     (acc, t) => acc + Number(t.profit),
     0,
@@ -1404,92 +1379,6 @@ export default function TradingDashboard() {
               </CardContent>
             </Card>
 
-            {/* Performance Metrics (Duplicated from dashboard, filtered) */}
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered Profit
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-secondary" : "text-primary"} drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]`}
-                  >
-                    {totalProfit >= 0 ? "+" : "-"}$
-                    {Math.abs(totalProfit).toLocaleString()}
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    Filtered net performance
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered WinRate
-                  </CardTitle>
-                  <Target className="h-4 w-4 text-secondary" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-secondary font-cyber drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]">
-                    {winRate}%
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    {filteredTrades.length} filtered trades
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-xl hover:shadow-accent/5 transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Profit Goal (Global)
-                  </CardTitle>
-                  <Zap className="h-4 w-4 text-accent" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-end justify-between">
-                    <div className="text-3xl font-bold text-accent font-cyber">
-                      {goalProgress.toFixed(1)}%
-                    </div>
-                    <div className="text-[10px] text-white/40 font-mono">
-                      / ${profitGoal.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(goalProgress, 100)}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    Filtered Yield
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-secondary" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-secondary" : "text-primary"}`}
-                  >
-                    {formatR(totalR)}
-                  </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
-                    Filtered R-multiple
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-
             {/* Equity Curve */}
             {equityCurve.length > 0 && (
               <motion.section
@@ -1574,73 +1463,95 @@ export default function TradingDashboard() {
               </motion.section>
             )}
 
-            {/* Monthly Performance */}
-            {monthlyData.length > 0 && (
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="space-y-6"
-              >
-                <div className="flex items-center gap-3 mb-2 px-2">
-                  <Calendar className="h-5 w-5 text-secondary" />
-                  <h2 className={sectionTitleStyle}>Monthly Performance</h2>
-                </div>
-                <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
-                  <CardContent className="p-8">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={monthlyData}>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="rgba(255,255,255,0.05)"
-                        />
-                        <XAxis
-                          dataKey="month"
-                          stroke="rgba(255,255,255,0.3)"
-                          style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
-                        />
-                        <YAxis
-                          stroke="rgba(255,255,255,0.3)"
-                          style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
-                          tickFormatter={(value) =>
-                            `$${value.toLocaleString()}`
-                          }
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "rgba(13, 14, 20, 0.95)",
-                            border: "1px solid rgba(0, 255, 255, 0.2)",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontFamily: "monospace",
-                            boxShadow: "0 0 20px rgba(0, 255, 255, 0.1)",
-                          }}
-                          formatter={(value: any) => [
-                            `$${value.toLocaleString()}`,
-                            "Profit/Loss",
-                          ]}
-                          labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
-                        />
-                        <Bar
-                          dataKey="profit"
-                          radius={[8, 8, 0, 0]}
-                          animationDuration={1500}
-                        >
-                          {monthlyData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.profit >= 0 ? "#00ff88" : "#ff0080"}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.section>
-            )}
+            {/* Performance Metrics */}
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                    Profit
+                  </CardTitle>
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-secondary" : "text-primary"} drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]`}
+                  >
+                    {totalProfit >= 0 ? "+" : "-"}$
+                    {Math.abs(totalProfit).toLocaleString()}
+                  </div>
+                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                    Net performance
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                    Win Rate
+                  </CardTitle>
+                  <Target className="h-4 w-4 text-secondary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-secondary font-cyber drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]">
+                    {winRate}%
+                  </div>
+                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                    {filteredTrades.length} trades
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-xl hover:shadow-accent/5 transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                    Profit Goal
+                  </CardTitle>
+                  <Zap className="h-4 w-4 text-accent" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-end justify-between">
+                    <div
+                      className="text-3xl font-bold text-accent font-cyber cursor-pointer group flex items-center gap-2"
+                      onClick={() => setShowGoalInput(true)}
+                    >
+                      {goalProgress.toFixed(1)}%
+                      <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="text-[10px] text-white/40 font-mono">
+                      / ${profitGoal.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(goalProgress, 100)}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                    R-Multiple
+                  </CardTitle>
+                  <TrendingUp className="h-4 w-4 text-secondary" />
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-secondary" : "text-primary"}`}
+                  >
+                    {formatR(totalR)}
+                  </div>
+                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                    Total R-multiple
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
 
             {/* Advanced Stats */}
             <section className="space-y-6">
@@ -1784,53 +1695,72 @@ export default function TradingDashboard() {
               </div>
             </section>
 
-            {statsByTimeframe.length > 0 && (
-              <section className="space-y-6">
+            {/* Monthly Performance */}
+            {monthlyData.length > 0 && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="space-y-6"
+              >
                 <div className="flex items-center gap-3 mb-2 px-2">
-                  <Clock className="h-5 w-5 text-secondary" />
-                  <h2 className={sectionTitleStyle}>Timeframe Statistics</h2>
+                  <Calendar className="h-5 w-5 text-secondary" />
+                  <h2 className={sectionTitleStyle}>Monthly Performance</h2>
                 </div>
-                <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="relative overflow-x-auto">
-                      <table className="w-full text-left text-[12px] font-cyber">
-                        <thead>
-                          <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em]">
-                            <th className="py-5 px-6">Timeframe</th>
-                            <th className="py-5 px-6">Trades</th>
-                            <th className="py-5 px-6">Win Rate</th>
-                            <th className="py-5 px-6">Net PnL</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {statsByTimeframe.map((row) => (
-                            <tr
-                              key={row.timeframe}
-                              className="border-b border-white/5 hover:bg-white/[0.03]"
-                            >
-                              <td className="py-4 px-6 text-white font-bold">
-                                {row.timeframe}
-                              </td>
-                              <td className="py-4 px-6 text-white/70">
-                                {row.count}
-                              </td>
-                              <td className="py-4 px-6 text-white/70">
-                                {row.winRate.toFixed(1)}%
-                              </td>
-                              <td
-                                className={`py-4 px-6 font-bold ${row.profit >= 0 ? "text-secondary" : "text-primary"}`}
-                              >
-                                {row.profit >= 0 ? "+" : "-"}$
-                                {Math.abs(row.profit).toLocaleString()}
-                              </td>
-                            </tr>
+                <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
+                  <CardContent className="p-8">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={monthlyData}>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="rgba(255,255,255,0.05)"
+                        />
+                        <XAxis
+                          dataKey="month"
+                          stroke="rgba(255,255,255,0.3)"
+                          style={{ fontSize: "10px", fontFamily: "monospace" }}
+                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                        />
+                        <YAxis
+                          stroke="rgba(255,255,255,0.3)"
+                          style={{ fontSize: "10px", fontFamily: "monospace" }}
+                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                          tickFormatter={(value) =>
+                            `$${value.toLocaleString()}`
+                          }
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(13, 14, 20, 0.95)",
+                            border: "1px solid rgba(0, 255, 255, 0.2)",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontFamily: "monospace",
+                            boxShadow: "0 0 20px rgba(0, 255, 255, 0.1)",
+                          }}
+                          formatter={(value: any) => [
+                            `$${value.toLocaleString()}`,
+                            "Profit/Loss",
+                          ]}
+                          labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
+                        />
+                        <Bar
+                          dataKey="profit"
+                          radius={[8, 8, 0, 0]}
+                          animationDuration={1500}
+                        >
+                          {monthlyData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.profit >= 0 ? "#00ff88" : "#ff0080"}
+                            />
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
-              </section>
+              </motion.section>
             )}
 
             {/* Calendar View - Last 60 days */}
@@ -1904,6 +1834,44 @@ export default function TradingDashboard() {
         </Tabs>
       </div>
 
+      <Dialog open={showGoalInput} onOpenChange={setShowGoalInput}>
+        <DialogContent className="max-w-md bg-[#0d0e14] border-white/10 text-white rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-arcade text-[11px] uppercase tracking-wider">
+              Edit Profit Goal
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label className="font-arcade text-[9px] text-white/40 uppercase">
+              Goal Amount ($)
+            </Label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={profitGoal}
+              onChange={(e) => setProfitGoal(Number(e.target.value) || 0)}
+              className="bg-white/5 border-white/10 rounded-xl h-11"
+            />
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setShowGoalInput(false)}
+              className="font-arcade text-[10px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveGoal}
+              className="bg-accent hover:bg-accent/80 font-arcade text-[10px]"
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* PHOTO PREVIEW MODAL */}
       <Dialog open={!!previewPhoto} onOpenChange={() => setPreviewPhoto(null)}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none shadow-none flex flex-col justify-center items-center">
@@ -1976,12 +1944,12 @@ export default function TradingDashboard() {
           setEditData(null);
         }}
       >
-        <DialogContent className="max-w-2xl bg-[#0d0e14] border-white/10 text-white rounded-3xl p-0 overflow-hidden cyber-card shadow-2xl">
+        <DialogContent className="flex max-h-[min(90vh,56rem)] w-[min(95vw,42rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-3xl border-white/10 bg-[#0d0e14] p-0 text-white shadow-2xl cyber-card">
           <div
-            className={`h-2 w-full bg-gradient-to-r ${isEditing ? "from-accent to-primary" : "from-primary via-accent to-secondary"} animate-gradient-x`}
+            className={`h-2 w-full shrink-0 bg-gradient-to-r ${isEditing ? "from-accent to-primary" : "from-primary via-accent to-secondary"} animate-gradient-x`}
           />
 
-          <DialogHeader className="px-8 pt-8">
+          <DialogHeader className="shrink-0 px-8 pb-2 pt-8">
             <DialogTitle className="font-arcade text-white flex items-center gap-3">
               <div
                 className={`p-2 rounded-xl bg-white/5 border border-white/10 ${isEditing ? "text-accent" : "text-primary"}`}
@@ -2004,7 +1972,8 @@ export default function TradingDashboard() {
           </DialogHeader>
 
           {selectedTrade && (
-            <div className="px-8 pb-10 pt-4 space-y-8">
+            <>
+              <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-8 py-4">
               {isEditing ? (
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -2366,8 +2335,9 @@ export default function TradingDashboard() {
                   )}
                 </div>
               )}
+              </div>
 
-              <DialogFooter className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-white/5">
+              <DialogFooter className="shrink-0 flex-col gap-4 border-t border-white/5 bg-[#0d0e14] px-8 py-4 sm:flex-row">
                 {isEditing ? (
                   <>
                     <Button
@@ -2408,7 +2378,7 @@ export default function TradingDashboard() {
                   </>
                 )}
               </DialogFooter>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
