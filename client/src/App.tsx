@@ -1,4 +1,3 @@
-console.log("VERSION 2");
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -19,7 +18,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={200} skipDelayDuration={true}>
         <Toaster />
         <Router />
       </TooltipProvider>

@@ -45,7 +45,7 @@
 
 @layer components {
   .cyber-card {
-    @apply relative bg-card/60 backdrop-blur-xl border border-white/5 overflow-hidden transition-all duration-300 shadow-2xl;
+    @apply relative bg-card/60 backdrop-blur-xl border border-white/5 overflow-visible transition-all duration-300 shadow-2xl;
   }
   
   .cyber-card::after {

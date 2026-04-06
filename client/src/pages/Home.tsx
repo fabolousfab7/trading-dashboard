@@ -76,10 +76,10 @@ import {
 
 function MetricHint({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
-    <Hint delayDuration={200}>
+    <Hint delayDuration={150}>
       <HintTrigger asChild>
         <span
-          className="inline-flex cursor-help items-center gap-1 border-b border-dotted border-white/30 text-left underline-offset-2 hover:border-white/50"
+          className="relative z-20 inline-flex cursor-help items-center gap-1 border-b border-dotted border-white/30 text-left underline-offset-2 hover:border-white/50"
           tabIndex={0}
         >
           {label}
@@ -88,7 +88,7 @@ function MetricHint({ label, children }: { label: ReactNode; children: ReactNode
       </HintTrigger>
       <HintContent
         side="top"
-        className="max-w-[280px] border border-white/15 bg-[#0d0e14] px-3 py-2.5 text-left text-[11px] font-normal font-sans normal-case leading-snug tracking-normal text-white/90 shadow-xl"
+        className="z-[9999] max-w-[280px] border border-white/15 bg-[#0d0e14] px-3 py-2.5 text-left text-[11px] font-normal font-sans normal-case leading-snug tracking-normal text-white/90 shadow-xl"
       >
         {children}
       </HintContent>
@@ -584,16 +584,51 @@ export default function TradingDashboard() {
     return date.toTimeString().slice(0, 5);
   };
 
+  /** Parse date du trade en local (évite décalage UTC sur YYYY-MM-DD). */
+  const parseTradeDateLocal = (value: string | null | undefined): Date => {
+    if (!value) return new Date(NaN);
+    const raw = String(value).trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const y = Number(match[1]);
+      const m = Number(match[2]);
+      const d = Number(match[3]);
+      return new Date(y, m - 1, d, 12, 0, 0, 0);
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return new Date(NaN);
+    return new Date(
+      parsed.getFullYear(),
+      parsed.getMonth(),
+      parsed.getDate(),
+      12,
+      0,
+      0,
+      0,
+    );
+  };
+
+  const dateKeyFromTrade = (value: string | null | undefined): string => {
+    const d = parseTradeDateLocal(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatEquityChartLabel = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   // Apply filters
   const filteredTrades = trades.filter((t) => {
     if (filterStrategy !== "all" && t.strategie !== filterStrategy)
       return false;
     if (filterAccount !== "all" && t.compte !== filterAccount) return false;
     if (filterType !== "all" && t.type !== filterType) return false;
-    if (filterDateStart && new Date(t.date) < new Date(filterDateStart))
-      return false;
-    if (filterDateEnd && new Date(t.date) > new Date(filterDateEnd))
-      return false;
+    const tk = dateKeyFromTrade(t.date);
+    if (filterDateStart && tk < filterDateStart) return false;
+    if (filterDateEnd && tk > filterDateEnd) return false;
     return true;
   });
 
@@ -642,19 +677,34 @@ export default function TradingDashboard() {
 
   // Calculate equity curve (absolute balance = starting capital + cumul P/L)
   const sortedTrades = [...filteredTrades].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    (a, b) =>
+      parseTradeDateLocal(a.date).getTime() -
+      parseTradeDateLocal(b.date).getTime(),
   );
+
+  type EquityPoint = { date: string; balance: number; index: number };
+  const equityCurve: EquityPoint[] = [];
   let runningBalance = startingBalance;
-  const equityCurve = sortedTrades.map((t, i) => {
+
+  if (
+    filterDateStart &&
+    sortedTrades.length > 0 &&
+    dateKeyFromTrade(sortedTrades[0].date) > filterDateStart
+  ) {
+    equityCurve.push({
+      date: formatEquityChartLabel(parseTradeDateLocal(filterDateStart)),
+      balance: startingBalance,
+      index: -1,
+    });
+  }
+
+  sortedTrades.forEach((t, i) => {
     runningBalance += Number(t.profit);
-    return {
-      date: new Date(t.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
+    equityCurve.push({
+      date: formatEquityChartLabel(parseTradeDateLocal(t.date)),
       balance: runningBalance,
       index: i,
-    };
+    });
   });
 
   // Calculate monthly performance
@@ -749,13 +799,23 @@ export default function TradingDashboard() {
   for (let i = 59; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split("T")[0];
-    const dayTrades = filteredTrades.filter((t) => t.date.startsWith(dateStr));
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
+    const dayTrades = filteredTrades.filter(
+      (t) => dateKeyFromTrade(t.date) === dateStr,
+    );
     const dayProfit = dayTrades.reduce((sum, t) => sum + Number(t.profit), 0);
+    const dayR = dayTrades.reduce(
+      (sum, t) => sum + getR(Number(t.profit), Number(t.risk)),
+      0,
+    );
     calendarData.push({
       date: dateStr,
       profit: dayProfit,
       count: dayTrades.length,
+      dayR,
     });
   }
 
@@ -1519,7 +1579,7 @@ export default function TradingDashboard() {
                           ]}
                         />
                         <Area
-                          type="monotone"
+                          type="stepAfter"
                           dataKey="balance"
                           stroke="#00ffff"
                           strokeWidth={2}
@@ -1876,20 +1936,32 @@ export default function TradingDashboard() {
                           : day.profit > 0
                             ? `bg-secondary`
                             : "bg-primary";
+                      const tipTitle = `${new Date(day.date + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L : ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR cumulé : ${formatR(day.dayR ?? 0)}`;
                       return (
                         <div
                           key={i}
-                          className={`aspect-square rounded-lg ${color} border border-white/10 hover:scale-110 transition-all cursor-pointer relative group`}
+                          className={`aspect-square rounded-lg ${color} border border-white/10 transition-all cursor-pointer relative group hover:z-10 hover:scale-110`}
                           style={{
                             opacity:
                               day.count === 0 ? 0.3 : 0.4 + intensity * 0.6,
                           }}
-                          title={`${new Date(day.date).toLocaleDateString()}\n${day.count} trades\n$${day.profit.toLocaleString()}`}
+                          title={tipTitle}
                         >
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[8px] font-bold text-white">
-                              {day.count}
-                            </span>
+                          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
+                            {day.count > 0 ? (
+                              <>
+                                <span className="text-[7px] font-bold text-white drop-shadow-md">
+                                  {day.count} tr.
+                                </span>
+                                <span className="text-[6px] font-mono text-white/95 drop-shadow-md">
+                                  {day.profit >= 0 ? "+" : ""}$
+                                  {Math.abs(day.profit).toLocaleString()}
+                                </span>
+                                <span className="text-[6px] font-mono text-white/85 drop-shadow-md">
+                                  {formatR(day.dayR ?? 0)}
+                                </span>
+                              </>
+                            ) : null}
                           </div>
                         </div>
                       );
