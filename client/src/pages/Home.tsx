@@ -93,6 +93,9 @@ export default function TradingDashboard() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterDateStart, setFilterDateStart] = useState<string>("");
   const [filterDateEnd, setFilterDateEnd] = useState<string>("");
+  const [entryTime, setEntryTime] = useState<string>(
+    new Date().toTimeString().slice(0, 5),
+  );
 
   const { toast } = useToast();
 
@@ -265,7 +268,7 @@ export default function TradingDashboard() {
       compte: formData.get("compte"),
       strategie: formData.get("strategie"),
       observations: formData.get("observations"),
-      date: formData.get("date") || new Date().toISOString(),
+      date: buildTradeDateTime(formData.get("date"), entryTime),
       photos: selectedPhotos,
       user_id: user.id,
     };
@@ -284,6 +287,7 @@ export default function TradingDashboard() {
       setTrades([data[0], ...trades]);
       setSelectedPhotos([]);
       (e.target as HTMLFormElement).reset();
+      setEntryTime(new Date().toTimeString().slice(0, 5));
       toast({ title: "Success", description: "Trade added successfully" });
     }
   }
@@ -514,6 +518,40 @@ export default function TradingDashboard() {
     return `${sign}${r.toFixed(2)}R`;
   };
 
+  const formatTradeTime = (value: string | null | undefined) => {
+    if (!value) return "--:--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--:--";
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  const buildTradeDateTime = (
+    dateValue: FormDataEntryValue | null,
+    timeValue: string,
+  ) => {
+    if (!dateValue || typeof dateValue !== "string")
+      return new Date().toISOString();
+    return new Date(`${dateValue}T${timeValue || "00:00"}:00`).toISOString();
+  };
+
+  const getDateInputValue = (value: string | null | undefined) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().split("T")[0];
+  };
+
+  const getTimeInputValue = (value: string | null | undefined) => {
+    if (!value) return "00:00";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "00:00";
+    return date.toTimeString().slice(0, 5);
+  };
+
   // Apply filters
   const filteredTrades = trades.filter((t) => {
     if (filterStrategy !== "all" && t.strategie !== filterStrategy)
@@ -544,6 +582,31 @@ export default function TradingDashboard() {
     acc[a].rTotal += getR(Number(t.profit), Number(t.risk));
     return acc;
   }, {});
+
+  const statsByTimeframe = Object.entries(
+    filteredTrades.reduce(
+      (
+        acc: Record<string, { profit: number; count: number; wins: number }>,
+        t,
+      ) => {
+        const tf = t.timeframe || "Unknown";
+        if (!acc[tf]) acc[tf] = { profit: 0, count: 0, wins: 0 };
+        const profit = Number(t.profit);
+        acc[tf].profit += profit;
+        acc[tf].count += 1;
+        if (profit > 0) acc[tf].wins += 1;
+        return acc;
+      },
+      {},
+    ),
+  )
+    .map(([timeframe, data]) => ({
+      timeframe,
+      profit: data.profit,
+      count: data.count,
+      winRate: data.count ? (data.wins / data.count) * 100 : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
 
   const totalProfit = filteredTrades.reduce(
     (acc, t) => acc + Number(t.profit),
@@ -888,6 +951,19 @@ export default function TradingDashboard() {
                     </div>
                     <div className="space-y-4">
                       <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Clock className="h-4 w-4 text-accent" /> Entry Time
+                      </Label>
+                      <Input
+                        name="entry_time"
+                        type="time"
+                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-accent/20 h-11"
+                        value={entryTime}
+                        onChange={(e) => setEntryTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
                         <Target className="h-4 w-4 text-primary" /> Asset
                         (Actif)
                       </Label>
@@ -1084,6 +1160,7 @@ export default function TradingDashboard() {
                       <thead>
                         <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
                           <th className="py-6 px-6">Date</th>
+                          <th className="py-6 px-6">Hour</th>
                           <th className="py-6 px-6">Asset</th>
                           <th className="py-6 px-6">Timeframe</th>
                           <th className="py-6 px-6">Type</th>
@@ -1098,7 +1175,7 @@ export default function TradingDashboard() {
                           {filteredTrades.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={8}
+                                colSpan={9}
                                 className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase"
                               >
                                 No trades found
@@ -1121,6 +1198,9 @@ export default function TradingDashboard() {
                                 >
                                   <td className="py-6 px-6 text-white font-mono tracking-tighter">
                                     {new Date(trade.date).toLocaleDateString()}
+                                  </td>
+                                  <td className="py-6 px-6 text-white/60 font-mono tracking-tighter">
+                                    {formatTradeTime(trade.date)}
                                   </td>
                                   <td className="py-6 px-6 text-white font-bold">
                                     {trade.actif}
@@ -1704,6 +1784,55 @@ export default function TradingDashboard() {
               </div>
             </section>
 
+            {statsByTimeframe.length > 0 && (
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 mb-2 px-2">
+                  <Clock className="h-5 w-5 text-secondary" />
+                  <h2 className={sectionTitleStyle}>Timeframe Statistics</h2>
+                </div>
+                <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="relative overflow-x-auto">
+                      <table className="w-full text-left text-[12px] font-cyber">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em]">
+                            <th className="py-5 px-6">Timeframe</th>
+                            <th className="py-5 px-6">Trades</th>
+                            <th className="py-5 px-6">Win Rate</th>
+                            <th className="py-5 px-6">Net PnL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statsByTimeframe.map((row) => (
+                            <tr
+                              key={row.timeframe}
+                              className="border-b border-white/5 hover:bg-white/[0.03]"
+                            >
+                              <td className="py-4 px-6 text-white font-bold">
+                                {row.timeframe}
+                              </td>
+                              <td className="py-4 px-6 text-white/70">
+                                {row.count}
+                              </td>
+                              <td className="py-4 px-6 text-white/70">
+                                {row.winRate.toFixed(1)}%
+                              </td>
+                              <td
+                                className={`py-4 px-6 font-bold ${row.profit >= 0 ? "text-secondary" : "text-primary"}`}
+                              >
+                                {row.profit >= 0 ? "+" : "-"}$
+                                {Math.abs(row.profit).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
+
             {/* Calendar View - Last 60 days */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
@@ -1884,9 +2013,34 @@ export default function TradingDashboard() {
                     </Label>
                     <Input
                       type="date"
-                      value={editData?.date?.split("T")[0]}
+                      value={getDateInputValue(editData?.date)}
                       onChange={(e) =>
-                        setEditData({ ...editData, date: e.target.value })
+                        setEditData({
+                          ...editData,
+                          date: buildTradeDateTime(
+                            e.target.value,
+                            getTimeInputValue(editData?.date),
+                          ),
+                        })
+                      }
+                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                      Entry Time
+                    </Label>
+                    <Input
+                      type="time"
+                      value={getTimeInputValue(editData?.date)}
+                      onChange={(e) =>
+                        setEditData({
+                          ...editData,
+                          date: buildTradeDateTime(
+                            getDateInputValue(editData?.date),
+                            e.target.value,
+                          ),
+                        })
                       }
                       className="bg-white/5 border-white/10 rounded-xl h-11"
                     />
@@ -2091,6 +2245,17 @@ export default function TradingDashboard() {
                       </div>
                       <p className="font-cyber text-sm font-bold text-secondary tracking-wide">
                         {selectedTrade.actif}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-white/30">
+                        <Clock className="h-3 w-3" />
+                        <span className="font-arcade text-[8px] uppercase tracking-widest">
+                          Time
+                        </span>
+                      </div>
+                      <p className="font-cyber text-sm font-medium">
+                        {formatTradeTime(selectedTrade.date)}
                       </p>
                     </div>
                     <div className="space-y-2">
