@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip as Hint,
+  TooltipTrigger as HintTrigger,
+  TooltipContent as HintContent,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -51,6 +56,7 @@ import {
   Filter,
   RefreshCw,
   LineChart as LineChartIcon,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -67,6 +73,28 @@ import {
   AreaChart,
   Cell,
 } from "recharts";
+
+function MetricHint({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <Hint delayDuration={200}>
+      <HintTrigger asChild>
+        <span
+          className="inline-flex cursor-help items-center gap-1 border-b border-dotted border-white/30 text-left underline-offset-2 hover:border-white/50"
+          tabIndex={0}
+        >
+          {label}
+          <HelpCircle className="h-3 w-3 shrink-0 text-white/35" aria-hidden />
+        </span>
+      </HintTrigger>
+      <HintContent
+        side="top"
+        className="max-w-[280px] border border-white/15 bg-[#0d0e14] px-3 py-2.5 text-left text-[11px] font-normal font-sans normal-case leading-snug tracking-normal text-white/90 shadow-xl"
+      >
+        {children}
+      </HintContent>
+    </Hint>
+  );
+}
 
 export default function TradingDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -86,6 +114,7 @@ export default function TradingDashboard() {
   } | null>(null);
   const [profitGoal, setProfitGoal] = useState<number>(10000);
   const [showGoalInput, setShowGoalInput] = useState(false);
+  const [startingBalance, setStartingBalance] = useState<number>(0);
 
   // Filters
   const [filterStrategy, setFilterStrategy] = useState<string>("all");
@@ -121,6 +150,9 @@ export default function TradingDashboard() {
       fetchTrades();
       const savedGoal = localStorage.getItem(`profitGoal_${user.id}`);
       if (savedGoal) setProfitGoal(parseFloat(savedGoal));
+      const savedStart = localStorage.getItem(`startingBalance_${user.id}`);
+      if (savedStart != null && savedStart !== "")
+        setStartingBalance(parseFloat(savedStart));
     }
   }, [user]);
 
@@ -608,11 +640,11 @@ export default function TradingDashboard() {
   const globalTotalR = trades.reduce((acc, t) => acc + getR(Number(t.profit), Number(t.risk)), 0);
   const globalCount = trades.length;
 
-  // Calculate equity curve
+  // Calculate equity curve (absolute balance = starting capital + cumul P/L)
   const sortedTrades = [...filteredTrades].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
-  let runningBalance = 0;
+  let runningBalance = startingBalance;
   const equityCurve = sortedTrades.map((t, i) => {
     runningBalance += Number(t.profit);
     return {
@@ -659,10 +691,10 @@ export default function TradingDashboard() {
       )
     : null;
 
-  // Calculate max drawdown
-  let peak = 0;
+  // Calculate max drawdown (on absolute equity curve)
+  let peak = startingBalance;
   let maxDrawdown = 0;
-  runningBalance = 0;
+  runningBalance = startingBalance;
   sortedTrades.forEach((t) => {
     runningBalance += Number(t.profit);
     if (runningBalance > peak) peak = runningBalance;
@@ -879,7 +911,11 @@ export default function TradingDashboard() {
             <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                  Yield Ratio
+                  <MetricHint label="Yield ratio">
+                    Somme des R : pour chaque trade, résultat ÷ perte max
+                    (risque). Le total indique combien de fois tu as « gagné ton
+                    risque » en cumulé.
+                  </MetricHint>
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-secondary" />
               </CardHeader>
@@ -1387,9 +1423,43 @@ export default function TradingDashboard() {
                 viewport={{ once: true }}
                 className="space-y-6"
               >
-                <div className="flex items-center gap-3 mb-2 px-2">
-                  <Activity className="h-5 w-5 text-accent" />
-                  <h2 className={sectionTitleStyle}>Equity Curve</h2>
+                <div className="mb-2 flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <Activity className="h-5 w-5 text-accent" />
+                    <div className="flex flex-col gap-0.5">
+                      <h2 className={sectionTitleStyle}>Equity Curve</h2>
+                      <span className="font-arcade text-[8px] uppercase tracking-wider text-white/35">
+                        Solde réel = capital initial + P/L cumulé (trades filtrés)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <Label
+                      htmlFor="starting-balance"
+                      className="whitespace-nowrap font-arcade text-[8px] uppercase text-white/40"
+                    >
+                      Capital initial ($)
+                    </Label>
+                    <Input
+                      id="starting-balance"
+                      type="number"
+                      min={0}
+                      step={100}
+                      className="h-9 w-[7.5rem] rounded-xl border-white/10 bg-white/5 text-sm"
+                      value={startingBalance}
+                      onChange={(e) =>
+                        setStartingBalance(Number(e.target.value) || 0)
+                      }
+                      onBlur={() => {
+                        if (user) {
+                          localStorage.setItem(
+                            `startingBalance_${user.id}`,
+                            String(startingBalance),
+                          );
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
                 <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-2xl">
                   <CardContent className="p-8">
@@ -1444,8 +1514,8 @@ export default function TradingDashboard() {
                           }}
                           labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
                           formatter={(value: any) => [
-                            `$${value.toLocaleString()}`,
-                            "Balance",
+                            `$${Number(value).toLocaleString()}`,
+                            "Solde",
                           ]}
                         />
                         <Area
@@ -1536,7 +1606,12 @@ export default function TradingDashboard() {
               <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                    R-Multiple
+                    <MetricHint label="R-multiple">
+                      Idem que le ratio R : somme des (profit ÷ risque) sur
+                      les trades correspondant aux filtres. Compare la
+                      performance en multiples de risque, pas seulement en
+                      dollars.
+                    </MetricHint>
                   </CardTitle>
                   <TrendingUp className="h-4 w-4 text-secondary" />
                 </CardHeader>
@@ -1563,7 +1638,11 @@ export default function TradingDashboard() {
                 <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
                   <CardHeader>
                     <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
-                      Max Drawdown
+                      <MetricHint label="Max drawdown">
+                        Plus forte baisse du solde depuis un sommet (capital
+                        initial + P/L cumulés sur les trades filtrés). Mesure
+                        combien tu es descendu sous ton pic d’équité.
+                      </MetricHint>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1683,7 +1762,14 @@ export default function TradingDashboard() {
 
                 <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">Sharpe Ratio</CardTitle>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      <MetricHint label="Sharpe ratio">
+                        Ici : moyenne des P/L ÷ écart-type des P/L (série
+                        filtrée). Plus c’est haut, plus les gains sont grands
+                        par rapport à la variabilité. Ce n’est pas un Sharpe
+                        financier annualisé « officiel ».
+                      </MetricHint>
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className={`text-2xl font-bold font-cyber ${sharpeRatio >= 1 ? 'text-secondary' : sharpeRatio >= 0 ? 'text-accent' : 'text-primary'}`}>
@@ -1950,9 +2036,9 @@ export default function TradingDashboard() {
           />
 
           <DialogHeader className="shrink-0 px-8 pb-2 pt-8">
-            <DialogTitle className="font-arcade text-white flex items-center gap-3">
+            <DialogTitle className="flex items-start gap-4 text-left font-cyber text-white sm:items-center">
               <div
-                className={`p-2 rounded-xl bg-white/5 border border-white/10 ${isEditing ? "text-accent" : "text-primary"}`}
+                className={`shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 ${isEditing ? "text-accent" : "text-primary"}`}
               >
                 {isEditing ? (
                   <Edit2 className="h-5 w-5" />
@@ -1960,13 +2046,22 @@ export default function TradingDashboard() {
                   <Activity className="h-5 w-5" />
                 )}
               </div>
-              <div className="flex flex-col">
-                <span className="text-[12px] tracking-[0.3em] uppercase">
-                  {isEditing ? "Edit Trade" : "Trade Details"}
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="font-arcade text-[10px] uppercase tracking-[0.22em] text-white/45">
+                  {isEditing ? "Edit trade" : "Trade details"}
                 </span>
-                <span className="text-[10px] text-white/30 font-mono uppercase">
-                  ID: {selectedTrade?.id}
-                </span>
+                {selectedTrade && (
+                  <>
+                    <span className="truncate text-lg font-semibold tracking-wide text-white">
+                      {selectedTrade.actif}
+                    </span>
+                    <span className="text-[11px] text-white/45">
+                      {new Date(selectedTrade.date).toLocaleDateString("fr-FR")}{" "}
+                      · {formatTradeTime(selectedTrade.date)} ·{" "}
+                      {selectedTrade.timeframe}
+                    </span>
+                  </>
+                )}
               </div>
             </DialogTitle>
           </DialogHeader>
