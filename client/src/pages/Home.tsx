@@ -1940,29 +1940,27 @@ export default function TradingDashboard() {
                       return (
                         <div
                           key={i}
-                          className={`aspect-square rounded-lg ${color} border border-white/10 transition-all cursor-pointer relative group hover:z-10 hover:scale-110`}
+                          className={`group relative aspect-square cursor-pointer rounded-lg border border-white/15 ${color} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)] transition-all duration-200 hover:z-10 hover:scale-110 hover:border-white/40`}
                           style={{
                             opacity:
-                              day.count === 0 ? 0.3 : 0.4 + intensity * 0.6,
+                              day.count === 0 ? 0.28 : 0.5 + intensity * 0.5,
                           }}
                           title={tipTitle}
                         >
-                          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
-                            {day.count > 0 ? (
-                              <>
-                                <span className="text-[7px] font-bold text-white drop-shadow-md">
-                                  {day.count} tr.
-                                </span>
-                                <span className="text-[6px] font-mono text-white/95 drop-shadow-md">
-                                  {day.profit >= 0 ? "+" : ""}$
-                                  {Math.abs(day.profit).toLocaleString()}
-                                </span>
-                                <span className="text-[6px] font-mono text-white/85 drop-shadow-md">
-                                  {formatR(day.dayR ?? 0)}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
+                          {day.count > 0 && (
+                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 rounded-lg bg-black/45 px-1 text-center">
+                              <span className="text-[9px] font-bold text-white">
+                                {day.count} trade{day.count > 1 ? "s" : ""}
+                              </span>
+                              <span className="text-[8px] font-mono text-secondary">
+                                {day.profit >= 0 ? "+" : ""}$
+                                {Math.abs(day.profit).toLocaleString()}
+                              </span>
+                              <span className="text-[8px] font-mono text-accent">
+                                {formatR(day.dayR ?? 0)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
