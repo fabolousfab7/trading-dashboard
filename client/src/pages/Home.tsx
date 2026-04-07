@@ -125,6 +125,9 @@ export default function TradingDashboard() {
   const [entryTime, setEntryTime] = useState<string>(
     new Date().toTimeString().slice(0, 5),
   );
+  const [calendarMetric, setCalendarMetric] = useState<"pnl" | "r" | "trades">(
+    "pnl",
+  );
 
   const { toast } = useToast();
 
@@ -818,6 +821,21 @@ export default function TradingDashboard() {
       dayR,
     });
   }
+
+  const calendarValue = (day: any) =>
+    calendarMetric === "pnl"
+      ? day.profit
+      : calendarMetric === "r"
+        ? day.dayR
+        : day.count;
+
+  const weekSummaries = Array.from({ length: 9 }, (_, w) => {
+    const slice = calendarData.slice(w * 7, w * 7 + 7);
+    const pnl = slice.reduce((sum, d) => sum + Number(d.profit), 0);
+    const r = slice.reduce((sum, d) => sum + Number(d.dayR), 0);
+    const trades = slice.reduce((sum, d) => sum + Number(d.count), 0);
+    return { week: w + 1, pnl, r, trades };
+  }).filter((w) => w.pnl !== 0 || w.r !== 0 || w.trades !== 0);
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
@@ -1916,20 +1934,60 @@ export default function TradingDashboard() {
               viewport={{ once: true }}
               className="space-y-6"
             >
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <Calendar className="h-5 w-5 text-accent" />
-                <h2 className={sectionTitleStyle}>
-                  Trading Calendar (Last 60 Days)
-                </h2>
+              <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-accent" />
+                  <h2 className={sectionTitleStyle}>
+                    Trading Calendar (Last 60 Days)
+                  </h2>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calendarMetric === "pnl" ? "default" : "ghost"}
+                    onClick={() => setCalendarMetric("pnl")}
+                    className="h-7 rounded-lg px-3 text-[9px] font-arcade"
+                  >
+                    PnL
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calendarMetric === "r" ? "default" : "ghost"}
+                    onClick={() => setCalendarMetric("r")}
+                    className="h-7 rounded-lg px-3 text-[9px] font-arcade"
+                  >
+                    R
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calendarMetric === "trades" ? "default" : "ghost"}
+                    onClick={() => setCalendarMetric("trades")}
+                    className="h-7 rounded-lg px-3 text-[9px] font-arcade"
+                  >
+                    Trades
+                  </Button>
+                </div>
               </div>
               <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl">
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-10 gap-2">
+                <CardContent className="p-4 md:p-6">
+                  <div className="grid grid-cols-6 gap-2 md:grid-cols-10">
                     {calendarData.map((day, i) => {
                       const intensity =
                         day.count === 0
                           ? 0
-                          : Math.min(Math.abs(day.profit) / 500, 1);
+                          : Math.min(
+                              Math.abs(
+                                calendarMetric === "pnl"
+                                  ? day.profit
+                                  : calendarMetric === "r"
+                                    ? day.dayR * 100
+                                    : day.count * 100,
+                              ) / 500,
+                              1,
+                            );
                       const color =
                         day.count === 0
                           ? "bg-white/5"
@@ -1940,24 +1998,33 @@ export default function TradingDashboard() {
                       return (
                         <div
                           key={i}
-                          className={`group relative aspect-square cursor-pointer rounded-lg border border-white/15 ${color} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)] transition-all duration-200 hover:z-10 hover:scale-110 hover:border-white/40`}
+                          className={`group relative aspect-square cursor-pointer rounded-lg border border-white/20 ${color} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-200 hover:z-10 hover:scale-105 hover:border-white/50`}
                           style={{
                             opacity:
-                              day.count === 0 ? 0.28 : 0.5 + intensity * 0.5,
+                              day.count === 0 ? 0.22 : 0.55 + intensity * 0.45,
                           }}
                           title={tipTitle}
                         >
                           {day.count > 0 && (
-                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 rounded-lg bg-black/45 px-1 text-center">
-                              <span className="text-[9px] font-bold text-white">
+                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 rounded-lg bg-black/60 px-1 text-center">
+                              <span className="text-[10px] font-bold text-white">
                                 {day.count} trade{day.count > 1 ? "s" : ""}
                               </span>
-                              <span className="text-[8px] font-mono text-secondary">
+                              <span className="text-[10px] font-mono text-white">
                                 {day.profit >= 0 ? "+" : ""}$
                                 {Math.abs(day.profit).toLocaleString()}
                               </span>
-                              <span className="text-[8px] font-mono text-accent">
+                              <span className="text-[10px] font-mono text-cyan-200">
                                 {formatR(day.dayR ?? 0)}
+                              </span>
+                              <span className="text-[9px] font-mono text-amber-100">
+                                {calendarMetric === "pnl"
+                                  ? `${day.profit >= 0 ? "+" : ""}$${Math.abs(
+                                      day.profit,
+                                    ).toLocaleString()}`
+                                  : calendarMetric === "r"
+                                    ? formatR(day.dayR ?? 0)
+                                    : `${day.count} trades`}
                               </span>
                             </div>
                           )}
@@ -1965,6 +2032,24 @@ export default function TradingDashboard() {
                       );
                     })}
                   </div>
+                  {weekSummaries.length > 0 && (
+                    <div className="mt-5 grid gap-2 md:grid-cols-3">
+                      {weekSummaries.map((w) => (
+                        <div
+                          key={w.week}
+                          className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                        >
+                          <div className="text-[9px] font-arcade text-white/50 uppercase">
+                            Week {w.week}
+                          </div>
+                          <div className="mt-1 text-[11px] text-white">
+                            {w.trades} trades • {w.pnl >= 0 ? "+" : "-"}$
+                            {Math.abs(w.pnl).toLocaleString()} • {formatR(w.r)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-6 text-[8px] font-arcade text-white/30 uppercase">
                     <span>60 days ago</span>
                     <div className="flex items-center gap-4">
