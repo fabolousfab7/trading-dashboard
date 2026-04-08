@@ -64,6 +64,7 @@ import {
   Line,
   BarChart,
   Bar,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -72,6 +73,7 @@ import {
   Area,
   AreaChart,
   Cell,
+  ReferenceLine,
 } from "recharts";
 
 function MetricHint({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -832,10 +834,13 @@ export default function TradingDashboard() {
   }
   while (calendarCells.length % 7 !== 0) calendarCells.push(null);
 
-  const monthWeekSummaries = Array.from(
+  const calendarRows = Array.from(
     { length: Math.ceil(calendarCells.length / 7) },
-    (_, w) => {
-      const slice = calendarCells.slice(w * 7, w * 7 + 7).filter(Boolean) as Array<{
+    (_, w) => calendarCells.slice(w * 7, w * 7 + 7),
+  );
+
+  const monthWeekSummaries = calendarRows.map((row, w) => {
+      const slice = row.filter(Boolean) as Array<{
         dayNumber: number;
         key: string;
         profit: number;
@@ -845,15 +850,32 @@ export default function TradingDashboard() {
       const pnl = slice.reduce((sum, d) => sum + d.profit, 0);
       const r = slice.reduce((sum, d) => sum + d.dayR, 0);
       const trades = slice.reduce((sum, d) => sum + d.count, 0);
-      return { week: w + 1, pnl, r, trades };
-    },
-  );
-  const weeklyPerformanceData = monthWeekSummaries.map((w) => ({
-    weekLabel: `Week ${w.week}`,
-    pnl: w.pnl,
-    trades: w.trades,
-    r: w.r,
-  }));
+      const firstDay = slice[0]?.dayNumber;
+      const lastDay = slice[slice.length - 1]?.dayNumber;
+      return {
+        week: w + 1,
+        pnl,
+        r,
+        trades,
+        rangeLabel:
+          firstDay && lastDay
+            ? `${monthStart.toLocaleDateString("en-US", {
+                month: "short",
+              })} ${firstDay}-${lastDay}`
+            : `${monthStart.toLocaleDateString("en-US", { month: "short" })}`,
+      };
+    });
+  let runningMonthPnl = 0;
+  const monthlyPerformanceDetailedData = monthWeekSummaries.map((w) => {
+    runningMonthPnl += w.pnl;
+    return {
+      weekLabel: `Week ${w.week}`,
+      pnl: w.pnl,
+      cumPnl: runningMonthPnl,
+      trades: w.trades,
+      r: w.r,
+    };
+  });
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
@@ -1878,8 +1900,8 @@ export default function TradingDashboard() {
               </div>
             </section>
 
-            {/* Weekly Performance (current month) */}
-            {weeklyPerformanceData.length > 0 && (
+            {/* Monthly Performance with weekly precision */}
+            {monthlyPerformanceDetailedData.length > 0 && (
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -1888,13 +1910,13 @@ export default function TradingDashboard() {
               >
                 <div className="flex items-center gap-3 mb-2 px-2">
                   <Calendar className="h-5 w-5 text-secondary" />
-                  <h2 className={sectionTitleStyle}>Weekly Performance</h2>
+                  <h2 className={sectionTitleStyle}>Monthly Performance</h2>
                 </div>
                 <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
                   <CardContent className="p-8">
                     <ResponsiveContainer width="100%" height={340}>
-                      <BarChart
-                        data={weeklyPerformanceData}
+                      <ComposedChart
+                        data={monthlyPerformanceDetailedData}
                         margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                       >
                         <CartesianGrid
@@ -1927,11 +1949,20 @@ export default function TradingDashboard() {
                           formatter={(value: any, _name: any, item: any) => {
                             const payload = item?.payload;
                             return [
-                              `$${Number(value).toLocaleString()} • ${payload?.trades ?? 0} trades • ${formatR(payload?.r ?? 0)}`,
-                              "Week result",
+                              `$${Number(value).toLocaleString()} • cumulé: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trades • ${formatR(payload?.r ?? 0)}`,
+                              "Week result (monthly view)",
                             ];
                           }}
                           labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
+                        />
+                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" />
+                        <Area
+                          type="monotone"
+                          dataKey="cumPnl"
+                          stroke="#00ffff"
+                          fill="#00ffff"
+                          fillOpacity={0.15}
+                          strokeWidth={2}
                         />
                         <Bar
                           dataKey="pnl"
@@ -1939,14 +1970,21 @@ export default function TradingDashboard() {
                           radius={[12, 12, 0, 0]}
                           animationDuration={1500}
                         >
-                          {weeklyPerformanceData.map((entry, index) => (
+                          {monthlyPerformanceDetailedData.map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
                               fill={entry.pnl >= 0 ? "#00ff88" : "#ff4d7a"}
                             />
                           ))}
                         </Bar>
-                      </BarChart>
+                        <Line
+                          type="monotone"
+                          dataKey="cumPnl"
+                          stroke="#7df9ff"
+                          dot={{ r: 3, fill: "#7df9ff" }}
+                          strokeWidth={2}
+                        />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
@@ -2010,9 +2048,9 @@ export default function TradingDashboard() {
               </div>
               <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl">
                 <CardContent className="p-4 md:p-6">
-                  <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-7 gap-2">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[980px] space-y-2">
+                      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_220px] gap-2">
                         {weekdayLabels.map((label) => (
                           <div
                             key={label}
@@ -2021,13 +2059,22 @@ export default function TradingDashboard() {
                             {label}
                           </div>
                         ))}
+                        <div className="py-1 text-center text-[9px] font-arcade uppercase tracking-wider text-white/45">
+                          Weekly Summary
+                        </div>
                       </div>
-                      <div className="grid grid-cols-7 gap-2">
-                        {calendarCells.map((day, i) => {
+                      {calendarRows.map((row, rowIndex) => {
+                        const week = monthWeekSummaries[rowIndex];
+                        return (
+                          <div
+                            key={`week-row-${rowIndex}`}
+                            className="grid grid-cols-[repeat(7,minmax(0,1fr))_220px] gap-2"
+                          >
+                            {row.map((day, i) => {
                           if (!day) {
                             return (
                               <div
-                                key={`empty-${i}`}
+                                key={`empty-${rowIndex}-${i}`}
                                 className="aspect-square rounded-lg border border-white/5 bg-white/[0.02]"
                               />
                             );
@@ -2041,54 +2088,49 @@ export default function TradingDashboard() {
                               : day.profit >= 0
                                 ? "bg-emerald-500/55"
                                 : "bg-rose-500/60";
-                          return (
-                            <div
-                              key={day.key}
-                              className={`relative aspect-square rounded-lg border border-white/15 ${colorClass} p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]`}
-                              style={{
-                                opacity: day.count === 0 ? 0.35 : 0.62 + intensity * 0.3,
-                              }}
-                              title={`${new Date(day.key + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L: ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR: ${formatR(day.dayR)}`}
-                            >
-                              <div className="absolute left-1.5 top-1 text-[10px] font-bold text-white/80">
-                                {day.dayNumber}
-                              </div>
-                              {day.count > 0 && (
-                                <div className="absolute inset-x-1.5 bottom-1 rounded-md bg-black/55 p-1 text-center">
-                                  <div className="text-[10px] font-bold text-white">
-                                    {day.count}T
+                              return (
+                                <div
+                                  key={day.key}
+                                  className={`relative aspect-square rounded-lg border border-white/15 ${colorClass} p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]`}
+                                  style={{
+                                    opacity: day.count === 0 ? 0.35 : 0.62 + intensity * 0.3,
+                                  }}
+                                  title={`${new Date(day.key + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L: ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR: ${formatR(day.dayR)}`}
+                                >
+                                  <div className="absolute left-1.5 top-1 text-[10px] font-bold text-white/80">
+                                    {day.dayNumber}
                                   </div>
-                                  <div className="text-[10px] font-mono text-white">
-                                    {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
-                                  </div>
-                                  <div className="text-[10px] font-mono text-cyan-200">
-                                    {formatR(day.dayR)}
-                                  </div>
+                                  {day.count > 0 && (
+                                    <div className="absolute inset-x-1.5 top-[24%] bottom-1.5 rounded-md bg-black/60 p-1 text-center flex flex-col items-center justify-center gap-1">
+                                      <div className="text-[11px] font-bold text-white">
+                                        {day.count} trades
+                                      </div>
+                                      <div className="text-[11px] font-mono text-white">
+                                        {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
+                                      </div>
+                                      <div className="text-[11px] font-mono text-cyan-200">
+                                        {formatR(day.dayR)}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              );
+                            })}
+                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+                              <div className="text-[9px] font-arcade uppercase text-white/45">
+                                Week {week.week} • {week.rangeLabel}
+                              </div>
+                              <div className="mt-1 text-[12px] text-white">
+                                {week.pnl >= 0 ? "+" : "-"}${Math.abs(week.pnl).toLocaleString()}
+                              </div>
+                              <div className="text-[11px] text-cyan-200">{formatR(week.r)}</div>
+                              <div className="text-[11px] text-white/60">
+                                {week.trades} trade{week.trades > 1 ? "s" : ""}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {monthWeekSummaries.map((w) => (
-                        <div
-                          key={w.week}
-                          className="rounded-xl border border-white/10 bg-black/25 px-3 py-2"
-                        >
-                          <div className="text-[9px] font-arcade uppercase text-white/45">
-                            Week {w.week}
                           </div>
-                          <div className="mt-1 text-[11px] text-white">
-                            {w.pnl >= 0 ? "+" : "-"}${Math.abs(w.pnl).toLocaleString()}
-                          </div>
-                          <div className="text-[10px] text-cyan-200">{formatR(w.r)}</div>
-                          <div className="text-[10px] text-white/60">
-                            {w.trades} trade{w.trades > 1 ? "s" : ""}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </CardContent>
