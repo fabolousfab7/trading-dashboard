@@ -64,7 +64,6 @@ import {
   Line,
   BarChart,
   Bar,
-  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -73,7 +72,6 @@ import {
   Area,
   AreaChart,
   Cell,
-  ReferenceLine,
 } from "recharts";
 
 function MetricHint({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -744,6 +742,27 @@ export default function TradingDashboard() {
   // Advanced stats
   const winningTrades = filteredTrades.filter((t) => Number(t.profit) > 0);
   const losingTrades = filteredTrades.filter((t) => Number(t.profit) < 0);
+  const avgProfit = winningTrades.length
+    ? winningTrades.reduce((sum, t) => sum + Number(t.profit), 0) /
+      winningTrades.length
+    : 0;
+  const avgLoss = losingTrades.length
+    ? losingTrades.reduce((sum, t) => sum + Number(t.profit), 0) /
+      losingTrades.length
+    : 0;
+  const averageRRR = avgLoss !== 0 ? avgProfit / Math.abs(avgLoss) : 0;
+  const expectancy =
+    filteredTrades.length > 0
+      ? totalProfit / filteredTrades.length
+      : 0;
+  const grossProfit = winningTrades.reduce(
+    (sum, t) => sum + Number(t.profit),
+    0,
+  );
+  const grossLossAbs = Math.abs(
+    losingTrades.reduce((sum, t) => sum + Number(t.profit), 0),
+  );
+  const profitFactor = grossLossAbs !== 0 ? grossProfit / grossLossAbs : 0;
   const bestTrade = filteredTrades.length
     ? filteredTrades.reduce(
         (best, t) => (Number(t.profit) > Number(best.profit) ? t : best),
@@ -1990,6 +2009,87 @@ export default function TradingDashboard() {
                     <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Risk-adjusted return</p>
                   </CardContent>
                 </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      Average Profit
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-secondary font-cyber">
+                      +${Math.abs(avgProfit).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                      Mean winner size
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      Average Loss
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary font-cyber">
+                      -${Math.abs(avgLoss).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                      Mean loser size
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      Average RRR
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold font-cyber ${averageRRR >= 1 ? "text-secondary" : "text-accent"}`}>
+                      {averageRRR.toFixed(2)}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                      Avg win / avg loss
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      Expectancy
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold font-cyber ${expectancy >= 0 ? "text-secondary" : "text-primary"}`}>
+                      {expectancy >= 0 ? "+" : "-"}$
+                      {Math.abs(expectancy).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                      Expected value per trade
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                      Profit Factor
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold font-cyber ${profitFactor >= 1 ? "text-secondary" : "text-primary"}`}>
+                      {profitFactor.toFixed(2)}
+                    </div>
+                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                      Gross profit / gross loss
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
             </section>
 
@@ -2033,7 +2133,7 @@ export default function TradingDashboard() {
                 <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
                   <CardContent className="p-8">
                     <ResponsiveContainer width="100%" height={340}>
-                      <ComposedChart
+                      <BarChart
                         data={monthlyPerformanceDetailedData}
                         margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                       >
@@ -2073,15 +2173,6 @@ export default function TradingDashboard() {
                           }}
                           labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
                         />
-                        <ReferenceLine y={0} stroke="rgba(255,255,255,0.25)" />
-                        <Area
-                          type="monotone"
-                          dataKey="cumPnl"
-                          stroke="#00ffff"
-                          fill="#00ffff"
-                          fillOpacity={0.15}
-                          strokeWidth={2}
-                        />
                         <Bar
                           dataKey="pnl"
                           maxBarSize={52}
@@ -2095,14 +2186,7 @@ export default function TradingDashboard() {
                             />
                           ))}
                         </Bar>
-                        <Line
-                          type="monotone"
-                          dataKey="cumPnl"
-                          stroke="#7df9ff"
-                          dot={{ r: 3, fill: "#7df9ff" }}
-                          strokeWidth={2}
-                        />
-                      </ComposedChart>
+                      </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
