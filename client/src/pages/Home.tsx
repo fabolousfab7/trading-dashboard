@@ -1040,7 +1040,7 @@ export default function TradingDashboard() {
             <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                  Terminal Profit
+                  Profit
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
@@ -1060,7 +1060,7 @@ export default function TradingDashboard() {
             <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                  Strike Rate
+                  Win Rate
                 </CardTitle>
                 <Target className="h-4 w-4 text-secondary" />
               </CardHeader>
@@ -1108,10 +1108,10 @@ export default function TradingDashboard() {
             <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
-                  <MetricHint label="Yield ratio">
-                    Somme des R : pour chaque trade, résultat ÷ perte max
-                    (risque). Le total indique combien de fois tu as « gagné ton
-                    risque » en cumulé.
+                  <MetricHint label="R-multiple">
+                    Sum of R values: each trade result divided by max loss
+                    (risk). The total shows how many risk units were gained or
+                    lost overall.
                   </MetricHint>
                 </CardTitle>
                 <TrendingUp className="h-4 w-4 text-secondary" />
@@ -1587,7 +1587,7 @@ export default function TradingDashboard() {
                         size="sm"
                         variant={filterRange === "24h" ? "default" : "ghost"}
                         onClick={() => setFilterRange("24h")}
-                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
                       >
                         24H
                       </Button>
@@ -1596,7 +1596,7 @@ export default function TradingDashboard() {
                         size="sm"
                         variant={filterRange === "7d" ? "default" : "ghost"}
                         onClick={() => setFilterRange("7d")}
-                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
                       >
                         7D
                       </Button>
@@ -1605,7 +1605,7 @@ export default function TradingDashboard() {
                         size="sm"
                         variant={filterRange === "30d" ? "default" : "ghost"}
                         onClick={() => setFilterRange("30d")}
-                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
                       >
                         30D
                       </Button>
@@ -1614,7 +1614,7 @@ export default function TradingDashboard() {
                         size="sm"
                         variant={filterRange === "all" ? "default" : "ghost"}
                         onClick={() => setFilterRange("all")}
-                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
                       >
                         ALL
                       </Button>
@@ -1856,9 +1856,9 @@ export default function TradingDashboard() {
                   <CardHeader>
                     <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
                       <MetricHint label="Max drawdown">
-                        Plus forte baisse du solde depuis un sommet (capital
-                        initial + P/L cumulés sur les trades filtrés). Mesure
-                        combien tu es descendu sous ton pic d’équité.
+                        Largest equity decline from a previous peak (starting
+                        balance + cumulative P/L on filtered trades). Measures
+                        worst capital pullback.
                       </MetricHint>
                     </CardTitle>
                   </CardHeader>
@@ -1981,10 +1981,10 @@ export default function TradingDashboard() {
                   <CardHeader>
                     <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
                       <MetricHint label="Sharpe ratio">
-                        Ici : moyenne des P/L ÷ écart-type des P/L (série
-                        filtrée). Plus c’est haut, plus les gains sont grands
-                        par rapport à la variabilité. Ce n’est pas un Sharpe
-                        financier annualisé « officiel ».
+                        Here: average P/L divided by P/L standard deviation
+                        (filtered series). Higher means better return relative
+                        to variability. This is not an annualized institutional
+                        Sharpe.
                       </MetricHint>
                     </CardTitle>
                   </CardHeader>
@@ -1993,22 +1993,6 @@ export default function TradingDashboard() {
                       {sharpeRatio.toFixed(2)}
                     </div>
                     <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Risk-adjusted return</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
-                      Average Profit
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-secondary font-cyber">
-                      +${Math.abs(avgProfit).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
-                      Mean winner size
-                    </p>
                   </CardContent>
                 </Card>
 
