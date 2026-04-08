@@ -88,7 +88,8 @@ function MetricHint({ label, children }: { label: ReactNode; children: ReactNode
       </HintTrigger>
       <HintContent
         side="top"
-        className="z-[9999] max-w-[280px] border border-white/15 bg-[#0d0e14] px-3 py-2.5 text-left text-[11px] font-normal font-sans normal-case leading-snug tracking-normal text-white/90 shadow-xl"
+        sideOffset={8}
+        className="z-[9999] min-w-[260px] max-w-[420px] rounded-xl border border-white/20 bg-[#090b12]/95 px-4 py-3 text-left text-[12px] font-medium font-cyber normal-case leading-relaxed tracking-normal text-white/95 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-sm"
       >
         {children}
       </HintContent>
@@ -918,7 +919,6 @@ export default function TradingDashboard() {
       pnl: number;
       trades: number;
       r: number;
-      weeks: Record<number, { pnl: number; trades: number; r: number }>;
     }
   > = {};
   trades.forEach((t) => {
@@ -927,20 +927,13 @@ export default function TradingDashboard() {
     const monthIndex = d.getMonth();
     const monthKey = String(monthIndex);
     if (!annualMonthMap[monthKey]) {
-      annualMonthMap[monthKey] = { pnl: 0, trades: 0, r: 0, weeks: {} };
+      annualMonthMap[monthKey] = { pnl: 0, trades: 0, r: 0 };
     }
     const p = Number(t.profit);
     const r = getR(p, Number(t.risk));
     annualMonthMap[monthKey].pnl += p;
     annualMonthMap[monthKey].trades += 1;
     annualMonthMap[monthKey].r += r;
-    const weekInMonth = Math.floor((d.getDate() - 1) / 7) + 1;
-    if (!annualMonthMap[monthKey].weeks[weekInMonth]) {
-      annualMonthMap[monthKey].weeks[weekInMonth] = { pnl: 0, trades: 0, r: 0 };
-    }
-    annualMonthMap[monthKey].weeks[weekInMonth].pnl += p;
-    annualMonthMap[monthKey].weeks[weekInMonth].trades += 1;
-    annualMonthMap[monthKey].weeks[weekInMonth].r += r;
   });
   let runningYearPnl = 0;
   const monthlyPerformanceDetailedData = Array.from({ length: 12 }, (_, monthIndex) => {
@@ -948,14 +941,8 @@ export default function TradingDashboard() {
       pnl: 0,
       trades: 0,
       r: 0,
-      weeks: {},
     };
     runningYearPnl += bucket.pnl;
-    const weekDetail = Array.from({ length: 5 }, (_, i) => {
-      const w = i + 1;
-      const weekBucket = bucket.weeks[w] ?? { pnl: 0, trades: 0, r: 0 };
-      return `W${w}: ${weekBucket.pnl >= 0 ? "+" : ""}$${Math.abs(weekBucket.pnl).toLocaleString()} (${weekBucket.trades}T, ${formatR(weekBucket.r)})`;
-    }).join(" | ");
     return {
       monthLabel: new Date(performanceYear, monthIndex, 1).toLocaleDateString(
         "en-US",
@@ -965,7 +952,6 @@ export default function TradingDashboard() {
       cumPnl: runningYearPnl,
       trades: bucket.trades,
       r: bucket.r,
-      weekDetail,
     };
   });
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -2167,7 +2153,7 @@ export default function TradingDashboard() {
                           formatter={(value: any, _name: any, item: any) => {
                             const payload = item?.payload;
                             return [
-                              `$${Number(value).toLocaleString()} • YTD: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trade${(payload?.trades ?? 0) > 1 ? "s" : ""} • ${formatR(payload?.r ?? 0)} • ${payload?.weekDetail ?? ""}`,
+                              `$${Number(value).toLocaleString()} • YTD: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trade${(payload?.trades ?? 0) > 1 ? "s" : ""} • ${formatR(payload?.r ?? 0)}`,
                               "Month result",
                             ];
                           }}
