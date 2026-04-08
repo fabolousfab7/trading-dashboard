@@ -122,8 +122,9 @@ export default function TradingDashboard() {
   const [filterStrategy, setFilterStrategy] = useState<string>("all");
   const [filterAccount, setFilterAccount] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
-  const [filterDateStart, setFilterDateStart] = useState<string>("");
-  const [filterDateEnd, setFilterDateEnd] = useState<string>("");
+  const [filterRange, setFilterRange] = useState<"24h" | "7d" | "30d" | "all">(
+    "all",
+  );
   const [entryTime, setEntryTime] = useState<string>(
     new Date().toTimeString().slice(0, 5),
   );
@@ -131,6 +132,9 @@ export default function TradingDashboard() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [performanceYear, setPerformanceYear] = useState<number>(
+    new Date().getFullYear(),
+  );
 
   const { toast } = useToast();
 
@@ -461,8 +465,7 @@ export default function TradingDashboard() {
     setFilterStrategy("all");
     setFilterAccount("all");
     setFilterType("all");
-    setFilterDateStart("");
-    setFilterDateEnd("");
+    setFilterRange("all");
   };
 
   if (loading && !trades.length)
@@ -622,9 +625,36 @@ export default function TradingDashboard() {
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   };
+  const dateKeyFromDate = (value: Date): string => {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
 
   const formatEquityChartLabel = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const isTradeInRange = (tradeDateRaw: string | null | undefined) => {
+    if (filterRange === "all") return true;
+    const tradeDate = new Date(tradeDateRaw || "");
+    if (Number.isNaN(tradeDate.getTime())) return false;
+    const now = new Date();
+    const hours =
+      filterRange === "24h" ? 24 : filterRange === "7d" ? 24 * 7 : 24 * 30;
+    const minDate = new Date(now.getTime() - hours * 60 * 60 * 1000);
+    return tradeDate >= minDate;
+  };
+  const rangeStartDateForChart =
+    filterRange === "all"
+      ? null
+      : new Date(
+          Date.now() -
+            (filterRange === "24h" ? 24 : filterRange === "7d" ? 24 * 7 : 24 * 30) *
+              60 *
+              60 *
+              1000,
+        );
 
   // Apply filters
   const filteredTrades = trades.filter((t) => {
@@ -632,9 +662,7 @@ export default function TradingDashboard() {
       return false;
     if (filterAccount !== "all" && t.compte !== filterAccount) return false;
     if (filterType !== "all" && t.type !== filterType) return false;
-    const tk = dateKeyFromTrade(t.date);
-    if (filterDateStart && tk < filterDateStart) return false;
-    if (filterDateEnd && tk > filterDateEnd) return false;
+    if (!isTradeInRange(t.date)) return false;
     return true;
   });
 
@@ -693,12 +721,12 @@ export default function TradingDashboard() {
   let runningBalance = startingBalance;
 
   if (
-    filterDateStart &&
+    rangeStartDateForChart &&
     sortedTrades.length > 0 &&
-    dateKeyFromTrade(sortedTrades[0].date) > filterDateStart
+    dateKeyFromTrade(sortedTrades[0].date) > dateKeyFromDate(rangeStartDateForChart)
   ) {
     equityCurve.push({
-      date: formatEquityChartLabel(parseTradeDateLocal(filterDateStart)),
+      date: formatEquityChartLabel(rangeStartDateForChart),
       balance: startingBalance,
       index: -1,
     });
@@ -865,15 +893,60 @@ export default function TradingDashboard() {
             : `${monthStart.toLocaleDateString("en-US", { month: "short" })}`,
       };
     });
-  let runningMonthPnl = 0;
-  const monthlyPerformanceDetailedData = monthWeekSummaries.map((w) => {
-    runningMonthPnl += w.pnl;
+  const annualMonthMap: Record<
+    string,
+    {
+      pnl: number;
+      trades: number;
+      r: number;
+      weeks: Record<number, { pnl: number; trades: number; r: number }>;
+    }
+  > = {};
+  trades.forEach((t) => {
+    const d = parseTradeDateLocal(t.date);
+    if (Number.isNaN(d.getTime()) || d.getFullYear() !== performanceYear) return;
+    const monthIndex = d.getMonth();
+    const monthKey = String(monthIndex);
+    if (!annualMonthMap[monthKey]) {
+      annualMonthMap[monthKey] = { pnl: 0, trades: 0, r: 0, weeks: {} };
+    }
+    const p = Number(t.profit);
+    const r = getR(p, Number(t.risk));
+    annualMonthMap[monthKey].pnl += p;
+    annualMonthMap[monthKey].trades += 1;
+    annualMonthMap[monthKey].r += r;
+    const weekInMonth = Math.floor((d.getDate() - 1) / 7) + 1;
+    if (!annualMonthMap[monthKey].weeks[weekInMonth]) {
+      annualMonthMap[monthKey].weeks[weekInMonth] = { pnl: 0, trades: 0, r: 0 };
+    }
+    annualMonthMap[monthKey].weeks[weekInMonth].pnl += p;
+    annualMonthMap[monthKey].weeks[weekInMonth].trades += 1;
+    annualMonthMap[monthKey].weeks[weekInMonth].r += r;
+  });
+  let runningYearPnl = 0;
+  const monthlyPerformanceDetailedData = Array.from({ length: 12 }, (_, monthIndex) => {
+    const bucket = annualMonthMap[String(monthIndex)] ?? {
+      pnl: 0,
+      trades: 0,
+      r: 0,
+      weeks: {},
+    };
+    runningYearPnl += bucket.pnl;
+    const weekDetail = Array.from({ length: 5 }, (_, i) => {
+      const w = i + 1;
+      const weekBucket = bucket.weeks[w] ?? { pnl: 0, trades: 0, r: 0 };
+      return `W${w}: ${weekBucket.pnl >= 0 ? "+" : ""}$${Math.abs(weekBucket.pnl).toLocaleString()} (${weekBucket.trades}T, ${formatR(weekBucket.r)})`;
+    }).join(" | ");
     return {
-      weekLabel: `Week ${w.week}`,
-      pnl: w.pnl,
-      cumPnl: runningMonthPnl,
-      trades: w.trades,
-      r: w.r,
+      monthLabel: new Date(performanceYear, monthIndex, 1).toLocaleDateString(
+        "en-US",
+        { month: "short" },
+      ),
+      pnl: bucket.pnl,
+      cumPnl: runningYearPnl,
+      trades: bucket.trades,
+      r: bucket.r,
+      weekDetail,
     };
   });
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -1441,7 +1514,7 @@ export default function TradingDashboard() {
                     <RefreshCw className="h-3 w-3 mr-2" /> RESET
                   </Button>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
                     <Label className="font-arcade text-[8px] text-white/40 uppercase">
                       Strategy
@@ -1499,34 +1572,54 @@ export default function TradingDashboard() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-1">
                     <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                      From
+                      Time Range
                     </Label>
-                    <Input
-                      type="date"
-                      value={filterDateStart}
-                      onChange={(e) => setFilterDateStart(e.target.value)}
-                      className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
-                      To
-                    </Label>
-                    <Input
-                      type="date"
-                      value={filterDateEnd}
-                      onChange={(e) => setFilterDateEnd(e.target.value)}
-                      className="bg-white/5 border-white/10 h-9 rounded-xl text-sm"
-                    />
+                    <div className="grid grid-cols-4 gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterRange === "24h" ? "default" : "ghost"}
+                        onClick={() => setFilterRange("24h")}
+                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                      >
+                        24H
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterRange === "7d" ? "default" : "ghost"}
+                        onClick={() => setFilterRange("7d")}
+                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                      >
+                        7D
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterRange === "30d" ? "default" : "ghost"}
+                        onClick={() => setFilterRange("30d")}
+                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                      >
+                        30D
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterRange === "all" ? "default" : "ghost"}
+                        onClick={() => setFilterRange("all")}
+                        className="h-9 rounded-xl px-0 text-[9px] font-arcade"
+                      >
+                        ALL
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 {(filterStrategy !== "all" ||
                   filterAccount !== "all" ||
                   filterType !== "all" ||
-                  filterDateStart ||
-                  filterDateEnd) && (
+                  filterRange !== "all") && (
                   <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
                     Showing {filteredTrades.length} of {trades.length} trades
                   </div>
@@ -1547,8 +1640,8 @@ export default function TradingDashboard() {
                     <Activity className="h-5 w-5 text-accent" />
                     <div className="flex flex-col gap-0.5">
                       <h2 className={sectionTitleStyle}>Equity Curve</h2>
-                      <span className="font-arcade text-[8px] uppercase tracking-wider text-white/35">
-                        Solde réel = capital initial + P/L cumulé (trades filtrés)
+                      <span className="font-cyber text-[11px] tracking-wide text-white/45">
+                        Solde reel = capital initial + P/L cumule (trades filtres)
                       </span>
                     </div>
                   </div>
@@ -1908,9 +2001,34 @@ export default function TradingDashboard() {
                 viewport={{ once: true }}
                 className="space-y-6"
               >
-                <div className="flex items-center gap-3 mb-2 px-2">
-                  <Calendar className="h-5 w-5 text-secondary" />
-                  <h2 className={sectionTitleStyle}>Monthly Performance</h2>
+                <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-secondary" />
+                    <h2 className={sectionTitleStyle}>Monthly Performance</h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPerformanceYear((y) => y - 1)}
+                      className="h-8 w-8 rounded-lg border border-white/10"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="min-w-[90px] text-center text-[11px] font-arcade uppercase tracking-wider text-white/70">
+                      {performanceYear}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPerformanceYear((y) => y + 1)}
+                      className="h-8 w-8 rounded-lg border border-white/10"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
                   <CardContent className="p-8">
@@ -1924,7 +2042,7 @@ export default function TradingDashboard() {
                           stroke="rgba(255,255,255,0.05)"
                         />
                         <XAxis
-                          dataKey="weekLabel"
+                          dataKey="monthLabel"
                           stroke="rgba(255,255,255,0.3)"
                           style={{ fontSize: "11px", fontFamily: "monospace" }}
                           tick={{ fill: "rgba(255,255,255,0.4)" }}
@@ -1949,8 +2067,8 @@ export default function TradingDashboard() {
                           formatter={(value: any, _name: any, item: any) => {
                             const payload = item?.payload;
                             return [
-                              `$${Number(value).toLocaleString()} • cumulé: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trades • ${formatR(payload?.r ?? 0)}`,
-                              "Week result (monthly view)",
+                              `$${Number(value).toLocaleString()} • YTD: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trade${(payload?.trades ?? 0) > 1 ? "s" : ""} • ${formatR(payload?.r ?? 0)} • ${payload?.weekDetail ?? ""}`,
+                              "Month result",
                             ];
                           }}
                           labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
@@ -1966,7 +2084,7 @@ export default function TradingDashboard() {
                         />
                         <Bar
                           dataKey="pnl"
-                          maxBarSize={86}
+                          maxBarSize={52}
                           radius={[12, 12, 0, 0]}
                           animationDuration={1500}
                         >
@@ -2054,12 +2172,12 @@ export default function TradingDashboard() {
                         {weekdayLabels.map((label) => (
                           <div
                             key={label}
-                            className="py-1 text-center text-[9px] font-arcade uppercase tracking-wider text-white/35"
+                            className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-white/45"
                           >
                             {label}
                           </div>
                         ))}
-                        <div className="py-1 text-center text-[9px] font-arcade uppercase tracking-wider text-white/45">
+                        <div className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-white/50">
                           Weekly Summary
                         </div>
                       </div>
@@ -2103,7 +2221,7 @@ export default function TradingDashboard() {
                                   {day.count > 0 && (
                                     <div className="absolute inset-x-1.5 top-[24%] bottom-1.5 rounded-md bg-black/60 p-1 text-center flex flex-col items-center justify-center gap-1">
                                       <div className="text-[11px] font-bold text-white">
-                                        {day.count} trades
+                                        {day.count} trade{day.count > 1 ? "s" : ""}
                                       </div>
                                       <div className="text-[11px] font-mono text-white">
                                         {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
