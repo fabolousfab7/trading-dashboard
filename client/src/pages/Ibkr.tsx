@@ -1,0 +1,180 @@
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
+import { Briefcase, RefreshCw, TrendingUp, TrendingDown } from "lucide-react"
+
+async function authFetch(url: string, options: RequestInit = {}) {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return fetch(url, {
+    ...options,
+    headers: { ...options.headers, "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  })
+}
+
+function fmtEur(n: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
+}
+
+export default function Ibkr() {
+  const [account, setAccount] = useState<any>(null)
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadData() {
+    setLoading(true); setError(null)
+    try {
+      const r = await authFetch("/api/accounts")
+      const { accounts } = await r.json()
+      const fhf = accounts?.find((a: any) => a.broker === "IBKR")
+      if (!fhf) { setError("Aucun compte IBKR"); return }
+      setAccount(fhf)
+      const r2 = await authFetch(`/api/accounts/${fhf.id}/portfolio`)
+      setData(await r2.json())
+    } catch (e: any) { setError(String(e.message || e)) }
+    finally { setLoading(false) }
+  }
+
+  async function sync() {
+    if (!account) return
+    setSyncing(true); setError(null)
+    try {
+      const r = await authFetch(`/api/accounts/${account.id}/sync`, { method: "POST" })
+      const result = await r.json()
+      if (!r.ok) throw new Error(result.error || "Sync failed")
+      await loadData()
+    } catch (e: any) { setError(String(e.message || e)) }
+    finally { setSyncing(false) }
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
+  if (error) return <div className="p-8 text-red-400 font-mono text-sm">Erreur : {error}</div>
+  if (!data) return null
+
+  const positions = data.positions || []
+  const cashBalances = data.cashBalances || []
+  const snapshot = data.latestSnapshot
+
+  const positionsBase = positions.reduce((s: number, p: any) => {
+    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    return s + Number(p.quantity) * Number(p.market_price) * fx
+  }, 0)
+  const cashBase = cashBalances.reduce((s: number, c: any) => {
+    const fx = c.fx_rate_to_base ? Number(c.fx_rate_to_base) : 1
+    return s + Number(c.amount) * fx
+  }, 0)
+  const nlv = positionsBase + cashBase
+  const unrealizedPnl = positions.reduce((s: number, p: any) => {
+    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    return s + (Number(p.unrealized_pnl) || 0) * fx
+  }, 0)
+  const capital = Number(data.account?.capital_invested) || Number(snapshot?.capital_invested) || 0
+  const totalPerf = capital ? nlv - capital : 0
+  const totalPerfPct = capital ? (totalPerf / capital) * 100 : 0
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+        <div>
+          <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
+            <Briefcase size={14} /> {account?.label}
+          </div>
+          <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
+            <span className="text-cyan-400">Portefeuille </span>
+            <span className="text-fuchsia-500">FHF</span>
+          </h1>
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider mt-1">
+            {account?.ibkr_account_number} · Base {account?.currency_base}
+            {data.ibkrSync?.last_synced_at && <> · Sync {new Date(data.ibkrSync.last_synced_at).toLocaleString("fr-FR")}</>}
+          </p>
+        </div>
+        <button onClick={sync} disabled={syncing}
+          className="px-4 py-2 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
+          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+          {syncing ? "Sync..." : "Sync IBKR"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">NLV TOTALE</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(nlv)}</div>
+        </div>
+        <div className={`border ${totalPerf >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">PERF TOTALE</div>
+          <div className={`text-2xl font-mono font-bold ${totalPerf >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {totalPerf >= 0 ? "+" : ""}{fmtEur(totalPerf)}
+          </div>
+          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+            {totalPerfPct >= 0 ? "+" : ""}{totalPerfPct.toFixed(2)}%
+          </div>
+        </div>
+        <div className={`border ${unrealizedPnl >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">P&L LATENT</div>
+          <div className={`text-2xl font-mono font-bold ${unrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {unrealizedPnl >= 0 ? "+" : ""}{fmtEur(unrealizedPnl)}
+          </div>
+        </div>
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">CASH NET</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(cashBase)}</div>
+          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+            {cashBalances.map((c: any) => `${Number(c.amount).toFixed(0)} ${c.currency}`).join(" · ")}
+          </div>
+        </div>
+      </div>
+
+      <div className="border border-cyan-500/20 rounded bg-black/40">
+        <div className="border-b border-cyan-500/20 p-3">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">
+            Positions ouvertes · {positions.length}
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="text-left p-3">Ticker</th>
+                <th className="text-left p-3">Nom</th>
+                <th className="text-right p-3">Qté</th>
+                <th className="text-right p-3">PRU</th>
+                <th className="text-right p-3">Cours</th>
+                <th className="text-right p-3">Valeur</th>
+                <th className="text-right p-3">P&L</th>
+                <th className="text-right p-3">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((p: any) => {
+                const qty = Number(p.quantity), pru = Number(p.avg_cost), price = Number(p.market_price)
+                const value = qty * price, cost = qty * pru
+                const pnl = Number(p.unrealized_pnl) || (value - cost)
+                const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
+                const sym = p.currency === "USD" ? "$" : "€"
+                return (
+                  <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
+                    <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
+                    <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name}</td>
+                    <td className="p-3 text-right text-zinc-300">{qty}</td>
+                    <td className="p-3 text-right text-zinc-500">{pru.toFixed(2)} {sym}</td>
+                    <td className="p-3 text-right text-cyan-300">{price.toFixed(2)} {sym}</td>
+                    <td className="p-3 text-right text-zinc-300">{value.toFixed(2)} {sym}</td>
+                    <td className={`p-3 text-right ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
+                    </td>
+                    <td className={`p-3 text-right ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}

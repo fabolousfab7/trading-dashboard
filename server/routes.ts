@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { supabase } from "./supabase";
 import { api } from "../shared/routes";
+import { registerPortfolioRoutes } from "./routes-portfolio";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -99,6 +100,8 @@ export async function registerRoutes(
       tradesCount: results.length
     });
   });
+
+  registerPortfolioRoutes(app, supabase);
 
   return httpServer;
 }
