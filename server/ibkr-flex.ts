@@ -84,7 +84,7 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function sendRequest(token: string, queryId: string, maxAttempts = 5, delayMs = 10000): Promise<string> {
+async function sendRequest(token: string, queryId: string, maxAttempts = 3, delayMs = 2000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
