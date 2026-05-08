@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Bitcoin, RefreshCw } from "lucide-react"
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+
+const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -128,6 +131,58 @@ export default function Crypto() {
           <div className="text-2xl font-mono font-bold text-cyan-400">{positions.length}</div>
         </div>
       </div>
+
+      {(() => {
+        const merged: Record<string, number> = {}
+        for (const p of positions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const own = (Number(p.ownership_pct) || 100) / 100
+          const value = Number(p.quantity) * Number(p.market_price) * own
+          merged[ticker] = (merged[ticker] || 0) + value
+        }
+        const allocationData = Object.entries(merged)
+          .map(([name, value]) => ({ name, value }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+
+        const allocTotal = allocationData.reduce((s, d) => s + d.value, 0)
+        const threshold = allocTotal * 0.02
+        const mainSlices = allocationData.filter(d => d.value >= threshold)
+        const othersValue = allocationData.filter(d => d.value < threshold).reduce((s, d) => s + d.value, 0)
+        if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
+
+        if (allocationData.length === 0) return null
+        return (
+          <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+            <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
+            <div className="flex items-center gap-6">
+              <ResponsiveContainer width={200} height={200}>
+                <PieChart>
+                  <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={80} innerRadius={35} strokeWidth={1} stroke="#09090b">
+                    {mainSlices.map((_: any, i: number) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}
+                    formatter={(value: number) => [fmtEur(value), ""]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1.5">
+                {mainSlices.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-zinc-400">{d.name}</span>
+                    <span className="text-zinc-600 ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <PortfolioSection title="Portefeuille Perso" subtitle="Détenu à 100%"
         positions={persoPositions} stats={persoStats} accent="cyan" />

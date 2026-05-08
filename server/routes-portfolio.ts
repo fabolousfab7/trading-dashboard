@@ -368,6 +368,174 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     return res.status(204).send()
   })
 
+  app.get("/api/snapshots/history", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const days = Math.min(Number(req.query.days) || 90, 365)
+    const since = new Date()
+    since.setDate(since.getDate() - days)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id, label, broker").eq("user_id", userId).eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ snapshots: [], accounts: [] })
+
+    const accountIds = accounts.map((a: any) => a.id)
+    const { data: snapshots } = await userClient
+      .from("portfolio_snapshots")
+      .select("account_id, snapshot_date, nlv_base, capital_invested")
+      .in("account_id", accountIds)
+      .gte("snapshot_date", since.toISOString().slice(0, 10))
+      .order("snapshot_date", { ascending: true })
+
+    return res.json({ snapshots: snapshots || [], accounts })
+  })
+
+  app.get("/api/cron/daily", async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization
+    const cronSecret = process.env.CRON_SECRET
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const results: any[] = []
+
+    try {
+      const { data: allAccounts } = await serviceClient
+        .from("accounts")
+        .select("*, ibkr_config(*)")
+        .eq("is_active", true)
+
+      if (!allAccounts || allAccounts.length === 0) {
+        return res.json({ message: "No active accounts", results })
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+
+      for (const account of allAccounts) {
+        const accountResult: any = { account: account.label, broker: account.broker, actions: [] }
+
+        try {
+          const config = account.ibkr_config?.[0] || account.ibkr_config
+          if (account.broker === "IBKR" && config?.flex_token && config?.query_id) {
+            try {
+              const data = await fetchFlexReport(config.flex_token, config.query_id)
+              const nlv = calculateNlvInBase(data, account.currency_base || "EUR")
+              const now = new Date().toISOString()
+
+              await serviceClient.from("positions").delete().eq("account_id", account.id)
+              if (data.openPositions.length > 0) {
+                await serviceClient.from("positions").insert(
+                  data.openPositions.map((p: any) => ({
+                    account_id: account.id,
+                    ticker: p.symbol, name: p.description, quantity: p.quantity,
+                    currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                    unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                    fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                  }))
+                )
+              }
+              await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
+              if (data.cashBalances.length > 0) {
+                await serviceClient.from("cash_balances").insert(
+                  data.cashBalances.map((c: any) => ({
+                    account_id: account.id, currency: c.currency,
+                    amount: c.endingCash, fx_rate_to_base: c.fxRateToBase,
+                    last_synced_at: now,
+                  }))
+                )
+              }
+              await serviceClient.from("ibkr_config").update({
+                last_synced_at: now, last_sync_status: "success", last_sync_error: null,
+              }).eq("account_id", account.id)
+              accountResult.actions.push("ibkr_sync_ok")
+            } catch (e: any) {
+              accountResult.actions.push(`ibkr_sync_fail: ${e.message}`)
+              await serviceClient.from("ibkr_config").update({
+                last_sync_status: "error", last_sync_error: String(e.message),
+              }).eq("account_id", account.id)
+            }
+          }
+
+          const { data: positions } = await serviceClient
+            .from("positions")
+            .select("*")
+            .eq("account_id", account.id)
+
+          if (positions && positions.length > 0) {
+            const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
+            const stockPositions = positions.filter((p: any) => !p.coingecko_id && p.stooq_symbol)
+
+            if (cryptoPositions.length > 0) {
+              const ids = [...new Set(cryptoPositions.map((p: any) => p.coingecko_id))]
+              const prices = await fetchCoinGeckoPrices(ids, "eur")
+              for (const p of cryptoPositions) {
+                if (prices[p.coingecko_id] !== undefined) {
+                  await serviceClient.from("positions").update({
+                    market_price: prices[p.coingecko_id],
+                    last_synced_at: new Date().toISOString(),
+                  }).eq("id", p.id)
+                }
+              }
+              accountResult.actions.push(`coingecko_refreshed: ${Object.keys(prices).length}`)
+            }
+
+            for (const p of stockPositions) {
+              try {
+                const price = await fetchStooqPrice(p.stooq_symbol)
+                if (price) {
+                  await serviceClient.from("positions").update({
+                    market_price: price,
+                    last_synced_at: new Date().toISOString(),
+                  }).eq("id", p.id)
+                }
+              } catch {}
+            }
+            if (stockPositions.length > 0) accountResult.actions.push(`stooq_refreshed: ${stockPositions.length}`)
+          }
+
+          const { data: freshPositions } = await serviceClient
+            .from("positions").select("*").eq("account_id", account.id)
+          const { data: freshCash } = await serviceClient
+            .from("cash_balances").select("*").eq("account_id", account.id)
+
+          const posValue = (freshPositions || []).reduce((s: number, p: any) => {
+            const qty = Number(p.quantity), price = Number(p.market_price)
+            const fx = Number(p.fx_rate_to_base) || 1
+            const own = (Number(p.ownership_pct) || 100) / 100
+            return qty !== 0 && price !== 0 ? s + qty * price * fx * own : s
+          }, 0)
+          const cashValue = (freshCash || []).reduce((s: number, c: any) => {
+            const fx = Number(c.fx_rate_to_base) || 1
+            return s + Number(c.amount) * fx
+          }, 0)
+          const nlvBase = posValue + cashValue
+
+          await serviceClient.from("portfolio_snapshots").upsert({
+            account_id: account.id,
+            snapshot_date: today,
+            nlv_base: nlvBase,
+            capital_invested: account.capital_invested || null,
+            cash_total: cashValue || null,
+          }, { onConflict: "account_id,snapshot_date" })
+          accountResult.actions.push(`snapshot_saved: ${nlvBase.toFixed(2)}`)
+
+        } catch (e: any) {
+          accountResult.actions.push(`error: ${e.message}`)
+        }
+        results.push(accountResult)
+      }
+
+      return res.json({ success: true, date: today, results })
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message })
+    }
+  })
+
   app.post("/api/accounts/:id/refresh-prices", auth, async (req: Request, res: Response) => {
     const userClient = userScopedClient((req as any).userToken)
     const accountId = req.params.id
