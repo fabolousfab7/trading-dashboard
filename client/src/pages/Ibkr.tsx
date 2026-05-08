@@ -21,6 +21,7 @@ export default function Ibkr() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -38,20 +39,20 @@ export default function Ibkr() {
 
   async function sync() {
     if (!account) return
-    setSyncing(true); setError(null)
+    setSyncing(true); setSyncError(null)
     try {
       const r = await authFetch(`/api/accounts/${account.id}/sync`, { method: "POST" })
       const result = await r.json()
       if (!r.ok) throw new Error(result.error || "Sync failed")
       await loadData()
-    } catch (e: any) { setError(String(e.message || e)) }
+    } catch (e: any) { setSyncError(String(e.message || e)) }
     finally { setSyncing(false) }
   }
 
   useEffect(() => { loadData() }, [])
 
   if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
-  if (error) return <div className="p-8 text-red-400 font-mono text-sm">Erreur : {error}</div>
+  if (error && !data) return <div className="p-8 text-red-400 font-mono text-sm">Erreur : {error}</div>
   if (!data) return null
 
   const positions = (data?.positions || []).filter((p: any) => {
@@ -101,6 +102,13 @@ export default function Ibkr() {
           {syncing ? "Sync..." : "Sync IBKR"}
         </button>
       </div>
+
+      {syncError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded p-3 flex items-center justify-between">
+          <span className="text-red-400 text-xs font-mono">Sync échouée : {syncError}</span>
+          <button onClick={() => setSyncError(null)} className="text-red-400 hover:text-red-300 text-xs font-mono">✕</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
