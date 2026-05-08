@@ -181,12 +181,13 @@ export default function Home() {
     const items = e.clipboardData.items
     for (const item of items) {
       if (item.type.startsWith('image/')) {
+        e.preventDefault()
         const file = item.getAsFile()
         if (file) {
           setNoteImage(file)
           setNoteImagePreview(URL.createObjectURL(file))
         }
-        break
+        return
       }
     }
   }
@@ -384,11 +385,13 @@ export default function Home() {
               <div className="border border-fuchsia-500/30 rounded p-4 bg-black/60 space-y-3" onPaste={handleImagePaste}>
                 <input
                   type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
+                  onPaste={handleImagePaste}
                   placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
                   className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
                 />
                 <textarea
                   value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                  onPaste={handleImagePaste}
                   placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
                   rows={3}
                   className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none"
