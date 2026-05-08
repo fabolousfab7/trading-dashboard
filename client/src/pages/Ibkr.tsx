@@ -145,47 +145,51 @@ export default function Ibkr() {
             Positions ouvertes · {positions.length}
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs font-mono">
-            <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="text-left p-3">Ticker</th>
-                <th className="text-left p-3">Nom</th>
-                <th className="text-right p-3">Qté</th>
-                <th className="text-right p-3">PRU</th>
-                <th className="text-right p-3">Cours</th>
-                <th className="text-right p-3">Valeur</th>
-                <th className="text-right p-3">P&L</th>
-                <th className="text-right p-3">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((p: any) => {
-                const qty = Number(p.quantity), pru = Number(p.avg_cost), price = Number(p.market_price)
-                const value = qty * price, cost = qty * pru
-                const pnl = Number(p.unrealized_pnl) || (value - cost)
-                const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
-                const sym = p.currency === "USD" ? "$" : "€"
-                return (
-                  <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
-                    <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
-                    <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name}</td>
-                    <td className="p-3 text-right text-zinc-300">{qty}</td>
-                    <td className="p-3 text-right text-zinc-500">{pru.toFixed(2)} {sym}</td>
-                    <td className="p-3 text-right text-cyan-300">{price.toFixed(2)} {sym}</td>
-                    <td className="p-3 text-right text-zinc-300">{value.toFixed(2)} {sym}</td>
-                    <td className={`p-3 text-right ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
-                    </td>
-                    <td className={`p-3 text-right ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        {positions.length === 0 ? (
+          <div className="p-6 text-center text-zinc-500 text-xs font-mono">Aucune position ouverte · Données du dernier sync disponibles</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="text-left p-3">Ticker</th>
+                  <th className="text-left p-3">Nom</th>
+                  <th className="text-right p-3">Qté</th>
+                  <th className="text-right p-3">PRU</th>
+                  <th className="text-right p-3">Cours</th>
+                  <th className="text-right p-3">Valeur</th>
+                  <th className="text-right p-3">P&L</th>
+                  <th className="text-right p-3">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map((p: any) => {
+                  const qty = Number(p.quantity), pru = Number(p.avg_cost), price = Number(p.market_price)
+                  const value = qty * price, cost = qty * pru
+                  const pnl = Number(p.unrealized_pnl) || (value - cost)
+                  const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
+                  const sym = p.currency === "USD" ? "$" : "€"
+                  return (
+                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
+                      <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
+                      <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name}</td>
+                      <td className="p-3 text-right text-zinc-300">{qty}</td>
+                      <td className="p-3 text-right text-zinc-500">{pru.toFixed(2)} {sym}</td>
+                      <td className="p-3 text-right text-cyan-300">{price.toFixed(2)} {sym}</td>
+                      <td className="p-3 text-right text-zinc-300">{value.toFixed(2)} {sym}</td>
+                      <td className={`p-3 text-right ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
+                      </td>
+                      <td className={`p-3 text-right ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
