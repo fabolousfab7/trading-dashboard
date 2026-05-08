@@ -4,10 +4,10 @@ import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import {
   insertAccountSchema,
-} from "../shared/schema"
-import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex"
-import { fetchStooqPrice, defaultStooqSymbol } from "./stooq"
-import { fetchCoinGeckoPrices } from "./coingecko"
+} from "../shared/schema.js"
+import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
+import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
+import { fetchCoinGeckoPrices } from "./coingecko.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
