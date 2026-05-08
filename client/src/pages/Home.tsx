@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
-import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin, Plus, Pin, Trash2, Edit3, Image, X, ChevronDown, ChevronUp } from "lucide-react"
+import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin, Plus, Pin, Trash2, Edit3, Image, X, ChevronDown, ChevronUp, Zap } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -38,6 +38,8 @@ export default function Home() {
   const [noteImagePreview, setNoteImagePreview] = useState<string | null>(null)
   const [noteSaving, setNoteSaving] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(true)
+  const [marketEvents, setMarketEvents] = useState<any[]>([])
+  const [marketLoading, setMarketLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null))
@@ -66,6 +68,12 @@ export default function Home() {
       .then(r => r.ok ? r.json() : { notes: [] })
       .then(({ notes: n }) => setNotes(n || []))
       .catch(() => {})
+    setMarketLoading(true)
+    fetch("/api/market-events")
+      .then(r => r.ok ? r.json() : { events: [] })
+      .then(({ events }) => setMarketEvents(events || []))
+      .catch(() => {})
+      .finally(() => setMarketLoading(false))
   }, [user])
 
   useEffect(() => {
@@ -190,6 +198,25 @@ export default function Home() {
         return
       }
     }
+  }
+
+  const FLAG: Record<string, string> = { USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CAD: "🇨🇦", AUD: "🇦🇺", NZD: "🇳🇿", CHF: "🇨🇭", CNY: "🇨🇳" }
+
+  function eventTimeStr(ev: any) {
+    if (!ev.time || ev.time === "All Day" || ev.time === "Tentative") return ev.time || ""
+    return ev.time
+  }
+
+  function eventDateStr(ev: any) {
+    if (!ev.date) return ""
+    const cleaned = ev.date.replace(/<[^>]+>/g, "").trim()
+    return cleaned
+  }
+
+  function isPast(ev: any) {
+    if (!ev.time || ev.time === "All Day" || ev.time === "Tentative") return false
+    if (ev.actual && ev.actual.trim()) return true
+    return false
   }
 
   if (!user) return (
@@ -365,112 +392,156 @@ export default function Home() {
           link="/crypto" accent={cryptoPositions.length > 0 ? "fuchsia" : "zinc"} />
       </div>
 
-      {/* Notes & Idées */}
-      <div className="border border-cyan-500/20 rounded bg-black/40">
-        <div className="border-b border-cyan-500/20 p-4 flex items-center justify-between">
-          <button onClick={() => setNotesExpanded(!notesExpanded)}
-            className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition">
-            {notesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Notes & Idées · {notes.length}
-          </button>
-          <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
-            <Plus size={12} /> Nouvelle note
-          </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Market Events */}
+        <div className="border border-fuchsia-500/20 rounded bg-black/40">
+          <div className="border-b border-fuchsia-500/20 p-4 flex items-center gap-2">
+            <Zap size={14} className="text-fuchsia-400" />
+            <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400">
+              Événements High Impact · Cette semaine
+            </h2>
+          </div>
+          <div className="p-3 space-y-1 max-h-[500px] overflow-y-auto">
+            {marketLoading && <p className="text-zinc-500 text-xs font-mono text-center py-4">Chargement...</p>}
+            {!marketLoading && marketEvents.length === 0 && (
+              <p className="text-zinc-600 text-xs font-mono text-center py-4">Aucun événement high impact cette semaine</p>
+            )}
+            {(() => {
+              let lastDate = ""
+              return marketEvents.map((ev, i) => {
+                const dateLabel = eventDateStr(ev)
+                const showDateHeader = dateLabel && dateLabel !== lastDate
+                if (dateLabel) lastDate = dateLabel
+                const past = isPast(ev)
+                return (
+                  <div key={i}>
+                    {showDateHeader && (
+                      <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 pt-3 pb-1 border-b border-cyan-500/10 mb-1">
+                        {dateLabel}
+                      </div>
+                    )}
+                    <div className={`flex items-center gap-3 px-2 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-fuchsia-500/5"}`}>
+                      <span className="w-5 text-center">{FLAG[ev.country] || ev.country}</span>
+                      <span className="text-zinc-500 w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
+                      <span className="text-white flex-1 truncate">{ev.title}</span>
+                      <span className="text-zinc-500 w-16 text-right shrink-0">{ev.forecast || "—"}</span>
+                      <span className="text-zinc-600 w-16 text-right shrink-0">{ev.previous || "—"}</span>
+                      {ev.actual && <span className="text-cyan-400 w-16 text-right shrink-0 font-bold">{ev.actual}</span>}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
         </div>
 
-        {notesExpanded && (
-          <div className="p-4 space-y-3">
-            {showNoteForm && (
-              <div className="border border-fuchsia-500/30 rounded p-4 bg-black/60 space-y-3" onPaste={handleImagePaste}>
-                <input
-                  type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
-                  onPaste={handleImagePaste}
-                  placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
-                  className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
-                />
-                <textarea
-                  value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  onPaste={handleImagePaste}
-                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
-                  rows={3}
-                  className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none"
-                />
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-300 hover:border-zinc-500 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
-                    <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={e => {
-                        const f = e.target.files?.[0]
-                        if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
-                      }} />
-                  </label>
-                  {noteImagePreview && (
-                    <div className="relative">
-                      <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-cyan-500/20" />
-                      <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
-                        className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
-                        <X size={10} className="text-white" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button onClick={resetNoteForm}
-                    className="px-3 py-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[10px] uppercase tracking-wider transition">
-                    Annuler
-                  </button>
-                  <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
-                    className="px-4 py-1.5 bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
-                    {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
-                  </button>
-                </div>
-              </div>
-            )}
+        {/* Notes & Idées */}
+        <div className="border border-cyan-500/20 rounded bg-black/40">
+          <div className="border-b border-cyan-500/20 p-4 flex items-center justify-between">
+            <button onClick={() => setNotesExpanded(!notesExpanded)}
+              className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition">
+              {notesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              Notes & Idées · {notes.length}
+            </button>
+            <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
+              <Plus size={12} /> Nouvelle note
+            </button>
+          </div>
 
-            {notes.length === 0 && !showNoteForm && (
-              <p className="text-zinc-600 text-xs font-mono text-center py-6">
-                Aucune note. Clique "Nouvelle note" pour commencer.
-              </p>
-            )}
-            {notes.map(note => (
-              <div key={note.id}
-                className={`border ${note.is_pinned ? "border-fuchsia-500/30 bg-fuchsia-500/5" : "border-cyan-500/10 bg-black/20"} rounded p-3 group`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {note.is_pinned && <Pin size={11} className="text-fuchsia-400 shrink-0" />}
-                      <h3 className="text-sm font-mono font-bold text-white truncate">{note.title}</h3>
-                    </div>
-                    {note.content && (
-                      <p className="text-xs font-mono text-zinc-400 mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
+          {notesExpanded && (
+            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+              {showNoteForm && (
+                <div className="border border-fuchsia-500/30 rounded p-4 bg-black/60 space-y-3" onPaste={handleImagePaste}>
+                  <input
+                    type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
+                    onPaste={handleImagePaste}
+                    placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
+                    className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
+                  />
+                  <textarea
+                    value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                    onPaste={handleImagePaste}
+                    placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
+                    rows={3}
+                    className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none"
+                  />
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-300 hover:border-zinc-500 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
+                      <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0]
+                          if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
+                        }} />
+                    </label>
+                    {noteImagePreview && (
+                      <div className="relative">
+                        <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-cyan-500/20" />
+                        <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
+                          <X size={10} className="text-white" />
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-                    <button onClick={() => togglePin(note)} title={note.is_pinned ? "Désépingler" : "Épingler"}
-                      className={`p-1.5 rounded hover:bg-zinc-800 ${note.is_pinned ? "text-fuchsia-400" : "text-zinc-600"}`}>
-                      <Pin size={12} />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={resetNoteForm}
+                      className="px-3 py-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[10px] uppercase tracking-wider transition">
+                      Annuler
                     </button>
-                    <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-cyan-400">
-                      <Edit3 size={12} />
-                    </button>
-                    <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400">
-                      <Trash2 size={12} />
+                    <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
+                      className="px-4 py-1.5 bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
+                      {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
                     </button>
                   </div>
                 </div>
-                {note.image_url && (
-                  <img src={note.image_url} alt="chart"
-                    className="mt-2 rounded border border-cyan-500/10 max-h-48 w-full object-contain cursor-pointer hover:border-cyan-500/30 transition"
-                    onClick={() => window.open(note.image_url, '_blank')} />
-                )}
-                <div className="text-[9px] font-mono text-zinc-600 mt-2">
-                  {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+              )}
+
+              {notes.length === 0 && !showNoteForm && (
+                <p className="text-zinc-600 text-xs font-mono text-center py-6">
+                  Aucune note. Clique "Nouvelle note" pour commencer.
+                </p>
+              )}
+              {notes.map(note => (
+                <div key={note.id}
+                  className={`border ${note.is_pinned ? "border-fuchsia-500/30 bg-fuchsia-500/5" : "border-cyan-500/10 bg-black/20"} rounded p-3 group`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {note.is_pinned && <Pin size={11} className="text-fuchsia-400 shrink-0" />}
+                        <h3 className="text-sm font-mono font-bold text-white truncate">{note.title}</h3>
+                      </div>
+                      {note.content && (
+                        <p className="text-xs font-mono text-zinc-400 mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                      <button onClick={() => togglePin(note)} title={note.is_pinned ? "Désépingler" : "Épingler"}
+                        className={`p-1.5 rounded hover:bg-zinc-800 ${note.is_pinned ? "text-fuchsia-400" : "text-zinc-600"}`}>
+                        <Pin size={12} />
+                      </button>
+                      <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-cyan-400">
+                        <Edit3 size={12} />
+                      </button>
+                      <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  {note.image_url && (
+                    <img src={note.image_url} alt="chart"
+                      className="mt-2 rounded border border-cyan-500/10 max-h-48 w-full object-contain cursor-pointer hover:border-cyan-500/30 transition"
+                      onClick={() => window.open(note.image_url, '_blank')} />
+                  )}
+                  <div className="text-[9px] font-mono text-zinc-600 mt-2">
+                    {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import {
 import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
+import { fetchHighImpactEvents } from "./forex-factory.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -632,6 +633,15 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       .single()
     if (error) return res.status(500).json({ error: error.message })
     return res.json({ note: data })
+  })
+
+  app.get("/api/market-events", async (_req: Request, res: Response) => {
+    try {
+      const events = await fetchHighImpactEvents()
+      return res.json({ events })
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message })
+    }
   })
 
   app.delete("/api/notes/:id", auth, async (req: Request, res: Response) => {
