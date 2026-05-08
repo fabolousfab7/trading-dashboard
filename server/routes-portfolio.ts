@@ -598,8 +598,8 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const userClient = userScopedClient((req as any).userToken)
     const schema = z.object({
       title: z.string().min(1).max(200),
-      content: z.string().optional(),
-      image_url: z.string().optional(),
+      content: z.string().nullable().optional(),
+      image_url: z.string().nullable().optional(),
       is_pinned: z.boolean().optional(),
     })
     const parse = schema.safeParse(req.body)
@@ -617,7 +617,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const userClient = userScopedClient((req as any).userToken)
     const schema = z.object({
       title: z.string().min(1).max(200).optional(),
-      content: z.string().optional(),
+      content: z.string().nullable().optional(),
       image_url: z.string().nullable().optional(),
       is_pinned: z.boolean().optional(),
     })
