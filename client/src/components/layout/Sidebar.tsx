@@ -28,15 +28,13 @@ export default function Sidebar() {
           const active = location === item.path
           const Icon = item.icon
           return (
-            <Link key={item.path} href={item.path}>
-              <a className={`flex items-center gap-3 px-3 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all ${
+            <Link key={item.path} href={item.path} className={`flex items-center gap-3 px-3 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all ${
                 active
                   ? "bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.15)]"
                   : "text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/5 border border-transparent"
               }`}>
                 <Icon size={14} />
                 {item.label}
-              </a>
             </Link>
           )
         })}

@@ -130,7 +130,11 @@ export default function Pea() {
     )
   }
 
-  const positions = data?.positions || []
+  const positions = (data?.positions || []).filter((p: any) => {
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price)
+    return qty !== 0 && price !== 0
+  })
   const cashBalances = data?.cashBalances || []
   const positionsValue = positions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
   const cashTotal = cashBalances.reduce((s: number, c: any) => s + Number(c.amount), 0)

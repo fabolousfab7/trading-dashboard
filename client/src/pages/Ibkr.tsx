@@ -54,7 +54,11 @@ export default function Ibkr() {
   if (error) return <div className="p-8 text-red-400 font-mono text-sm">Erreur : {error}</div>
   if (!data) return null
 
-  const positions = data.positions || []
+  const positions = (data?.positions || []).filter((p: any) => {
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price)
+    return qty !== 0 && price !== 0
+  })
   const cashBalances = data.cashBalances || []
   const snapshot = data.latestSnapshot
 

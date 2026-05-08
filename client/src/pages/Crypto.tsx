@@ -69,7 +69,11 @@ export default function Crypto() {
   if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
   if (!account) return <div className="p-8 text-zinc-500 font-mono">Aucun compte Crypto</div>
 
-  const positions = data?.positions || []
+  const positions = (data?.positions || []).filter((p: any) => {
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price)
+    return qty !== 0 && price !== 0
+  })
   const persoPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
   const sharedPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
 

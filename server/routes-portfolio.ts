@@ -64,6 +64,8 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       account_type: parse.data.accountType,
       currency_base: parse.data.currencyBase,
       ibkr_account_number: parse.data.ibkrAccountNumber,
+      ...(parse.data.isActive !== undefined && { is_active: parse.data.isActive }),
+      ...(parse.data.displayOrder !== undefined && { display_order: parse.data.displayOrder }),
     }
     const { data, error } = await userClient
       .from("accounts")
