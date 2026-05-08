@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Wallet, RefreshCw, Plus, Trash2 } from "lucide-react"
+import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
@@ -27,6 +28,7 @@ export default function Pea() {
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState({ ticker: "", name: "", quantity: "", avg_cost: "", stooq_symbol: "" })
+  const [selectedPosition, setSelectedPosition] = useState<any>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -314,7 +316,8 @@ export default function Pea() {
                   const ppnl = value - cost
                   const ppnlPct = cost ? (ppnl / cost) * 100 : 0
                   return (
-                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
+                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 cursor-pointer transition"
+                      onClick={() => setSelectedPosition(p)}>
                       <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
                       <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name || "—"}</td>
                       <td className="p-3 text-right text-zinc-300">{qty}</td>
@@ -325,7 +328,7 @@ export default function Pea() {
                         {ppnl >= 0 ? "+" : ""}{ppnl.toFixed(2)} ({ppnlPct >= 0 ? "+" : ""}{ppnlPct.toFixed(1)}%)
                       </td>
                       <td className="p-3 text-right">
-                        <button onClick={() => deletePosition(p.id)} className="text-zinc-600 hover:text-red-400 transition">
+                        <button onClick={(e) => { e.stopPropagation(); deletePosition(p.id) }} className="text-zinc-600 hover:text-red-400 transition">
                           <Trash2 size={12} />
                         </button>
                       </td>
@@ -337,6 +340,17 @@ export default function Pea() {
           </div>
         )}
       </div>
+
+      {selectedPosition && (
+        <PositionNoteModal
+          isOpen={!!selectedPosition}
+          onClose={() => setSelectedPosition(null)}
+          ticker={selectedPosition.ticker}
+          accountId={selectedPosition.account_id}
+          positionId={selectedPosition.id}
+          currency="EUR"
+        />
+      )}
     </div>
   )
 }

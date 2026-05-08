@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Bitcoin, RefreshCw } from "lucide-react"
+import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
@@ -38,6 +39,7 @@ export default function Crypto() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedPosition, setSelectedPosition] = useState<any>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -185,14 +187,25 @@ export default function Crypto() {
       })()}
 
       <PortfolioSection title="Portefeuille Perso" subtitle="Détenu à 100%"
-        positions={persoPositions} stats={persoStats} accent="cyan" />
+        positions={persoPositions} stats={persoStats} accent="cyan" onPositionClick={setSelectedPosition} />
       <PortfolioSection title="Raph + Fab" subtitle="Détenu à 50% (part Fabien)"
-        positions={sharedPositions} stats={sharedStats} accent="fuchsia" />
+        positions={sharedPositions} stats={sharedStats} accent="fuchsia" onPositionClick={setSelectedPosition} />
+
+      {selectedPosition && (
+        <PositionNoteModal
+          isOpen={!!selectedPosition}
+          onClose={() => setSelectedPosition(null)}
+          ticker={selectedPosition.ticker.replace(/_R$/, "")}
+          accountId={selectedPosition.account_id}
+          positionId={selectedPosition.id}
+          currency="EUR"
+        />
+      )}
     </div>
   )
 }
 
-function PortfolioSection({ title, subtitle, positions, stats, accent }: any) {
+function PortfolioSection({ title, subtitle, positions, stats, accent, onPositionClick }: any) {
   const titleColor = accent === "cyan" ? "text-cyan-400" : "text-fuchsia-400"
   const borderColor = accent === "cyan" ? "border-cyan-500/30" : "border-fuchsia-500/30"
   if (positions.length === 0) return null
@@ -238,7 +251,8 @@ function PortfolioSection({ title, subtitle, positions, stats, accent }: any) {
               const ppnl = value - cost
               const ppnlPct = cost ? (ppnl / cost) * 100 : 0
               return (
-                <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
+                <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 cursor-pointer transition"
+                  onClick={() => onPositionClick?.(p)}>
                   <td className="p-3">
                     <div className="text-fuchsia-400 font-bold">{p.ticker.replace(/_R$/, "")}</div>
                     <div className="text-zinc-500 text-[10px] truncate max-w-[200px]">{(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim()}</div>

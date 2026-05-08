@@ -650,4 +650,74 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     if (error) return res.status(500).json({ error: error.message })
     return res.status(204).send()
   })
+
+  // ── Position Notes (thesis) ──
+
+  app.get("/api/position-notes", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const { account_id, ticker } = req.query
+    if (!account_id || !ticker) return res.status(400).json({ error: "account_id and ticker required" })
+    const { data, error } = await userClient
+      .from("position_notes")
+      .select("*")
+      .eq("account_id", account_id as string)
+      .eq("ticker", ticker as string)
+      .order("created_at", { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ notes: data })
+  })
+
+  app.post("/api/position-notes", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const schema = z.object({
+      account_id: z.string().uuid(),
+      ticker: z.string().min(1),
+      position_id: z.string().uuid().nullable().optional(),
+      thesis: z.string().nullable().optional(),
+      image_url: z.string().nullable().optional(),
+      target_price: z.number().nullable().optional(),
+      stop_loss: z.number().nullable().optional(),
+      horizon: z.enum(["swing", "position", "long-terme"]).nullable().optional(),
+      status: z.enum(["active", "closed", "invalidated"]).optional(),
+    })
+    const parse = schema.safeParse(req.body)
+    if (!parse.success) return res.status(400).json({ error: "Invalid body", details: parse.error.format() })
+    const { data, error } = await userClient
+      .from("position_notes")
+      .insert({ user_id: userId, ...parse.data })
+      .select()
+      .single()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(201).json({ note: data })
+  })
+
+  app.put("/api/position-notes/:id", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const schema = z.object({
+      thesis: z.string().nullable().optional(),
+      image_url: z.string().nullable().optional(),
+      target_price: z.number().nullable().optional(),
+      stop_loss: z.number().nullable().optional(),
+      horizon: z.enum(["swing", "position", "long-terme"]).nullable().optional(),
+      status: z.enum(["active", "closed", "invalidated"]).nullable().optional(),
+    })
+    const parse = schema.safeParse(req.body)
+    if (!parse.success) return res.status(400).json({ error: "Invalid body" })
+    const { data, error } = await userClient
+      .from("position_notes")
+      .update({ ...parse.data, updated_at: new Date().toISOString() })
+      .eq("id", req.params.id)
+      .select()
+      .single()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ note: data })
+  })
+
+  app.delete("/api/position-notes/:id", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const { error } = await userClient.from("position_notes").delete().eq("id", req.params.id)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(204).send()
+  })
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { Briefcase, RefreshCw, TrendingUp, TrendingDown } from "lucide-react"
+import { Briefcase, RefreshCw } from "lucide-react"
+import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
@@ -25,6 +26,7 @@ export default function Ibkr() {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [selectedPosition, setSelectedPosition] = useState<any>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -223,7 +225,8 @@ export default function Ibkr() {
                   const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
                   const sym = p.currency === "USD" ? "$" : "€"
                   return (
-                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5">
+                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 cursor-pointer transition"
+                      onClick={() => setSelectedPosition(p)}>
                       <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
                       <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name}</td>
                       <td className="p-3 text-right text-zinc-300">{qty}</td>
@@ -244,6 +247,17 @@ export default function Ibkr() {
           </div>
         )}
       </div>
+
+      {selectedPosition && (
+        <PositionNoteModal
+          isOpen={!!selectedPosition}
+          onClose={() => setSelectedPosition(null)}
+          ticker={selectedPosition.ticker}
+          accountId={selectedPosition.account_id}
+          positionId={selectedPosition.id}
+          currency={selectedPosition.currency || "EUR"}
+        />
+      )}
     </div>
   )
 }
