@@ -1,13 +1,16 @@
 import { useEffect, useState, useMemo } from "react"
 import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
-import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin } from "lucide-react"
+import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin, Plus, Pin, Trash2, Edit3, Image, X, ChevronDown, ChevronUp } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 
-async function authFetch(url: string) {
+async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-  return fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  return fetch(url, {
+    ...options,
+    headers: { ...options.headers, "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  })
 }
 
 function fmtEur(n: number) {
@@ -26,6 +29,15 @@ export default function Home() {
   const [snapshots, setSnapshots] = useState<any[]>([])
   const [snapshotAccounts, setSnapshotAccounts] = useState<any[]>([])
   const [chartRange, setChartRange] = useState(90)
+  const [notes, setNotes] = useState<any[]>([])
+  const [showNoteForm, setShowNoteForm] = useState(false)
+  const [editingNote, setEditingNote] = useState<any>(null)
+  const [noteTitle, setNoteTitle] = useState("")
+  const [noteContent, setNoteContent] = useState("")
+  const [noteImage, setNoteImage] = useState<File | null>(null)
+  const [noteImagePreview, setNoteImagePreview] = useState<string | null>(null)
+  const [noteSaving, setNoteSaving] = useState(false)
+  const [notesExpanded, setNotesExpanded] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null))
@@ -50,6 +62,10 @@ export default function Home() {
         return { ibkr: ibkrPortfolio, pea: peaPortfolio, crypto: cryptoPortfolio }
       }).catch(() => ({ ibkr: null, pea: null, crypto: null })),
     ]).then(([s, portfolios]: any) => { setStats(s); setIbkr(portfolios?.ibkr); setPea(portfolios?.pea); setCrypto(portfolios?.crypto); setLoading(false) })
+    authFetch("/api/notes")
+      .then(r => r.ok ? r.json() : { notes: [] })
+      .then(({ notes: n }) => setNotes(n || []))
+      .catch(() => {})
   }, [user])
 
   useEffect(() => {
@@ -84,6 +100,96 @@ export default function Home() {
       return row
     })
   }, [snapshots, snapshotAccounts])
+
+  async function saveNote() {
+    if (!noteTitle.trim()) return
+    setNoteSaving(true)
+    try {
+      let imageUrl = editingNote?.image_url || null
+      if (noteImage) {
+        const { data: session } = await supabase.auth.getSession()
+        const userId = session.session?.user?.id
+        const ext = noteImage.name.split('.').pop()
+        const fileName = `${userId}/${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage
+          .from('note-images')
+          .upload(fileName, noteImage, { contentType: noteImage.type })
+        if (!upErr) {
+          const { data: urlData } = supabase.storage
+            .from('note-images')
+            .getPublicUrl(fileName)
+          imageUrl = urlData.publicUrl
+        }
+      }
+      const body = { title: noteTitle, content: noteContent || null, image_url: imageUrl }
+      if (editingNote) {
+        const r = await authFetch(`/api/notes/${editingNote.id}`, { method: "PUT", body: JSON.stringify(body) })
+        if (r.ok) {
+          const { note } = await r.json()
+          setNotes(prev => prev.map(n => n.id === note.id ? note : n))
+        }
+      } else {
+        const r = await authFetch("/api/notes", { method: "POST", body: JSON.stringify(body) })
+        if (r.ok) {
+          const { note } = await r.json()
+          setNotes(prev => [note, ...prev])
+        }
+      }
+      resetNoteForm()
+    } catch (e) { console.error(e) }
+    finally { setNoteSaving(false) }
+  }
+
+  function resetNoteForm() {
+    setShowNoteForm(false)
+    setEditingNote(null)
+    setNoteTitle("")
+    setNoteContent("")
+    setNoteImage(null)
+    setNoteImagePreview(null)
+  }
+
+  function startEditNote(note: any) {
+    setEditingNote(note)
+    setNoteTitle(note.title)
+    setNoteContent(note.content || "")
+    setNoteImagePreview(note.image_url || null)
+    setShowNoteForm(true)
+  }
+
+  async function deleteNote(id: string) {
+    const r = await authFetch(`/api/notes/${id}`, { method: "DELETE" })
+    if (r.ok) setNotes(prev => prev.filter(n => n.id !== id))
+  }
+
+  async function togglePin(note: any) {
+    const r = await authFetch(`/api/notes/${note.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ is_pinned: !note.is_pinned }),
+    })
+    if (r.ok) {
+      const { note: updated } = await r.json()
+      setNotes(prev => prev.map(n => n.id === updated.id ? updated : n)
+        .sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        }))
+    }
+  }
+
+  function handleImagePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData.items
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          setNoteImage(file)
+          setNoteImagePreview(URL.createObjectURL(file))
+        }
+        break
+      }
+    }
+  }
 
   if (!user) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
@@ -256,6 +362,112 @@ export default function Home() {
             { label: "Positions", value: String(cryptoPositions.length) },
           ] : [{ label: "Statut", value: "À configurer" }]}
           link="/crypto" accent={cryptoPositions.length > 0 ? "fuchsia" : "zinc"} />
+      </div>
+
+      {/* Notes & Idées */}
+      <div className="border border-cyan-500/20 rounded bg-black/40">
+        <div className="border-b border-cyan-500/20 p-4 flex items-center justify-between">
+          <button onClick={() => setNotesExpanded(!notesExpanded)}
+            className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition">
+            {notesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            Notes & Idées · {notes.length}
+          </button>
+          <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
+            <Plus size={12} /> Nouvelle note
+          </button>
+        </div>
+
+        {notesExpanded && (
+          <div className="p-4 space-y-3">
+            {showNoteForm && (
+              <div className="border border-fuchsia-500/30 rounded p-4 bg-black/60 space-y-3" onPaste={handleImagePaste}>
+                <input
+                  type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
+                  placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
+                  className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
+                />
+                <textarea
+                  value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
+                  rows={3}
+                  className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none"
+                />
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-300 hover:border-zinc-500 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
+                    <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0]
+                        if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
+                      }} />
+                  </label>
+                  {noteImagePreview && (
+                    <div className="relative">
+                      <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-cyan-500/20" />
+                      <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
+                        className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
+                        <X size={10} className="text-white" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={resetNoteForm}
+                    className="px-3 py-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[10px] uppercase tracking-wider transition">
+                    Annuler
+                  </button>
+                  <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
+                    className="px-4 py-1.5 bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
+                    {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {notes.length === 0 && !showNoteForm && (
+              <p className="text-zinc-600 text-xs font-mono text-center py-6">
+                Aucune note. Clique "Nouvelle note" pour commencer.
+              </p>
+            )}
+            {notes.map(note => (
+              <div key={note.id}
+                className={`border ${note.is_pinned ? "border-fuchsia-500/30 bg-fuchsia-500/5" : "border-cyan-500/10 bg-black/20"} rounded p-3 group`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {note.is_pinned && <Pin size={11} className="text-fuchsia-400 shrink-0" />}
+                      <h3 className="text-sm font-mono font-bold text-white truncate">{note.title}</h3>
+                    </div>
+                    {note.content && (
+                      <p className="text-xs font-mono text-zinc-400 mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                    <button onClick={() => togglePin(note)} title={note.is_pinned ? "Désépingler" : "Épingler"}
+                      className={`p-1.5 rounded hover:bg-zinc-800 ${note.is_pinned ? "text-fuchsia-400" : "text-zinc-600"}`}>
+                      <Pin size={12} />
+                    </button>
+                    <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-cyan-400">
+                      <Edit3 size={12} />
+                    </button>
+                    <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+                {note.image_url && (
+                  <img src={note.image_url} alt="chart"
+                    className="mt-2 rounded border border-cyan-500/10 max-h-48 w-full object-contain cursor-pointer hover:border-cyan-500/30 transition"
+                    onClick={() => window.open(note.image_url, '_blank')} />
+                )}
+                <div className="text-[9px] font-mono text-zinc-600 mt-2">
+                  {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

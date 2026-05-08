@@ -581,4 +581,63 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       failedTickers: failed.map((f) => f.ticker),
     })
   })
+
+  app.get("/api/notes", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const { data, error } = await userClient
+      .from("notes")
+      .select("*")
+      .order("is_pinned", { ascending: false })
+      .order("created_at", { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ notes: data })
+  })
+
+  app.post("/api/notes", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const schema = z.object({
+      title: z.string().min(1).max(200),
+      content: z.string().optional(),
+      image_url: z.string().optional(),
+      is_pinned: z.boolean().optional(),
+    })
+    const parse = schema.safeParse(req.body)
+    if (!parse.success) return res.status(400).json({ error: "Invalid body", details: parse.error.format() })
+    const { data, error } = await userClient
+      .from("notes")
+      .insert({ user_id: userId, ...parse.data })
+      .select()
+      .single()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(201).json({ note: data })
+  })
+
+  app.put("/api/notes/:id", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const schema = z.object({
+      title: z.string().min(1).max(200).optional(),
+      content: z.string().optional(),
+      image_url: z.string().nullable().optional(),
+      is_pinned: z.boolean().optional(),
+    })
+    const parse = schema.safeParse(req.body)
+    if (!parse.success) return res.status(400).json({ error: "Invalid body" })
+    const updates: any = { ...parse.data, updated_at: new Date().toISOString() }
+    const { data, error } = await userClient
+      .from("notes")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select()
+      .single()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ note: data })
+  })
+
+  app.delete("/api/notes/:id", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const { error } = await userClient.from("notes").delete().eq("id", req.params.id)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(204).send()
+  })
 }
