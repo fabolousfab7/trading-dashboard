@@ -203,20 +203,21 @@ export default function Home() {
   const FLAG: Record<string, string> = { USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CAD: "🇨🇦", AUD: "🇦🇺", NZD: "🇳🇿", CHF: "🇨🇭", CNY: "🇨🇳" }
 
   function eventTimeStr(ev: any) {
-    if (!ev.time || ev.time === "All Day" || ev.time === "Tentative") return ev.time || ""
-    return ev.time
+    if (!ev.date) return ""
+    const d = new Date(ev.date)
+    return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
   }
 
   function eventDateStr(ev: any) {
     if (!ev.date) return ""
-    const cleaned = ev.date.replace(/<[^>]+>/g, "").trim()
-    return cleaned
+    const d = new Date(ev.date)
+    return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })
   }
 
   function isPast(ev: any) {
-    if (!ev.time || ev.time === "All Day" || ev.time === "Tentative") return false
     if (ev.actual && ev.actual.trim()) return true
-    return false
+    if (!ev.date) return false
+    return new Date(ev.date) < new Date()
   }
 
   if (!user) return (
