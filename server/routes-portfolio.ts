@@ -176,8 +176,10 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       const now = new Date().toISOString()
       const today = new Date().toISOString().slice(0, 10)
 
-      await userClient.from("positions").delete().eq("account_id", accountId)
-      if (data.openPositions.length > 0) {
+      const hasRealPositions = data.openPositions.some(p => p.quantity !== 0)
+
+      if (hasRealPositions) {
+        await userClient.from("positions").delete().eq("account_id", accountId)
         const positionRows = data.openPositions.map((p) => ({
           account_id: accountId,
           ticker: p.symbol,
@@ -193,6 +195,8 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         }))
         const { error: posErr } = await userClient.from("positions").insert(positionRows)
         if (posErr) throw new Error(`Failed to insert positions: ${posErr.message}`)
+      } else {
+        console.warn("[sync] All positions have quantity=0, keeping existing positions")
       }
 
       await userClient.from("cash_balances").delete().eq("account_id", accountId)
