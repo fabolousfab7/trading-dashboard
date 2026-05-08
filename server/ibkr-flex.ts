@@ -84,30 +84,43 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function sendRequest(token: string, queryId: string): Promise<string> {
+async function sendRequest(token: string, queryId: string, maxAttempts = 5, delayMs = 10000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
-  const response = await fetch(url, { method: "GET" })
-  if (!response.ok) {
-    throw new Error(`Flex SendRequest failed: HTTP ${response.status}`)
-  }
-  const xml = await response.text()
-  const parsed = xmlParser.parse(xml)
-  const root = parsed.FlexStatementResponse
 
-  if (!root) {
-    throw new Error("Flex SendRequest: response not in expected format")
-  }
-  if (root.Status !== "Success") {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(url, { method: "GET" })
+    if (!response.ok) {
+      throw new Error(`Flex SendRequest failed: HTTP ${response.status}`)
+    }
+    const xml = await response.text()
+    const parsed = xmlParser.parse(xml)
+    const root = parsed.FlexStatementResponse
+
+    if (!root) {
+      throw new Error("Flex SendRequest: response not in expected format")
+    }
+
+    if (root.Status === "Success") {
+      const referenceCode = root.ReferenceCode
+      if (!referenceCode) {
+        throw new Error("Flex SendRequest: no ReferenceCode returned")
+      }
+      return String(referenceCode)
+    }
+
     const errorCode = root.ErrorCode
     const errorMessage = root.ErrorMessage || "Unknown error"
+
+    if (String(errorCode) === "1001" && attempt < maxAttempts) {
+      console.log(`[ibkr-flex] SendRequest attempt ${attempt}/${maxAttempts} got 1001, retrying in ${delayMs / 1000}s...`)
+      await sleep(delayMs)
+      continue
+    }
+
     throw new Error(`Flex SendRequest error ${errorCode}: ${errorMessage}`)
   }
 
-  const referenceCode = root.ReferenceCode
-  if (!referenceCode) {
-    throw new Error("Flex SendRequest: no ReferenceCode returned")
-  }
-  return String(referenceCode)
+  throw new Error("Flex SendRequest: unexpected exit from retry loop")
 }
 
 async function getStatement(
