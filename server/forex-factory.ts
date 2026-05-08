@@ -19,16 +19,11 @@ export async function fetchHighImpactEvents(): Promise<MarketEvent[]> {
     if (!res.ok) return cache?.events || []
     const data: any[] = await res.json()
 
-    const now = new Date()
-    const past12h = new Date(now.getTime() - 12 * 60 * 60 * 1000)
-    const future48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+    const todayStr = new Date().toISOString().slice(0, 10)
 
     const events = data
       .filter((e: any) => e.impact === "High")
-      .filter((e: any) => {
-        const d = new Date(e.date)
-        return d >= past12h && d <= future48h
-      })
+      .filter((e: any) => e.date && e.date.slice(0, 10) === todayStr)
       .map((e: any) => ({
         title: e.title || "",
         country: e.country || "",

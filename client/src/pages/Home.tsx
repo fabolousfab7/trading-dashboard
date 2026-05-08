@@ -399,40 +399,37 @@ export default function Home() {
           <div className="border-b border-fuchsia-500/20 p-4 flex items-center gap-2">
             <Zap size={14} className="text-fuchsia-400" />
             <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400">
-              Événements High Impact · Cette semaine
+              Marché · High Impact · Aujourd'hui
             </h2>
           </div>
           <div className="p-3 space-y-1 max-h-[500px] overflow-y-auto">
             {marketLoading && <p className="text-zinc-500 text-xs font-mono text-center py-4">Chargement...</p>}
             {!marketLoading && marketEvents.length === 0 && (
-              <p className="text-zinc-600 text-xs font-mono text-center py-4">Aucun événement high impact cette semaine</p>
+              <p className="text-zinc-600 text-xs font-mono text-center py-4">Aucun événement high impact aujourd'hui</p>
             )}
-            {(() => {
-              let lastDate = ""
-              return marketEvents.map((ev, i) => {
-                const dateLabel = eventDateStr(ev)
-                const showDateHeader = dateLabel && dateLabel !== lastDate
-                if (dateLabel) lastDate = dateLabel
-                const past = isPast(ev)
-                return (
-                  <div key={i}>
-                    {showDateHeader && (
-                      <div className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 pt-3 pb-1 border-b border-cyan-500/10 mb-1">
-                        {dateLabel}
-                      </div>
-                    )}
-                    <div className={`flex items-center gap-3 px-2 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-fuchsia-500/5"}`}>
-                      <span className="w-5 text-center">{FLAG[ev.country] || ev.country}</span>
-                      <span className="text-zinc-500 w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
-                      <span className="text-white flex-1 truncate">{ev.title}</span>
-                      <span className="text-zinc-500 w-16 text-right shrink-0">{ev.forecast || "—"}</span>
-                      <span className="text-zinc-600 w-16 text-right shrink-0">{ev.previous || "—"}</span>
-                      {ev.actual && <span className="text-cyan-400 w-16 text-right shrink-0 font-bold">{ev.actual}</span>}
-                    </div>
-                  </div>
-                )
-              })
-            })()}
+            {marketEvents.length > 0 && (
+              <div className="flex items-center gap-3 px-3 py-1 text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
+                <div className="text-base shrink-0 invisible">{"\u{1F3F3}\u{FE0F}"}</div>
+                <div className="text-zinc-500 w-16 shrink-0 text-right">Heure</div>
+                <div className="flex-1 min-w-0">Événement</div>
+                <div className="w-12 text-center">Prévu</div>
+                <div className="w-12 text-center">Préc.</div>
+                <div className="w-12 text-center">Réel</div>
+              </div>
+            )}
+            {marketEvents.map((ev, i) => {
+              const past = isPast(ev)
+              return (
+                <div key={i} className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-fuchsia-500/5"}`}>
+                  <span className="text-base shrink-0">{FLAG[ev.country] || ev.country}</span>
+                  <span className="text-zinc-500 w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
+                  <span className="text-white flex-1 truncate min-w-0">{ev.title}</span>
+                  <span className="text-zinc-500 w-12 text-center shrink-0">{ev.forecast || "—"}</span>
+                  <span className="text-zinc-600 w-12 text-center shrink-0">{ev.previous || "—"}</span>
+                  <span className={`w-12 text-center shrink-0 ${ev.actual ? "text-cyan-400 font-bold" : "text-zinc-700"}`}>{ev.actual || "—"}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
 
