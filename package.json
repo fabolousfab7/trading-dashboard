@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
-    "vercel-build": "node node_modules/vite/bin/vite.js build && node node_modules/esbuild/bin/esbuild api/index.ts --bundle --platform=node --format=esm --outfile=api/index.js --external:@supabase/supabase-js --external:express --external:zod --external:drizzle-orm --external:drizzle-zod --external:fast-xml-parser",
+    "vercel-build": "node node_modules/vite/bin/vite.js build",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push"
