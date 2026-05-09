@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
-import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus } from "lucide-react"
+import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus, Briefcase, Bitcoin } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 
@@ -17,10 +17,13 @@ const CATEGORIES = [
   { code: "681000", label: "Amortissements" },
   { code: "708000", label: "Produits divers" },
   { code: "455000", label: "Compte courant associé" },
+  { code: "512100", label: "Virement IBKR" },
+  { code: "512200", label: "Virement Kraken" },
   { code: "471000", label: "Compte d'attente" },
 ]
 
-const IS_CCA = (cat: string) => cat === "455000"
+const NON_CHARGE_CATS = ["455000", "512100", "512200"]
+const IS_NON_CHARGE = (cat: string) => NON_CHARGE_CATS.includes(cat)
 
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.code, c.label]))
 const VAT_RATES = [0, 5.5, 10, 20]
@@ -242,12 +245,13 @@ export default function Compta() {
     await loadData()
   }
 
-  async function handleCCA(tx: any) {
+  async function handleQuickCategory(tx: any, category: string, labelDebit: string, labelCredit: string) {
     try {
       const amount = Math.abs(Number(tx.amount))
       const isCredit = tx.side === "credit"
       const direction = isCredit ? "revenue" : "expense"
-      const description = isCredit ? "Apport personnel — compte courant associé" : "Dépense personnelle — avance compte courant associé"
+      const description = isCredit ? labelCredit : labelDebit
+      const catLabel = CAT_LABEL[category] || category
       const r = await authFetch("/api/compta/invoices", {
         method: "POST",
         body: JSON.stringify({
@@ -260,7 +264,7 @@ export default function Compta() {
           vat_rate: 0,
           vat_deductible: false,
           vat_reverse_charge: false,
-          category: "455000",
+          category,
           description,
           party_country: "FR",
           status: "validated",
@@ -272,8 +276,7 @@ export default function Compta() {
         method: "POST",
         body: JSON.stringify({ invoiceId: inv.id, bankTransactionId: tx.id }),
       })
-      const label = isCredit ? "apport perso" : "dépense perso"
-      toast({ title: "CCA 455000", description: `${tx.counterparty_name} — ${fmtEur(amount)} → CCA 455000 (${label})` })
+      toast({ title: `${category} ${catLabel}`, description: `${tx.counterparty_name} — ${fmtEur(amount)} → ${category}` })
       await loadData()
     } catch (e: any) { setError(e.message) }
   }
@@ -305,7 +308,7 @@ export default function Compta() {
     setModalData((prev: any) => {
       const next = { ...prev, [field]: value }
 
-      if (field === "category" && IS_CCA(value)) {
+      if (field === "category" && IS_NON_CHARGE(value)) {
         next.direction = "expense"
         next.vat_deductible = false
         next.vat_rate = 0
@@ -315,7 +318,7 @@ export default function Compta() {
         return next
       }
 
-      if (field === "category" && IS_CCA(prev.category) && !IS_CCA(value)) {
+      if (field === "category" && IS_NON_CHARGE(prev.category) && !IS_NON_CHARGE(value)) {
         next.vat_rate = 20
         const ht = Number(next.amount_ht) || 0
         next.amount_vat = Math.round(ht * 20) / 100
@@ -323,7 +326,7 @@ export default function Compta() {
         next.vat_deductible = true
       }
 
-      const isCCA = IS_CCA(next.category)
+      const isCCA = IS_NON_CHARGE(next.category)
 
       if ((field === "amount_ht" || field === "vat_rate") && !isCCA) {
         const ht = field === "amount_ht" ? Number(value) : Number(prev.amount_ht)
@@ -548,7 +551,13 @@ export default function Compta() {
                       {row.status === "matched" && row.linkedInvoice?.category === "455000" && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
                       )}
-                      {row.status === "matched" && row.linkedInvoice?.category !== "455000" && <span className="text-green-400">✅</span>}
+                      {row.status === "matched" && row.linkedInvoice?.category === "512100" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">IBKR</span>
+                      )}
+                      {row.status === "matched" && row.linkedInvoice?.category === "512200" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">KRK</span>
+                      )}
+                      {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span className="text-green-400">✅</span>}
                       {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
                       {row.status === "pending_payment" && <span className="text-zinc-400">📄</span>}
                       {row.status === "ignored" && <span className="text-zinc-600">🔕</span>}
@@ -577,8 +586,14 @@ export default function Compta() {
                                 <Check size={12} />
                               </button>
                             )}
-                            <button onClick={() => handleCCA(row.original)} className="text-amber-500 hover:text-amber-400 p-1" title="Opération perso — compte courant associé (455000)">
+                            <button onClick={() => handleQuickCategory(row.original, "455000", "Dépense personnelle — avance CCA", "Apport personnel — CCA")} className="text-amber-500 hover:text-amber-400 p-1" title="Opération perso — compte courant associé (455000)">
                               <UserMinus size={12} />
+                            </button>
+                            <button onClick={() => handleQuickCategory(row.original, "512100", "Virement vers Interactive Brokers", "Rapatriement depuis Interactive Brokers")} className="text-cyan-500 hover:text-cyan-400 p-1" title="Virement IBKR (512100)">
+                              <Briefcase size={12} />
+                            </button>
+                            <button onClick={() => handleQuickCategory(row.original, "512200", "Virement vers Kraken Pro Futures", "Rapatriement depuis Kraken Pro Futures")} className="text-purple-500 hover:text-purple-400 p-1" title="Virement Kraken (512200)">
+                              <Bitcoin size={12} />
                             </button>
                             <button onClick={() => handleIgnore(row.original.id)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Ignorer">
                               <Ban size={12} />
@@ -760,7 +775,7 @@ export default function Compta() {
                 </div>
               )}
 
-              {IS_CCA(modalData.category) ? (
+              {IS_NON_CHARGE(modalData.category) ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant (EUR)</label>
@@ -768,7 +783,7 @@ export default function Compta() {
                       className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
                   </div>
                   <div className="flex items-end">
-                    <div className="text-[10px] font-mono text-zinc-600 pb-2">Pas de TVA (compte courant associé)</div>
+                    <div className="text-[10px] font-mono text-zinc-600 pb-2">Pas de TVA ({CAT_LABEL[modalData.category] || "hors exploitation"})</div>
                   </div>
                 </div>
               ) : (
@@ -796,8 +811,8 @@ export default function Compta() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-mono text-zinc-500 uppercase">Direction</label>
-                  {IS_CCA(modalData.category) ? (
-                    <div className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-500 font-mono text-xs">Dépense perso (CCA)</div>
+                  {IS_NON_CHARGE(modalData.category) ? (
+                    <div className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-500 font-mono text-xs">Hors exploitation ({CAT_LABEL[modalData.category] || modalData.category})</div>
                   ) : (
                     <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
                       className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
@@ -828,7 +843,7 @@ export default function Compta() {
                 </div>
               </div>
 
-              {!IS_CCA(modalData.category) && (
+              {!IS_NON_CHARGE(modalData.category) && (
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
                     <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}

@@ -46,6 +46,8 @@ export default function Ibkr() {
   const [syncError, setSyncError] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<any>(null)
 
+  const [comptaCapital, setComptaCapital] = useState<number | null>(null)
+
   async function loadData() {
     setLoading(true); setError(null)
     try {
@@ -54,8 +56,15 @@ export default function Ibkr() {
       const fhf = accounts?.find((a: any) => a.broker === "IBKR")
       if (!fhf) { setError("Aucun compte IBKR"); return }
       setAccount(fhf)
-      const r2 = await authFetch(`/api/accounts/${fhf.id}/portfolio`)
+      const [r2, capR] = await Promise.all([
+        authFetch(`/api/accounts/${fhf.id}/portfolio`),
+        authFetch("/api/compta/capital-invested?category=512100"),
+      ])
       setData(await r2.json())
+      try {
+        const capData = await capR.json()
+        if (capData.capital_invested > 0) setComptaCapital(capData.capital_invested)
+      } catch {}
     } catch (e: any) { setError(String(e.message || e)) }
     finally { setLoading(false) }
   }
@@ -102,7 +111,7 @@ export default function Ibkr() {
     const cost = Number(p.avg_cost)
     return s + (qty * (price - cost)) * fx
   }, 0)
-  const capital = Number(data.account?.capital_invested) || Number(snapshot?.capital_invested) || 0
+  const capital = comptaCapital || Number(data.account?.capital_invested) || Number(snapshot?.capital_invested) || 0
   const totalPerf = capital ? nlv - capital : 0
   const totalPerfPct = capital ? (totalPerf / capital) * 100 : 0
 

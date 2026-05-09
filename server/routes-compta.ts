@@ -496,7 +496,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
     const { data: allInvoices } = await userClient.from("fhf_invoices").select("id, bank_transaction_id")
 
-    const items = (charges || []).filter(i => i.category !== "455000")
+    const NON_CHARGE = ["455000", "512100", "512200"]
+    const items = (charges || []).filter(i => !NON_CHARGE.includes(i.category))
     const all = allInvoices || []
 
     const charges_ht_ytd = items.reduce((s, i) => s + Number(i.amount_ht), 0)
@@ -545,7 +546,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const monthMap: Record<string, { tva_deductible_fr: number; tva_autoliquidee_intracom: number; tva_collectee: number; base_ht_achats_fr: number; base_ht_achats_intracom: number }> = {}
 
     for (const inv of (invoices || [])) {
-      if (inv.category === "455000") continue
+      if (["455000", "512100", "512200"].includes(inv.category)) continue
       const m = inv.invoice_date.slice(0, 7)
       if (!monthMap[m]) monthMap[m] = { tva_deductible_fr: 0, tva_autoliquidee_intracom: 0, tva_collectee: 0, base_ht_achats_fr: 0, base_ht_achats_intracom: 0 }
       const vat = Number(inv.amount_vat) || 0
@@ -571,5 +572,29 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     })).sort((a, b) => a.month.localeCompare(b.month))
 
     res.json({ months })
+  })
+
+  // 14. Capital invested (net of deposits minus withdrawals for a given category)
+  app.get("/api/compta/capital-invested", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const category = req.query.category as string
+    if (!category) return res.status(400).json({ error: "Missing category" })
+
+    const { data, error } = await userClient
+      .from("fhf_invoices")
+      .select("direction, amount_ttc")
+      .eq("category", category)
+      .eq("status", "validated")
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    let invested = 0
+    for (const row of data || []) {
+      const amount = Math.abs(Number(row.amount_ttc))
+      if (row.direction === "expense") invested += amount
+      else invested -= amount
+    }
+
+    res.json({ category, capital_invested: invested })
   })
 }
