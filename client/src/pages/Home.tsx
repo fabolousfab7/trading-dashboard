@@ -309,8 +309,10 @@ export default function Home() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}
-                  formatter={(value: number) => [fmtEur(value), ""]}
+                  contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }}
+                  itemStyle={{ color: "#ffffff" }}
+                  labelStyle={{ color: "#a1a1aa" }}
+                  formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
               </PieChart>
             </div>
@@ -357,12 +359,10 @@ export default function Home() {
               <YAxis tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
                 tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
               <Tooltip
-                contentStyle={{ background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}
+                contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }}
+                itemStyle={{ color: "#ffffff" }}
                 labelStyle={{ color: "#a1a1aa" }}
-                formatter={(value: number, name: string) => [
-                  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value),
-                  name
-                ]}
+                formatter={(value: number, name: string) => [fmtEur(value), name]}
               />
               <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#e879f9" fill="url(#gradIBKR)" strokeWidth={1.5} />
               <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#06b6d4" fill="url(#gradPEA)" strokeWidth={1.5} />

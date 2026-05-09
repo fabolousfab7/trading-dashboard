@@ -211,7 +211,7 @@ export default function Crypto() {
                     outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                     {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
@@ -219,7 +219,7 @@ export default function Crypto() {
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-zinc-600 ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-white ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -233,7 +233,7 @@ export default function Crypto() {
                     outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                     {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
@@ -241,7 +241,7 @@ export default function Crypto() {
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
                     <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-zinc-600 ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-white ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -255,7 +255,7 @@ export default function Crypto() {
                     outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                     {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
