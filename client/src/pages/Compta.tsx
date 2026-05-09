@@ -148,7 +148,10 @@ export default function Compta() {
       })
       const data = await r.json()
       if (data.error) { setError(data.error); return }
-      setImportResult(`${data.imported} transactions importées (${data.dateRange.from} → ${data.dateRange.to})`)
+      const skippedMsg = data.skipped ? ` · ${data.skipped} doublons ignorés` : ""
+      setImportResult(data.imported > 0
+        ? `${data.imported} transactions importées (${data.dateRange.from} → ${data.dateRange.to})${skippedMsg}`
+        : data.message || "Aucune nouvelle transaction")
       await loadData()
     } catch (e: any) { setError(e.message) }
   }

@@ -26,37 +26,16 @@ async function requireAuth(supabase: SupabaseClient, req: Request, res: Response
   next()
 }
 
-const COLUMN_MAP: Record<string, string> = {
-  "status": "status",
-  "statut": "status",
-  "settlement date (utc)": "settlement_date",
-  "date de règlement (utc)": "settlement_date",
-  "operation date (utc)": "operation_date",
-  "date d'opération (utc)": "operation_date",
-  "total amount (incl. vat)": "amount",
-  "montant total (tva incluse)": "amount",
-  "currency": "currency",
-  "devise": "currency",
-  "counterparty name": "counterparty_name",
-  "nom de la contrepartie": "counterparty_name",
-  "payment method": "payment_method",
-  "méthode de paiement": "payment_method",
-  "side": "side",
-  "sens": "side",
-  "category": "category",
-  "catégorie": "category",
-  "vat amount": "vat_amount",
-  "montant tva": "vat_amount",
-  "reference": "reference",
-  "référence": "reference",
-  "label(s)": "label",
-  "attachment(s)": "attachment_name",
-  "pièce(s) jointe(s)": "attachment_name",
+function parseFrenchNumber(val: string): number {
+  if (!val || val.trim() === "" || val === '""') return 0
+  return parseFloat(val.replace(/"/g, "").replace(",", ".").replace(/\s/g, "")) || 0
 }
 
-function parseAmount(str: string): number {
-  if (!str || str.trim() === "") return 0
-  return parseFloat(str.replace(",", ".").replace(/\s/g, "")) || 0
+function parseFrenchDate(val: string): string | null {
+  if (!val || val.trim() === "") return null
+  const match = val.match(/^(\d{2})-(\d{2})-(\d{4})/)
+  if (!match) return null
+  return `${match[3]}-${match[2]}-${match[1]}`
 }
 
 function parseCsvLine(line: string, sep: string): string[] {
@@ -87,30 +66,71 @@ function parseQontoCsv(csvText: string): any[] {
   const lines = csvText.trim().split(/\r?\n/)
   if (lines.length < 2) return []
 
-  const firstLine = lines[0]
-  const sep = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ";" : ","
+  const headers = parseCsvLine(lines[0], ";").map(h => h.trim().replace(/^"|"$/g, ""))
+  const col = (name: string) => headers.findIndex(h => h === name)
 
-  const headers = parseCsvLine(firstLine, sep).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ""))
-  const normalizedHeaders = headers.map(h => COLUMN_MAP[h] || h)
+  const iStatut = col("Statut")
+  const iDateValeur = col("Date de la valeur (UTC)")
+  const iDateOp = col("Date de l'opération (UTC)")
+  const iMontantTTC = col("Montant total (TTC)")
+  const iDebit = col("Débit")
+  const iCredit = col("Crédit")
+  const iDevise = col("Devise")
+  const iContrepartie = col("Nom de la contrepartie")
+  const iMethode = col("Méthode de paiement")
+  const iReference = col("Identifiant de transaction")
+  const iNote = col("Note")
+  const iCategorie = col("Catégorie de trésorerie")
+  const iTVA = col("Montant total de la TVA")
+  const iJustificatif = col("Justificatif")
+  const iMontantHT = col("Montant total (HT)")
+
+  if (iStatut === -1 || iContrepartie === -1 || iMontantTTC === -1) {
+    return []
+  }
 
   const rows: any[] = []
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim()
     if (!line) continue
-    const values = parseCsvLine(line, sep)
-    const row: Record<string, string> = {}
-    for (let j = 0; j < normalizedHeaders.length && j < values.length; j++) {
-      row[normalizedHeaders[j]] = values[j].trim().replace(/^"|"$/g, "")
-    }
-    if (row.counterparty_name && row.amount) rows.push(row)
+    const f = parseCsvLine(line, ";").map(v => v.replace(/^"|"$/g, ""))
+    if (f.length < 5) continue
+
+    const statut = f[iStatut]?.trim()
+    if (statut !== "Exécuté") continue
+
+    const creditVal = iCredit !== -1 ? f[iCredit]?.trim() : ""
+    const side: "debit" | "credit" = (creditVal && creditVal !== "" && creditVal !== '""') ? "credit" : "debit"
+
+    const amount = parseFrenchNumber(f[iMontantTTC] || "0")
+    if (amount === 0) continue
+
+    const settlementDate = parseFrenchDate(f[iDateValeur] || "")
+    if (!settlementDate) continue
+
+    const counterparty = f[iContrepartie]?.trim()
+    if (!counterparty) continue
+
+    rows.push({
+      settlement_date: settlementDate,
+      operation_date: iDateOp !== -1 ? parseFrenchDate(f[iDateOp] || "") : null,
+      counterparty_name: counterparty,
+      amount: Math.abs(amount),
+      currency: iDevise !== -1 ? (f[iDevise]?.trim() || "EUR") : "EUR",
+      side,
+      payment_method: iMethode !== -1 ? (f[iMethode]?.trim() || null) : null,
+      reference: iReference !== -1 ? (f[iReference]?.replace(/"/g, "").trim() || null) : null,
+      label: iNote !== -1 ? (f[iNote]?.replace(/"/g, "").trim() || null) : null,
+      category: iCategorie !== -1 ? (f[iCategorie]?.trim() || null) : null,
+      vat_amount: iTVA !== -1 ? parseFrenchNumber(f[iTVA] || "0") : null,
+      attachment_name: iJustificatif !== -1 ? (f[iJustificatif]?.replace(/"/g, "").trim() || null) : null,
+      raw_data: {
+        montant_ht: iMontantHT !== -1 ? parseFrenchNumber(f[iMontantHT] || "0") : null,
+        original_amount: amount,
+      },
+    })
   }
   return rows
-}
-
-function normalizeSide(side: string): "debit" | "credit" {
-  const s = side.toLowerCase().trim()
-  if (s === "debit" || s === "débit") return "debit"
-  return "credit"
 }
 
 const invoiceSchema = z.object({
@@ -264,38 +284,40 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
     const rows = parseQontoCsv(parsed.data.csv)
-    if (rows.length === 0) return res.status(400).json({ error: "No valid rows found in CSV" })
+    if (rows.length === 0) return res.status(400).json({ error: "Aucune ligne valide dans le CSV (vérifiez le format Qonto)" })
 
     const userId = (req as any).userId
     const userClient = userScopedClient((req as any).userToken)
     const importBatch = `qonto_${Date.now()}`
 
-    const records = rows.map(row => ({
-      user_id: userId,
-      settlement_date: row.settlement_date || null,
-      operation_date: row.operation_date || null,
-      counterparty_name: row.counterparty_name || "Inconnu",
-      amount: parseAmount(row.amount),
-      currency: row.currency || "EUR",
-      side: normalizeSide(row.side || "debit"),
-      payment_method: row.payment_method || null,
-      reference: row.reference || null,
-      label: row.label || null,
-      category: row.category || null,
-      vat_amount: row.vat_amount ? parseAmount(row.vat_amount) : null,
-      attachment_name: row.attachment_name || null,
-      status: "unmatched",
-      raw_data: row,
-      import_batch: importBatch,
-    })).filter(r => r.settlement_date && r.amount !== 0)
+    // Dedup: check existing references in DB
+    const refs = rows.map(r => r.reference).filter(Boolean)
+    let existingRefs = new Set<string>()
+    if (refs.length > 0) {
+      const { data: existing } = await userClient
+        .from("fhf_bank_transactions")
+        .select("reference")
+        .in("reference", refs)
+      existingRefs = new Set((existing || []).map((r: any) => r.reference))
+    }
 
-    if (records.length === 0) return res.status(400).json({ error: "No valid transactions after parsing" })
+    const records = rows
+      .filter(row => !row.reference || !existingRefs.has(row.reference))
+      .map(row => ({
+        user_id: userId,
+        ...row,
+        status: "unmatched",
+        import_batch: importBatch,
+      }))
+
+    if (records.length === 0) return res.json({ imported: 0, importBatch, skipped: rows.length, message: "Toutes les transactions existent déjà" })
 
     const { error } = await userClient.from("fhf_bank_transactions").insert(records)
     if (error) return res.status(500).json({ error: error.message })
 
-    const dates = records.map(r => r.settlement_date!).sort()
-    res.json({ imported: records.length, importBatch, dateRange: { from: dates[0], to: dates[dates.length - 1] } })
+    const dates = records.map(r => r.settlement_date).filter(Boolean).sort()
+    const skipped = rows.length - records.length
+    res.json({ imported: records.length, skipped, importBatch, dateRange: { from: dates[0], to: dates[dates.length - 1] } })
   })
 
   // 7. List bank transactions
