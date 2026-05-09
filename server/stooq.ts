@@ -21,3 +21,9 @@ export function defaultStooqSymbol(ticker: string, currency: string): string {
   if (currency === "USD") return `${t}.us`
   return `${t}.fr`
 }
+
+export const YAHOO_SUFFIX_MAP: Record<string, string> = {
+  "fr": "PA",
+  "de": "DE",
+  "us": "",
+}

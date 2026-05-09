@@ -8,6 +8,7 @@ import {
 import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
+import { fetchYahooPrice } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
@@ -489,7 +490,11 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
 
             for (const p of stockPositions) {
               try {
-                const price = await fetchStooqPrice(p.stooq_symbol)
+                let price = await fetchStooqPrice(p.stooq_symbol)
+                if (price === null && p.stooq_symbol && p.stooq_symbol.endsWith(".fr")) {
+                  const ticker = p.stooq_symbol.replace(".fr", "").toUpperCase()
+                  price = await fetchYahooPrice(ticker, "PA")
+                }
                 if (price) {
                   await serviceClient.from("positions").update({
                     market_price: price,
@@ -567,7 +572,11 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       }),
       ...stockPositions.map(async (p: any) => {
         const stooqSym = p.stooq_symbol || defaultStooqSymbol(p.ticker, p.currency)
-        const price = await fetchStooqPrice(stooqSym).catch(() => null)
+        let price = await fetchStooqPrice(stooqSym).catch(() => null)
+        if (price === null && stooqSym.endsWith(".fr")) {
+          const ticker = stooqSym.replace(".fr", "").toUpperCase()
+          price = await fetchYahooPrice(ticker, "PA")
+        }
         return { id: p.id, ticker: p.ticker, price, priceUsd: null as number | null }
       }),
     ])
