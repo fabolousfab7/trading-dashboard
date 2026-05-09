@@ -3,20 +3,30 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
-const fxCache = new Map<string, { rate: number; ts: number }>()
-const FX_CACHE_TTL = 24 * 60 * 60 * 1000
+const fxCache: Record<string, { rate: number; ts: number }> = {}
 
 async function fetchFxRate(from: string, to: string, date: string): Promise<number | null> {
-  const key = `${from}_${to}_${date}`
-  const cached = fxCache.get(key)
-  if (cached && Date.now() - cached.ts < FX_CACHE_TTL) return cached.rate
+  const cacheKey = `${from}_${to}_${date}`
+  if (fxCache[cacheKey] && Date.now() - fxCache[cacheKey].ts < 86400000) {
+    return fxCache[cacheKey].rate
+  }
   try {
-    const res = await fetch(`https://api.frankfurter.dev/${date}?from=${from}&to=${to}`)
-    if (!res.ok) return null
+    const fromLower = from.toLowerCase()
+    const toLower = to.toLowerCase()
+    const res = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/${fromLower}.json`)
+    if (!res.ok) {
+      const res2 = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${fromLower}.json`)
+      if (!res2.ok) return null
+      const data2 = await res2.json()
+      const rate = data2[fromLower]?.[toLower]
+      if (!rate) return null
+      fxCache[cacheKey] = { rate, ts: Date.now() }
+      return rate
+    }
     const data = await res.json()
-    const rate = data.rates?.[to]
-    if (typeof rate !== "number") return null
-    fxCache.set(key, { rate, ts: Date.now() })
+    const rate = data[fromLower]?.[toLower]
+    if (!rate) return null
+    fxCache[cacheKey] = { rate, ts: Date.now() }
     return rate
   } catch {
     return null
