@@ -230,9 +230,21 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const parsed = invoiceSchema.safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
     const userClient = userScopedClient((req as any).userToken)
+    const body = parsed.data
+    if (body.invoice_number) {
+      const { data: existing } = await userClient
+        .from("fhf_invoices")
+        .select("id")
+        .eq("invoice_number", body.invoice_number)
+        .eq("party_name", body.party_name)
+        .maybeSingle()
+      if (existing) {
+        return res.status(409).json({ error: "Facture en doublon", detail: `Une facture ${body.invoice_number} de ${body.party_name} existe déjà.` })
+      }
+    }
     const { data, error } = await userClient
       .from("fhf_invoices")
-      .insert({ ...parsed.data, user_id: (req as any).userId })
+      .insert({ ...body, user_id: (req as any).userId })
       .select()
       .single()
     if (error) return res.status(500).json({ error: error.message })

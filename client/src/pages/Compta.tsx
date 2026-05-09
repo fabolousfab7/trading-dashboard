@@ -203,6 +203,9 @@ export default function Compta() {
       const body = _fxInfo ? { ...invoiceFields, notes: invoiceFields.notes || "", raw_fx: _fxInfo } : invoiceFields
       const r = await authFetch(url, { method, body: JSON.stringify(body) })
       const data = await r.json()
+      if (r.status === 409) {
+        toast({ title: "Doublon détecté", description: data.detail || data.error }); return
+      }
       if (data.error) { setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error)); return }
       setModalOpen(false)
       await loadData()
