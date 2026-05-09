@@ -6,6 +6,29 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
 
+const CRYPTO_SECTOR: Record<string, string> = {
+  "BTC": "Store of Value",
+  "ETH": "L1 / Smart Contracts",
+  "HYPE": "DeFi / DEX",
+  "AAVE": "DeFi",
+  "EIGEN": "DeFi / Restaking",
+  "ZRO": "Infra / Bridge",
+  "BP": "DEX / Infra",
+  "PUMP": "DeFi / Memecoin",
+  "DIME": "DEX / Perp",
+  "SUPRA": "L1",
+  "XPL": "L1",
+  "ILV": "Gaming",
+  "GUN": "Gaming",
+  "TSLAX": "Tokenized / RWA",
+  "WLFI": "Tokenized / RWA",
+  "USDT": "Stablecoin",
+  "USDC": "Stablecoin",
+  "USDT0": "Stablecoin",
+  "DAI": "Stablecoin",
+  "USDe": "Stablecoin",
+}
+
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -32,13 +55,7 @@ function calcStats(pos: any[]) {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
   }, 0)
-  const cost = pos.reduce((s, p) => {
-    const own = (Number(p.ownership_pct) || 100) / 100
-    return s + Number(p.quantity) * Number(p.avg_cost) * own
-  }, 0)
-  const pnl = value - cost
-  const pct = cost ? (pnl / cost) * 100 : 0
-  return { value, valueUsd, cost, pnl, pct }
+  return { value, valueUsd }
 }
 
 export default function Crypto() {
@@ -92,13 +109,10 @@ export default function Crypto() {
 
   const persoStats = calcStats(persoPositions)
   const sharedStats = calcStats(sharedPositions)
-  const total = {
-    value: persoStats.value + sharedStats.value,
-    valueUsd: persoStats.valueUsd + sharedStats.valueUsd,
-    cost: persoStats.cost + sharedStats.cost,
-    pnl: persoStats.pnl + sharedStats.pnl,
-    pct: (persoStats.cost + sharedStats.cost) ? ((persoStats.pnl + sharedStats.pnl) / (persoStats.cost + sharedStats.cost)) * 100 : 0,
-  }
+  const totalUsd = persoStats.valueUsd + sharedStats.valueUsd
+  const totalEur = persoStats.value + sharedStats.value
+
+  const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
 
   return (
     <div className="p-6 space-y-6">
@@ -121,26 +135,16 @@ export default function Crypto() {
 
       {error && <div className="border border-red-500/30 bg-red-500/10 text-red-400 p-3 rounded font-mono text-xs">{error}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">VALEUR USD</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtUsd(total.valueUsd)}</div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">{fmtEur(total.value)}</div>
-        </div>
-        <div className="border border-zinc-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">COST BASIS</div>
-          <div className="text-2xl font-mono font-bold text-zinc-300">{fmtEur(total.cost)}</div>
-        </div>
-        <div className={`border ${total.pnl >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">PERF TOTALE</div>
-          <div className={`text-2xl font-mono font-bold ${total.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {total.pnl >= 0 ? "+" : ""}{fmtEur(total.pnl)}
+      <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+        <div className="flex gap-8">
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">Valeur USD</div>
+            <div className="text-3xl font-mono font-bold text-white">{fmtUsd(totalUsd)}</div>
           </div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">{total.pct >= 0 ? "+" : ""}{total.pct.toFixed(2)}%</div>
-        </div>
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">POSITIONS</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{positions.length}</div>
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">Valeur EUR</div>
+            <div className="text-3xl font-mono font-bold text-white">{fmtEur(totalEur)}</div>
+          </div>
         </div>
       </div>
 
@@ -149,7 +153,7 @@ export default function Crypto() {
         for (const p of positions) {
           const ticker = p.ticker.replace(/_R$/, "")
           const own = (Number(p.ownership_pct) || 100) / 100
-          const value = Number(p.quantity) * Number(p.market_price) * own
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
           merged[ticker] = (merged[ticker] || 0) + value
         }
         const allocationData = Object.entries(merged)
@@ -163,31 +167,103 @@ export default function Crypto() {
         const othersValue = allocationData.filter(d => d.value < threshold).reduce((s, d) => s + d.value, 0)
         if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
 
+        const sectorMap: Record<string, number> = {}
+        for (const p of positions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const sector = CRYPTO_SECTOR[ticker] || "Autres"
+          const own = (Number(p.ownership_pct) || 100) / 100
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
+          sectorMap[sector] = (sectorMap[sector] || 0) + value
+        }
+        const sectorData = Object.entries(sectorMap)
+          .map(([name, value]) => ({ name, value }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+        const sectorTotal = sectorData.reduce((s, d) => s + d.value, 0)
+        const sectorThreshold = sectorTotal * 0.02
+        const sectorSlices = sectorData.filter(d => d.value >= sectorThreshold)
+        const sectorOthers = sectorData.filter(d => d.value < sectorThreshold).reduce((s, d) => s + d.value, 0)
+        if (sectorOthers > 0) sectorSlices.push({ name: "Autres", value: sectorOthers })
+
+        let cashUsd = 0, posUsd = 0
+        for (const p of positions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const own = (Number(p.ownership_pct) || 100) / 100
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
+          if (ticker.startsWith("USDT")) cashUsd += value
+          else posUsd += value
+        }
+        const cashVsPos = [
+          { name: "Positions", value: posUsd },
+          { name: "Cash USDT", value: cashUsd },
+        ].filter(d => d.value > 0)
+        const cashVsTotal = cashVsPos.reduce((s, d) => s + d.value, 0)
+        const CASH_COLORS = ["#06b6d4", "#e879f9"]
+
         if (allocationData.length === 0) return null
         return (
-          <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
-            <div className="flex items-center gap-6">
-              <ResponsiveContainer width={200} height={200}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
+              <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={80} innerRadius={35} strokeWidth={1} stroke="#09090b">
-                    {mainSlices.map((_: any, i: number) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}
-                    formatter={(value: number) => [fmtEur(value), ""]}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 {mainSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-zinc-400">{d.name}</span>
                     <span className="text-zinc-600 ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Par secteur</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {sectorSlices.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
+                    <span className="text-zinc-400">{d.name}</span>
+                    <span className="text-zinc-600 ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Cash vs Positions</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtUsd(value), ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {cashVsPos.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
+                    <span className={i === 0 ? "text-cyan-400 font-bold" : "text-fuchsia-400 font-bold"}>{d.name}</span>
+                    <span className="text-zinc-400 ml-auto">{fmtUsd(d.value)}</span>
                   </div>
                 ))}
               </div>
@@ -228,15 +304,12 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
         </div>
         <div className="flex gap-6 text-right">
           <div>
-            <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur</div>
+            <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur USD</div>
             <div className="text-base font-mono font-bold text-cyan-300">{fmtUsd(stats.valueUsd)}</div>
-            <div className="text-[10px] font-mono text-zinc-500">{fmtEur(stats.value)}</div>
           </div>
           <div>
-            <div className="text-[10px] text-zinc-600 font-mono uppercase">Perf</div>
-            <div className={`text-base font-mono font-bold ${stats.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {stats.pnl >= 0 ? "+" : ""}{stats.pct.toFixed(1)}%
-            </div>
+            <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur EUR</div>
+            <div className="text-base font-mono font-bold text-zinc-400">{fmtEur(stats.value)}</div>
           </div>
         </div>
       </div>
@@ -246,26 +319,19 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
             <tr>
               <th className="text-left p-3">Coin</th>
               <th className="text-right p-3">Qté</th>
-              <th className="text-right p-3">PRU</th>
-              <th className="text-right p-3">Cours</th>
-              <th className="text-right p-3">Valeur</th>
-              <th className="text-right p-3">P&L</th>
+              <th className="text-right p-3">Cours ($)</th>
+              <th className="text-right p-3">Valeur ($)</th>
             </tr>
           </thead>
           <tbody>
             {[...positions].sort((a: any, b: any) => {
               const ownA = (Number(a.ownership_pct) || 100) / 100, ownB = (Number(b.ownership_pct) || 100) / 100
-              return (Number(b.quantity) * ownB * Number(b.market_price)) - (Number(a.quantity) * ownA * Number(a.market_price))
+              return (Number(b.quantity) * ownB * (Number(b.market_price_usd) || 0)) - (Number(a.quantity) * ownA * (Number(a.market_price_usd) || 0))
             }).map((p: any) => {
               const own = (Number(p.ownership_pct) || 100) / 100
               const qty = Number(p.quantity) * own
-              const pru = Number(p.avg_cost), price = Number(p.market_price)
               const priceUsd = Number(p.market_price_usd) || 0
-              const value = qty * price
               const valueUsd = qty * priceUsd
-              const cost = qty * pru
-              const ppnl = value - cost
-              const ppnlPct = cost ? (ppnl / cost) * 100 : 0
               return (
                 <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 cursor-pointer transition"
                   onClick={() => onPositionClick?.(p)}>
@@ -274,18 +340,8 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
                     <div className="text-zinc-500 text-[10px] truncate max-w-[200px]">{(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim()}</div>
                   </td>
                   <td className="p-3 text-right text-zinc-300">{qty.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
-                  <td className="p-3 text-right text-zinc-500">{pru < 1 ? pru.toFixed(6) : pru.toFixed(2)} €</td>
-                  <td className="p-3 text-right">
-                    <div className="text-cyan-300">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : `$${priceUsd.toFixed(2)}`}</div>
-                    <div className="text-zinc-600 text-[10px]">{price < 1 ? price.toFixed(6) : price.toFixed(2)} €</div>
-                  </td>
-                  <td className="p-3 text-right">
-                    <div className="text-zinc-300">{fmtUsd(valueUsd)}</div>
-                    <div className="text-zinc-600 text-[10px]">{fmtEur(value)}</div>
-                  </td>
-                  <td className={`p-3 text-right ${ppnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {ppnl >= 0 ? "+" : ""}{fmtEur(ppnl)} ({ppnlPct >= 0 ? "+" : ""}{ppnlPct.toFixed(1)}%)
-                  </td>
+                  <td className="p-3 text-right text-cyan-300">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : fmtUsd(priceUsd)}</td>
+                  <td className="p-3 text-right text-zinc-300">{fmtUsd(valueUsd)}</td>
                 </tr>
               )
             })}
