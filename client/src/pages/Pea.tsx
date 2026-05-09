@@ -217,8 +217,10 @@ export default function Pea() {
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
           <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">VALEUR TOTALE</div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(totalValue)}</div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">
-            Titres {fmtEur(positionsValue)} · Cash {fmtEur(cashTotal)}
+          <div className="text-xs font-mono mt-1">
+            <span className="text-cyan-400">Titres {fmtEur(positionsValue)}</span>
+            <span className="text-zinc-600 mx-1">·</span>
+            <span className="text-fuchsia-400">Cash {fmtEur(cashTotal)}</span>
           </div>
         </div>
         <div className="border border-zinc-500/30 bg-black/40 rounded p-4">
@@ -275,7 +277,7 @@ export default function Pea() {
         const cashVsTotal = cashVsPos.reduce((s, d) => s + d.value, 0)
         const CASH_COLORS = ["#06b6d4", "#e879f9"]
 
-        const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#e4e4e7" }
+        const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
 
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -288,7 +290,7 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {tickerSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
@@ -312,7 +314,7 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
@@ -336,7 +338,7 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
