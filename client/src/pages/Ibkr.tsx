@@ -6,6 +6,24 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
 
+const IBKR_SECTOR: Record<string, string> = {
+  "AI": "Tech / IA",
+  "BKKT": "Crypto / Fintech",
+  "CRCL": "Crypto / Fintech",
+  "FLUT": "Paris sportifs",
+  "NIO": "Auto / EV",
+  "PATH": "Tech / RPA",
+  "PUBM": "Tech / AdTech",
+  "RACE": "Auto / Luxe",
+  "RIVN": "Auto / EV",
+  "SBET": "Tech / iGaming",
+  "SNOW": "Tech / Cloud",
+  "EL": "Luxe",
+  "P911": "Auto / Luxe",
+  "RI": "Spiritueux",
+  "UBI": "Tech / Gaming",
+}
+
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -88,6 +106,8 @@ export default function Ibkr() {
   const totalPerf = capital ? nlv - capital : 0
   const totalPerfPct = capital ? (totalPerf / capital) * 100 : 0
 
+  const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
@@ -122,6 +142,11 @@ export default function Ibkr() {
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
           <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">NLV TOTALE</div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(nlv)}</div>
+          <div className="text-xs font-mono mt-1">
+            <span className="text-cyan-400">Positions {fmtEur(positionsBase)}</span>
+            <span className="text-zinc-600 mx-1">·</span>
+            <span className="text-fuchsia-400">Cash {fmtEur(cashBase)}</span>
+          </div>
         </div>
         <div className={`border ${totalPerf >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
           <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">PERF TOTALE</div>
@@ -164,31 +189,94 @@ export default function Ibkr() {
         const othersValue = allocationData.filter((d: any) => d.value < threshold).reduce((s: number, d: any) => s + d.value, 0)
         if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
 
+        const sectorMap: Record<string, number> = {}
+        for (const p of positions) {
+          const sector = IBKR_SECTOR[p.ticker] || "Autres"
+          const fx = Number(p.fx_rate_to_base) || 1
+          const value = Number(p.quantity) * Number(p.market_price) * fx
+          sectorMap[sector] = (sectorMap[sector] || 0) + value
+        }
+        const sectorData = Object.entries(sectorMap)
+          .map(([name, value]) => ({ name, value }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+        const sectorTotal = sectorData.reduce((s, d) => s + d.value, 0)
+        const sectorThreshold = sectorTotal * 0.02
+        const sectorSlices = sectorData.filter(d => d.value >= sectorThreshold)
+        const sectorOthers = sectorData.filter(d => d.value < sectorThreshold).reduce((s, d) => s + d.value, 0)
+        if (sectorOthers > 0) sectorSlices.push({ name: "Autres", value: sectorOthers })
+
+        const cashVsPos = [
+          { name: "Positions", value: positionsBase },
+          { name: "Cash", value: cashBase },
+        ].filter(d => d.value > 0)
+        const cashVsTotal = cashVsPos.reduce((s, d) => s + d.value, 0)
+        const CASH_COLORS = ["#06b6d4", "#e879f9"]
+
         if (allocationData.length === 0) return null
         return (
-          <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
-            <div className="flex items-center gap-6">
-              <ResponsiveContainer width={200} height={200}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
+              <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={80} innerRadius={35} strokeWidth={1} stroke="#09090b">
-                    {mainSlices.map((_: any, i: number) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}
-                    formatter={(value: number) => [fmtEur(value), ""]}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 {mainSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-zinc-400">{d.name}</span>
                     <span className="text-zinc-600 ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Par secteur</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {sectorSlices.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
+                    <span className="text-zinc-400">{d.name}</span>
+                    <span className="text-zinc-600 ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Cash vs Positions</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number) => [fmtEur(value), ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {cashVsPos.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
+                    <span className={i === 0 ? "text-cyan-400 font-bold" : "text-fuchsia-400 font-bold"}>{d.name}</span>
+                    <span className="text-zinc-400 ml-auto">{fmtEur(d.value)}</span>
                   </div>
                 ))}
               </div>
