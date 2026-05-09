@@ -389,14 +389,15 @@ export default function Compta() {
   }
   for (const inv of invoices) {
     if (!inv.bank_transaction_id) {
-      rows.push({ id: `inv-${inv.id}`, date: inv.invoice_date, counterparty: inv.party_name, amount: Number(inv.amount_ttc), type: "invoice", status: "pending_payment", original: inv })
+      const status = inv.reconciled_at ? "settled_cca" : "pending_payment"
+      rows.push({ id: `inv-${inv.id}`, date: inv.invoice_date, counterparty: inv.party_name, amount: Number(inv.amount_ttc), type: "invoice", status, original: inv })
     }
   }
   rows.sort((a, b) => b.date.localeCompare(a.date))
 
-  const filteredRows = tab === "all" ? rows : tab === "unmatched" ? rows.filter(r => r.status === "unmatched" || r.status === "pending_payment") : rows.filter(r => r.status === "matched")
+  const filteredRows = tab === "all" ? rows : tab === "unmatched" ? rows.filter(r => r.status === "unmatched" || r.status === "pending_payment") : rows.filter(r => r.status === "matched" || r.status === "settled_cca")
   const unmatchedCount = rows.filter(r => r.status === "unmatched" || r.status === "pending_payment").length
-  const matchedCount = rows.filter(r => r.status === "matched").length
+  const matchedCount = rows.filter(r => r.status === "matched" || r.status === "settled_cca").length
 
   const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
 
@@ -636,6 +637,9 @@ export default function Compta() {
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">KRK</span>
                       )}
                       {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span className="text-green-400">✅</span>}
+                      {row.status === "settled_cca" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
+                      )}
                       {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
                       {row.status === "pending_payment" && <span className="text-zinc-400">📄</span>}
                       {row.status === "ignored" && <span className="text-zinc-600">🔕</span>}
