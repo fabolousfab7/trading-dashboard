@@ -65,17 +65,19 @@ export default function Compta() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<any[]>([])
   const { toast } = useToast()
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const monthParam = selectedMonth ? `?month=${selectedMonth}` : ""
-      const [invR, txR, statsR, vatR] = await Promise.all([
+      const [invR, txR, statsR, vatR, sugR] = await Promise.all([
         authFetch(`/api/compta/invoices${monthParam}`),
         authFetch(`/api/compta/bank-transactions${monthParam}`),
         authFetch("/api/compta/stats"),
         authFetch("/api/compta/vat-summary"),
+        authFetch("/api/compta/reconcile/suggestions"),
       ])
       const invD = await invR.json()
       const txD = await txR.json()
@@ -83,6 +85,8 @@ export default function Compta() {
       setBankTxs(txD.transactions || [])
       setStats(await statsR.json())
       setVatSummary(await vatR.json())
+      const sugD = await sugR.json()
+      setSuggestions(sugD.suggestions || [])
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }, [selectedMonth])
@@ -507,6 +511,54 @@ export default function Compta() {
           {reconcileResult && <div className="mt-2 text-cyan-400 font-mono text-xs">{reconcileResult}</div>}
         </div>
       </div>
+
+      {/* Match suggestions */}
+      {suggestions.length > 0 && (
+        <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-3">
+            Suggestions de rapprochement · {suggestions.length}
+          </h2>
+          <div className="space-y-2">
+            {suggestions.map(s => (
+              <div key={`${s.invoice_id}-${s.bank_tx_id}`} className="flex items-center gap-3 border border-cyan-500/10 rounded p-2.5 hover:bg-cyan-500/5 transition">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="text-fuchsia-400">Facture</span>
+                    <span className="text-zinc-300 truncate">{s.invoice_party}</span>
+                    <span className="text-zinc-500">({fmtEur(s.invoice_amount)}, {fmtDate(s.invoice_date)})</span>
+                    <span className="text-zinc-600 mx-1">↔</span>
+                    <span className="text-cyan-400">Banque</span>
+                    <span className="text-zinc-300 truncate">{s.bank_counterparty}</span>
+                    <span className="text-zinc-500">({fmtEur(s.bank_amount)}, {fmtDate(s.bank_date)})</span>
+                  </div>
+                  {s.confidence === "approx" && (
+                    <div className="text-[10px] font-mono text-amber-400 mt-0.5">
+                      écart {fmtEur(s.amount_diff)} (valeur facture conservée)
+                    </div>
+                  )}
+                  {s.confidence === "exact" && (
+                    <div className="text-[10px] font-mono text-green-400 mt-0.5">montant exact</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
+                    className="px-2.5 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-mono text-[10px] uppercase hover:bg-green-500/20 transition"
+                  >
+                    Valider
+                  </button>
+                  <button
+                    onClick={() => setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id || x.bank_tx_id !== s.bank_tx_id))}
+                    className="px-2.5 py-1 border border-zinc-700 text-zinc-500 rounded font-mono text-[10px] uppercase hover:bg-zinc-800 transition"
+                  >
+                    Ignorer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Reconciliation table */}
       <div className="border border-cyan-500/20 rounded bg-black/40">

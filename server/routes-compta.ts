@@ -441,7 +441,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
       const candidates = (txs || []).filter(tx => {
         if (usedTxIds.has(tx.id)) return false
-        if (Math.abs(Math.abs(Number(tx.amount)) - invAmount) > 0.01) return false
+        if (Math.abs(Math.abs(Number(tx.amount)) - invAmount) > 0.10) return false
         const txDate = new Date(tx.settlement_date)
         return txDate >= dateMin && txDate <= dateMax
       })
@@ -494,6 +494,57 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     }
     await userClient.from("fhf_invoices").update({ bank_transaction_id: null, reconciled_at: null }).eq("id", req.params.invoiceId)
     res.json({ ok: true })
+  })
+
+  // 11b. Match suggestions (±0.50€, ±30 days, no name filter)
+  app.get("/api/compta/reconcile/suggestions", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: invoices, error: invErr } = await userClient
+      .from("fhf_invoices").select("*").is("bank_transaction_id", null)
+    if (invErr) return res.status(500).json({ error: invErr.message })
+
+    const { data: txs, error: txErr } = await userClient
+      .from("fhf_bank_transactions").select("*").eq("status", "unmatched")
+    if (txErr) return res.status(500).json({ error: txErr.message })
+
+    const suggestions: any[] = []
+    const usedTxIds = new Set<string>()
+
+    for (const inv of (invoices || [])) {
+      const invAmount = Math.abs(Number(inv.amount_ttc))
+      const invDate = new Date(inv.invoice_date)
+      const dateMin = new Date(invDate); dateMin.setDate(dateMin.getDate() - 30)
+      const dateMax = new Date(invDate); dateMax.setDate(dateMax.getDate() + 30)
+
+      const candidates = (txs || []).filter(tx => {
+        if (usedTxIds.has(tx.id)) return false
+        const diff = Math.abs(Math.abs(Number(tx.amount)) - invAmount)
+        if (diff > 0.50) return false
+        const txDate = new Date(tx.settlement_date)
+        return txDate >= dateMin && txDate <= dateMax
+      })
+
+      if (candidates.length === 1) {
+        const tx = candidates[0]
+        const diff = Math.abs(Math.abs(Number(tx.amount)) - invAmount)
+        suggestions.push({
+          invoice_id: inv.id,
+          invoice_party: inv.party_name,
+          invoice_amount: invAmount,
+          invoice_date: inv.invoice_date,
+          bank_tx_id: tx.id,
+          bank_counterparty: tx.counterparty_name,
+          bank_amount: Math.abs(Number(tx.amount)),
+          bank_date: tx.settlement_date,
+          amount_diff: Math.round(diff * 100) / 100,
+          confidence: diff <= 0.01 ? "exact" : "approx",
+        })
+        usedTxIds.add(tx.id)
+      }
+    }
+
+    res.json({ suggestions })
   })
 
   // 12. Stats
