@@ -267,11 +267,18 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       }
 
       const result = await response.json()
-      const text = result.content?.[0]?.text || ""
+      const rawText = (result.content || [])
+        .filter((b: any) => b.type === "text")
+        .map((b: any) => b.text)
+        .join("")
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        return res.status(400).json({ error: "Could not extract JSON from OCR response", raw: rawText })
+      }
       try {
-        res.json(JSON.parse(text))
+        res.json(JSON.parse(jsonMatch[0]))
       } catch {
-        res.json({ raw: text, error: "Could not parse OCR response as JSON" })
+        res.json({ raw: rawText, error: "Could not parse OCR response as JSON" })
       }
     } catch (e: any) {
       res.status(500).json({ error: e.message })
