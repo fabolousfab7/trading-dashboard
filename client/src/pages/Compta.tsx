@@ -110,14 +110,32 @@ export default function Compta() {
         setError(`OCR échouée : ${data.error}`)
       } else {
         setEditingId(null)
+        const currency = data.currency || "EUR"
+        const invoiceDate = data.invoice_date || new Date().toISOString().slice(0, 10)
+        let ht = data.amount_ht || 0, vat = data.amount_vat || 0, ttc = data.amount_ttc || 0
+        let fxInfo: any = null
+
+        if (currency !== "EUR") {
+          try {
+            const fxR = await authFetch(`/api/compta/fx-rate?from=${currency}&to=EUR&date=${invoiceDate}`)
+            const fxData = await fxR.json()
+            if (fxData.rate) {
+              fxInfo = { original_currency: currency, original_ht: ht, original_vat: vat, original_ttc: ttc, fx_rate: fxData.rate, fx_date: fxData.date }
+              ht = Math.round(ht * fxData.rate * 100) / 100
+              vat = Math.round(vat * fxData.rate * 100) / 100
+              ttc = Math.round(ttc * fxData.rate * 100) / 100
+            }
+          } catch {}
+        }
+
         setModalData({
           direction: "charge",
           party_name: data.party_name || "",
           invoice_number: data.invoice_number || "",
-          invoice_date: data.invoice_date || new Date().toISOString().slice(0, 10),
-          amount_ht: data.amount_ht || 0,
-          amount_vat: data.amount_vat || 0,
-          amount_ttc: data.amount_ttc || 0,
+          invoice_date: invoiceDate,
+          amount_ht: ht,
+          amount_vat: vat,
+          amount_ttc: ttc,
           vat_rate: data.vat_rate || 20,
           party_vat_number: data.party_vat_number || "",
           party_country: data.party_country || "FR",
@@ -126,6 +144,7 @@ export default function Compta() {
           category: "618100",
           description: data.description || "",
           notes: "",
+          _fxInfo: fxInfo,
         })
         setModalOpen(true)
       }
@@ -170,7 +189,9 @@ export default function Compta() {
     try {
       const url = editingId ? `/api/compta/invoices/${editingId}` : "/api/compta/invoices"
       const method = editingId ? "PUT" : "POST"
-      const r = await authFetch(url, { method, body: JSON.stringify(modalData) })
+      const { _fxInfo, ...invoiceFields } = modalData
+      const body = _fxInfo ? { ...invoiceFields, notes: invoiceFields.notes || "", raw_fx: _fxInfo } : invoiceFields
+      const r = await authFetch(url, { method, body: JSON.stringify(body) })
       const data = await r.json()
       if (data.error) { setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error)); return }
       setModalOpen(false)
@@ -649,9 +670,18 @@ export default function Compta() {
                 </div>
               </div>
 
+              {modalData._fxInfo && (
+                <div className="bg-fuchsia-500/10 border border-fuchsia-500/30 rounded p-2 text-xs font-mono text-fuchsia-300">
+                  Taux BCE du {fmtDate(modalData._fxInfo.fx_date)} : 1 {modalData._fxInfo.original_currency} = {modalData._fxInfo.fx_rate.toFixed(4)} EUR
+                  <span className="text-zinc-500 ml-2">
+                    (original : {modalData._fxInfo.original_ht.toFixed(2)} {modalData._fxInfo.original_currency} HT)
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT</label>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT (EUR)</label>
                   <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
                     className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
                 </div>

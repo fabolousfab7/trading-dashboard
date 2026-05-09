@@ -3,6 +3,26 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
+const fxCache = new Map<string, { rate: number; ts: number }>()
+const FX_CACHE_TTL = 24 * 60 * 60 * 1000
+
+async function fetchFxRate(from: string, to: string, date: string): Promise<number | null> {
+  const key = `${from}_${to}_${date}`
+  const cached = fxCache.get(key)
+  if (cached && Date.now() - cached.ts < FX_CACHE_TTL) return cached.rate
+  try {
+    const res = await fetch(`https://api.frankfurter.dev/${date}?from=${from}&to=${to}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const rate = data.rates?.[to]
+    if (typeof rate !== "number") return null
+    fxCache.set(key, { rate, ts: Date.now() })
+    return rate
+  } catch {
+    return null
+  }
+}
+
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
     process.env.SUPABASE_URL!,
@@ -172,6 +192,15 @@ const manualMatchSchema = z.object({
 export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
   const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
 
+  // FX rate (public within auth)
+  app.get("/api/compta/fx-rate", auth, async (req: Request, res: Response) => {
+    const { from, to, date } = req.query as Record<string, string>
+    if (!from || !to || !date) return res.status(400).json({ error: "Missing from, to, or date" })
+    const rate = await fetchFxRate(from, to, date)
+    if (rate === null) return res.status(404).json({ error: `No rate found for ${from}→${to} on ${date}` })
+    res.json({ rate, date })
+  })
+
   // 1. List invoices
   app.get("/api/compta/invoices", auth, async (req: Request, res: Response) => {
     const userClient = userScopedClient((req as any).userToken)
@@ -254,7 +283,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
               contentBlock,
               {
                 type: "text",
-                text: `Analyse cette facture et extrais les informations suivantes en JSON strict (pas de markdown, pas de backticks) :\n{\n  "party_name": "nom du fournisseur",\n  "invoice_number": "numéro de facture",\n  "invoice_date": "YYYY-MM-DD",\n  "amount_ht": 0.00,\n  "amount_vat": 0.00,\n  "amount_ttc": 0.00,\n  "vat_rate": 20,\n  "party_vat_number": "numéro TVA intracommunautaire si visible",\n  "party_country": "FR",\n  "description": "description courte des prestations"\n}\nSi un champ n'est pas visible, mets null.`,
+                text: `Analyse cette facture et extrais les informations suivantes en JSON strict (pas de markdown, pas de backticks) :\n{\n  "party_name": "nom du fournisseur",\n  "invoice_number": "numéro de facture",\n  "invoice_date": "YYYY-MM-DD",\n  "amount_ht": 0.00,\n  "amount_vat": 0.00,\n  "amount_ttc": 0.00,\n  "vat_rate": 20,\n  "currency": "devise de la facture (EUR, USD, GBP...)",\n  "party_vat_number": "numéro TVA intracommunautaire si visible",\n  "party_country": "FR",\n  "description": "description courte des prestations"\n}\nSi un champ n'est pas visible, mets null. Pour currency, mets "EUR" par défaut si non visible.`,
               },
             ],
           }],
