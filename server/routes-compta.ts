@@ -283,7 +283,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
               contentBlock,
               {
                 type: "text",
-                text: `Analyse cette facture et extrais les informations suivantes en JSON strict (pas de markdown, pas de backticks) :\n{\n  "party_name": "nom du fournisseur",\n  "invoice_number": "numéro de facture",\n  "invoice_date": "YYYY-MM-DD",\n  "amount_ht": 0.00,\n  "amount_vat": 0.00,\n  "amount_ttc": 0.00,\n  "vat_rate": 20,\n  "currency": "devise de la facture (EUR, USD, GBP...)",\n  "party_vat_number": "numéro TVA intracommunautaire si visible",\n  "party_country": "FR",\n  "description": "description courte des prestations"\n}\nSi un champ n'est pas visible, mets null. Pour currency, mets "EUR" par défaut si non visible.`,
+                text: `Analyse cette facture et extrais les informations suivantes en JSON strict (pas de markdown, pas de backticks) :\n{\n  "party_name": "nom du fournisseur",\n  "invoice_number": "numéro de facture",\n  "invoice_date": "YYYY-MM-DD",\n  "amount_ht": 0.00,\n  "amount_vat": 0.00,\n  "amount_ttc": 0.00,\n  "vat_rate": 20,\n  "currency": "devise EXACTE indiquée sur la facture. Si tu vois un symbole $ ou la mention USD, mets USD. Si tu vois € ou EUR, mets EUR. Si tu vois £ ou GBP, mets GBP. Ne mets jamais EUR par défaut si une autre devise est clairement indiquée.",\n  "party_vat_number": "numéro TVA intracommunautaire si visible",\n  "party_country": "FR",\n  "description": "description courte des prestations"\n}\nSi un champ n'est pas visible, mets null.`,
               },
             ],
           }],
@@ -305,7 +305,9 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         return res.status(400).json({ error: "Could not extract JSON from OCR response", raw: rawText })
       }
       try {
-        res.json(JSON.parse(jsonMatch[0]))
+        const parsed = JSON.parse(jsonMatch[0])
+        console.log("[OCR] currency detected:", parsed.currency, "| full result:", JSON.stringify(parsed))
+        res.json(parsed)
       } catch {
         res.json({ raw: rawText, error: "Could not parse OCR response as JSON" })
       }
@@ -484,7 +486,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
     const { data: allInvoices } = await userClient.from("fhf_invoices").select("id, bank_transaction_id")
 
-    const items = charges || []
+    const items = (charges || []).filter(i => i.category !== "455000")
     const all = allInvoices || []
 
     const charges_ht_ytd = items.reduce((s, i) => s + Number(i.amount_ht), 0)
@@ -533,6 +535,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const monthMap: Record<string, { tva_deductible_fr: number; tva_autoliquidee_intracom: number; tva_collectee: number; base_ht_achats_fr: number; base_ht_achats_intracom: number }> = {}
 
     for (const inv of (invoices || [])) {
+      if (inv.category === "455000") continue
       const m = inv.invoice_date.slice(0, 7)
       if (!monthMap[m]) monthMap[m] = { tva_deductible_fr: 0, tva_autoliquidee_intracom: 0, tva_collectee: 0, base_ht_achats_fr: 0, base_ht_achats_intracom: 0 }
       const vat = Number(inv.amount_vat) || 0

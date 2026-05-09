@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
-import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban } from "lucide-react"
+import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
@@ -15,8 +16,11 @@ const CATEGORIES = [
   { code: "625600", label: "Missions" },
   { code: "681000", label: "Amortissements" },
   { code: "708000", label: "Produits divers" },
+  { code: "455000", label: "Compte courant associé" },
   { code: "471000", label: "Compte d'attente" },
 ]
+
+const IS_CCA = (cat: string) => cat === "455000"
 
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.code, c.label]))
 const VAT_RATES = [0, 5.5, 10, 20]
@@ -58,6 +62,7 @@ export default function Compta() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -125,7 +130,9 @@ export default function Compta() {
               vat = Math.round(vat * fxData.rate * 100) / 100
               ttc = Math.round(ttc * fxData.rate * 100) / 100
             }
-          } catch {}
+          } catch (fxErr: any) {
+            console.error("[FX] Conversion failed:", fxErr)
+          }
         }
 
         setModalData({
@@ -235,6 +242,38 @@ export default function Compta() {
     await loadData()
   }
 
+  async function handleCCA(tx: any) {
+    try {
+      const amount = Math.abs(Number(tx.amount))
+      const r = await authFetch("/api/compta/invoices", {
+        method: "POST",
+        body: JSON.stringify({
+          direction: "expense",
+          party_name: tx.counterparty_name,
+          invoice_date: tx.settlement_date,
+          amount_ht: amount,
+          amount_vat: 0,
+          amount_ttc: amount,
+          vat_rate: 0,
+          vat_deductible: false,
+          vat_reverse_charge: false,
+          category: "455000",
+          description: "Dépense personnelle — avance compte courant associé",
+          party_country: "FR",
+          status: "validated",
+        }),
+      })
+      const inv = await r.json()
+      if (inv.error) { setError(typeof inv.error === "string" ? inv.error : JSON.stringify(inv.error)); return }
+      await authFetch("/api/compta/reconcile/manual", {
+        method: "POST",
+        body: JSON.stringify({ invoiceId: inv.id, bankTransactionId: tx.id }),
+      })
+      toast({ title: "CCA 455000", description: `${tx.counterparty_name} — ${fmtEur(amount)} → CCA 455000` })
+      await loadData()
+    } catch (e: any) { setError(e.message) }
+  }
+
   function openEditModal(inv: any) {
     setEditingId(inv.id)
     setModalData({
@@ -261,12 +300,44 @@ export default function Compta() {
   function updateModalField(field: string, value: any) {
     setModalData((prev: any) => {
       const next = { ...prev, [field]: value }
-      if (field === "amount_ht" || field === "vat_rate") {
+
+      if (field === "category" && IS_CCA(value)) {
+        next.direction = "expense"
+        next.vat_deductible = false
+        next.vat_rate = 0
+        next.amount_vat = 0
+        next.amount_ttc = Number(next.amount_ht) || 0
+        next.vat_reverse_charge = false
+        return next
+      }
+
+      if (field === "category" && IS_CCA(prev.category) && !IS_CCA(value)) {
+        next.vat_rate = 20
+        const ht = Number(next.amount_ht) || 0
+        next.amount_vat = Math.round(ht * 20) / 100
+        next.amount_ttc = Math.round((ht + next.amount_vat) * 100) / 100
+        next.vat_deductible = true
+      }
+
+      const isCCA = IS_CCA(next.category)
+
+      if ((field === "amount_ht" || field === "vat_rate") && !isCCA) {
         const ht = field === "amount_ht" ? Number(value) : Number(prev.amount_ht)
         const rate = field === "vat_rate" ? Number(value) : Number(prev.vat_rate)
         next.amount_vat = Math.round(ht * rate) / 100
         next.amount_ttc = Math.round((ht + next.amount_vat) * 100) / 100
       }
+
+      if (field === "amount_ht" && isCCA) {
+        next.amount_vat = 0
+        next.amount_ttc = Number(value) || 0
+      }
+
+      if (field === "amount_ttc" && isCCA) {
+        next.amount_ht = Number(value) || 0
+        next.amount_vat = 0
+      }
+
       if (field === "party_country") {
         next.vat_reverse_charge = value !== "FR"
       }
@@ -470,7 +541,10 @@ export default function Compta() {
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      {row.status === "matched" && <span className="text-green-400">✅</span>}
+                      {row.status === "matched" && row.linkedInvoice?.category === "455000" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
+                      )}
+                      {row.status === "matched" && row.linkedInvoice?.category !== "455000" && <span className="text-green-400">✅</span>}
                       {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
                       {row.status === "pending_payment" && <span className="text-zinc-400">📄</span>}
                       {row.status === "ignored" && <span className="text-zinc-600">🔕</span>}
@@ -499,6 +573,9 @@ export default function Compta() {
                                 <Check size={12} />
                               </button>
                             )}
+                            <button onClick={() => handleCCA(row.original)} className="text-amber-500 hover:text-amber-400 p-1" title="Marquer comme avance compte courant associé">
+                              <UserMinus size={12} />
+                            </button>
                             <button onClick={() => handleIgnore(row.original.id)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Ignorer">
                               <Ban size={12} />
                             </button>
@@ -679,34 +756,51 @@ export default function Compta() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT (EUR)</label>
-                  <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+              {IS_CCA(modalData.category) ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant (EUR)</label>
+                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
+                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                  </div>
+                  <div className="flex items-end">
+                    <div className="text-[10px] font-mono text-zinc-600 pb-2">Pas de TVA (compte courant associé)</div>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Taux TVA</label>
-                  <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
-                    {VAT_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
-                  </select>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT (EUR)</label>
+                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
+                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Taux TVA</label>
+                    <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))}
+                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                      {VAT_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant TTC</label>
+                    <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)}
+                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant TTC</label>
-                  <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-mono text-zinc-500 uppercase">Direction</label>
-                  <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
-                    <option value="expense">Charge</option>
-                    <option value="revenue">Produit</option>
-                  </select>
+                  {IS_CCA(modalData.category) ? (
+                    <div className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-500 font-mono text-xs">Dépense perso (CCA)</div>
+                  ) : (
+                    <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
+                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                      <option value="expense">Charge</option>
+                      <option value="revenue">Produit</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] font-mono text-zinc-500 uppercase">Catégorie PCG</label>
@@ -730,18 +824,20 @@ export default function Compta() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
-                  <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}
-                    className="rounded border-cyan-500/30" />
-                  Autoliquidation
-                </label>
-                <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
-                  <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)}
-                    className="rounded border-cyan-500/30" />
-                  TVA déductible
-                </label>
-              </div>
+              {!IS_CCA(modalData.category) && (
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                    <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}
+                      className="rounded border-cyan-500/30" />
+                    Autoliquidation
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                    <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)}
+                      className="rounded border-cyan-500/30" />
+                    TVA déductible
+                  </label>
+                </div>
+              )}
 
               <div>
                 <label className="text-[10px] font-mono text-zinc-500 uppercase">Description</label>
