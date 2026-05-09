@@ -154,7 +154,7 @@ function parseQontoCsv(csvText: string): any[] {
 }
 
 const invoiceSchema = z.object({
-  direction: z.enum(["charge", "product"]),
+  direction: z.enum(["expense", "revenue"]),
   party_name: z.string().min(1),
   party_siret: z.string().optional().nullable(),
   party_vat_number: z.string().optional().nullable(),
@@ -478,7 +478,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const year = new Date().getFullYear()
 
     const { data: charges, error } = await userClient
-      .from("fhf_invoices").select("*").eq("direction", "charge")
+      .from("fhf_invoices").select("*").eq("direction", "expense")
       .gte("invoice_date", `${year}-01-01`).lte("invoice_date", `${year}-12-31`)
     if (error) return res.status(500).json({ error: error.message })
 
@@ -538,7 +538,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       const vat = Number(inv.amount_vat) || 0
       const ht = Number(inv.amount_ht) || 0
 
-      if (inv.direction === "charge") {
+      if (inv.direction === "expense") {
         if (inv.vat_reverse_charge) {
           monthMap[m].tva_autoliquidee_intracom += vat
           monthMap[m].base_ht_achats_intracom += ht
@@ -546,7 +546,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
           monthMap[m].tva_deductible_fr += vat
           monthMap[m].base_ht_achats_fr += ht
         }
-      } else if (inv.direction === "product") {
+      } else if (inv.direction === "revenue") {
         monthMap[m].tva_collectee += vat
       }
     }

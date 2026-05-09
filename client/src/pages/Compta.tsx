@@ -129,7 +129,7 @@ export default function Compta() {
         }
 
         setModalData({
-          direction: "charge",
+          direction: "expense",
           party_name: data.party_name || "",
           invoice_number: data.invoice_number || "",
           invoice_date: invoiceDate,
@@ -392,7 +392,7 @@ export default function Compta() {
             )}
           </div>
           <button
-            onClick={() => { setEditingId(null); setModalData({ direction: "charge", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
+            onClick={() => { setEditingId(null); setModalData({ direction: "expense", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
             className="mt-3 w-full px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded font-mono text-xs uppercase hover:bg-fuchsia-500/20 transition"
           >
             + Saisie manuelle
@@ -704,8 +704,8 @@ export default function Compta() {
                   <label className="text-[10px] font-mono text-zinc-500 uppercase">Direction</label>
                   <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
                     className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
-                    <option value="charge">Charge</option>
-                    <option value="product">Produit</option>
+                    <option value="expense">Charge</option>
+                    <option value="revenue">Produit</option>
                   </select>
                 </div>
                 <div>
