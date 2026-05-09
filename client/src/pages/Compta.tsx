@@ -245,10 +245,13 @@ export default function Compta() {
   async function handleCCA(tx: any) {
     try {
       const amount = Math.abs(Number(tx.amount))
+      const isCredit = tx.side === "credit"
+      const direction = isCredit ? "revenue" : "expense"
+      const description = isCredit ? "Apport personnel — compte courant associé" : "Dépense personnelle — avance compte courant associé"
       const r = await authFetch("/api/compta/invoices", {
         method: "POST",
         body: JSON.stringify({
-          direction: "expense",
+          direction,
           party_name: tx.counterparty_name,
           invoice_date: tx.settlement_date,
           amount_ht: amount,
@@ -258,7 +261,7 @@ export default function Compta() {
           vat_deductible: false,
           vat_reverse_charge: false,
           category: "455000",
-          description: "Dépense personnelle — avance compte courant associé",
+          description,
           party_country: "FR",
           status: "validated",
         }),
@@ -269,7 +272,8 @@ export default function Compta() {
         method: "POST",
         body: JSON.stringify({ invoiceId: inv.id, bankTransactionId: tx.id }),
       })
-      toast({ title: "CCA 455000", description: `${tx.counterparty_name} — ${fmtEur(amount)} → CCA 455000` })
+      const label = isCredit ? "apport perso" : "dépense perso"
+      toast({ title: "CCA 455000", description: `${tx.counterparty_name} — ${fmtEur(amount)} → CCA 455000 (${label})` })
       await loadData()
     } catch (e: any) { setError(e.message) }
   }
@@ -573,7 +577,7 @@ export default function Compta() {
                                 <Check size={12} />
                               </button>
                             )}
-                            <button onClick={() => handleCCA(row.original)} className="text-amber-500 hover:text-amber-400 p-1" title="Marquer comme avance compte courant associé">
+                            <button onClick={() => handleCCA(row.original)} className="text-amber-500 hover:text-amber-400 p-1" title="Opération perso — compte courant associé (455000)">
                               <UserMinus size={12} />
                             </button>
                             <button onClick={() => handleIgnore(row.original.id)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Ignorer">
