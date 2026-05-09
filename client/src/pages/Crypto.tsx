@@ -253,7 +253,10 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
             </tr>
           </thead>
           <tbody>
-            {positions.map((p: any) => {
+            {[...positions].sort((a: any, b: any) => {
+              const ownA = (Number(a.ownership_pct) || 100) / 100, ownB = (Number(b.ownership_pct) || 100) / 100
+              return (Number(b.quantity) * ownB * Number(b.market_price)) - (Number(a.quantity) * ownA * Number(a.market_price))
+            }).map((p: any) => {
               const own = (Number(p.ownership_pct) || 100) / 100
               const qty = Number(p.quantity) * own
               const pru = Number(p.avg_cost), price = Number(p.market_price)

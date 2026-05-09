@@ -221,7 +221,10 @@ export default function Ibkr() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((p: any) => {
+                {[...positions].sort((a: any, b: any) => {
+                  const fxA = Number(a.fx_rate_to_base) || 1, fxB = Number(b.fx_rate_to_base) || 1
+                  return (Number(b.quantity) * Number(b.market_price) * fxB) - (Number(a.quantity) * Number(a.market_price) * fxA)
+                }).map((p: any) => {
                   const qty = Number(p.quantity), pru = Number(p.avg_cost), price = Number(p.market_price)
                   const value = qty * price, cost = qty * pru
                   const pnl = value - cost
