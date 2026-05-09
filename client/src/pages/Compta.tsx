@@ -462,10 +462,12 @@ export default function Compta() {
           <div className="text-[10px] font-mono text-zinc-500 mt-1">rapprochées</div>
         </div>
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">RAPPROCHEMENT</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{(stats?.reconciliation_rate || 0).toFixed(0)}%</div>
-          <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
-            <div className="bg-cyan-400 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(stats?.reconciliation_rate || 0, 100)}%` }} />
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">COMPTE COURANT ASSOCIE</div>
+          <div className={`text-2xl font-mono font-bold ${(stats?.cca_balance || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {fmtEur(Math.abs(stats?.cca_balance || 0))}
+          </div>
+          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+            {(stats?.cca_balance || 0) >= 0 ? "FHF te doit" : "Tu dois a FHF"}
           </div>
         </div>
       </div>

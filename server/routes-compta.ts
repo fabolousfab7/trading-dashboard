@@ -586,7 +586,21 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const reconciled_count = all.filter(i => i.bank_transaction_id).length
     const reconciliation_rate = invoices_count ? (reconciled_count / invoices_count) * 100 : 0
 
-    res.json({ charges_ht_ytd, charges_by_category, charges_by_month, monthly_by_category, invoices_count, reconciled_count, reconciliation_rate, top_suppliers })
+    const { data: ccaInvoices } = await userClient
+      .from("fhf_invoices")
+      .select("direction, amount_ttc, category, notes")
+      .or("category.eq.455000,notes.ilike.%455000%")
+    let cca_balance = 0
+    for (const inv of (ccaInvoices || [])) {
+      const amount = Math.abs(Number(inv.amount_ttc))
+      if (inv.category === "455000") {
+        cca_balance += inv.direction === "revenue" ? amount : -amount
+      } else {
+        cca_balance += amount
+      }
+    }
+
+    res.json({ charges_ht_ytd, charges_by_category, charges_by_month, monthly_by_category, invoices_count, reconciled_count, reconciliation_rate, top_suppliers, cca_balance })
   })
 
   // 13. VAT summary
