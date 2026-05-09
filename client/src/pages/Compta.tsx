@@ -218,21 +218,34 @@ export default function Compta() {
 
   async function handleDeleteInvoice(id: string) {
     if (!confirm("Supprimer cette facture ?")) return
-    await authFetch(`/api/compta/invoices/${id}`, { method: "DELETE" })
+    const r = await authFetch(`/api/compta/invoices/${id}`, { method: "DELETE" })
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      toast({ title: "Erreur suppression", description: err.error || "Echec de la suppression" }); return
+    }
+    toast({ title: "Facture supprimee" })
     await loadData()
   }
 
   async function handleManualMatch(invoiceId: string, bankTxId: string) {
-    await authFetch("/api/compta/reconcile/manual", {
+    const r = await authFetch("/api/compta/reconcile/manual", {
       method: "POST",
       body: JSON.stringify({ invoiceId, bankTransactionId: bankTxId }),
     })
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      toast({ title: "Erreur rapprochement", description: err.error || "Echec du rapprochement" }); return
+    }
     setMatchingTxId(null)
     await loadData()
   }
 
   async function handleUnmatch(invoiceId: string) {
-    await authFetch(`/api/compta/reconcile/unmatch/${invoiceId}`, { method: "POST" })
+    const r = await authFetch(`/api/compta/reconcile/unmatch/${invoiceId}`, { method: "POST" })
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      toast({ title: "Erreur", description: err.error || "Echec de la dissociation" }); return
+    }
     await loadData()
   }
 
@@ -277,12 +290,19 @@ export default function Compta() {
           status: "validated",
         }),
       })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        toast({ title: "Erreur", description: err.error || err.detail || "Echec de la creation" }); return
+      }
       const inv = await r.json()
-      if (inv.error) { setError(typeof inv.error === "string" ? inv.error : JSON.stringify(inv.error)); return }
-      await authFetch("/api/compta/reconcile/manual", {
+      const r2 = await authFetch("/api/compta/reconcile/manual", {
         method: "POST",
         body: JSON.stringify({ invoiceId: inv.id, bankTransactionId: tx.id }),
       })
+      if (!r2.ok) {
+        const err = await r2.json().catch(() => ({}))
+        toast({ title: "Erreur rapprochement", description: err.error || "Echec du rapprochement" }); return
+      }
       toast({ title: `${category} ${catLabel}`, description: `${tx.counterparty_name} — ${fmtEur(amount)} → ${category}` })
       await loadData()
     } catch (e: any) { setError(e.message) }
