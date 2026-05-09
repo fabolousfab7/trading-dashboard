@@ -552,7 +552,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
     const { data: allInvoices } = await userClient.from("fhf_invoices").select("id, bank_transaction_id")
 
-    const NON_CHARGE = ["455000", "512100", "512200"]
+    const NON_CHARGE = ["101000", "455000", "512100", "512200"]
     const items = (charges || []).filter(i => !NON_CHARGE.includes(i.category))
     const all = allInvoices || []
 
@@ -602,7 +602,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const monthMap: Record<string, { tva_deductible_fr: number; tva_autoliquidee_intracom: number; tva_collectee: number; base_ht_achats_fr: number; base_ht_achats_intracom: number }> = {}
 
     for (const inv of (invoices || [])) {
-      if (["455000", "512100", "512200"].includes(inv.category)) continue
+      if (["101000", "455000", "512100", "512200"].includes(inv.category)) continue
       const m = inv.invoice_date.slice(0, 7)
       if (!monthMap[m]) monthMap[m] = { tva_deductible_fr: 0, tva_autoliquidee_intracom: 0, tva_collectee: 0, base_ht_achats_fr: 0, base_ht_achats_intracom: 0 }
       const vat = Number(inv.amount_vat) || 0

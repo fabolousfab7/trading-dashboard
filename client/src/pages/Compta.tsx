@@ -16,13 +16,14 @@ const CATEGORIES = [
   { code: "625600", label: "Missions" },
   { code: "681000", label: "Amortissements" },
   { code: "708000", label: "Produits divers" },
+  { code: "101000", label: "Capital social" },
   { code: "455000", label: "Compte courant associé" },
   { code: "512100", label: "Virement IBKR" },
   { code: "512200", label: "Virement Kraken" },
   { code: "471000", label: "Compte d'attente" },
 ]
 
-const NON_CHARGE_CATS = ["455000", "512100", "512200"]
+const NON_CHARGE_CATS = ["101000", "455000", "512100", "512200"]
 const IS_NON_CHARGE = (cat: string) => NON_CHARGE_CATS.includes(cat)
 
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.code, c.label]))
