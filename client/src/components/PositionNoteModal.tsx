@@ -2,6 +2,99 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { X, Image as ImageIcon } from "lucide-react"
 
+const COMPANY_INFO: Record<string, { sector: string; description: string; metrics: string }> = {
+  "RMS": {
+    sector: "Luxe",
+    description: "Hermès International — maison de luxe française fondée en 1837. Maroquinerie (44%), prêt-à-porter (28%), soie & textiles (6%), horlogerie (3%), parfums (3%). 294 magasins dans le monde. Croissance organique ~6% au T1 2026.",
+    metrics: "Cap: ~170 Md€ · Marge op: 39,8% · Div: 0,53% · PER: ~45x",
+  },
+  "MC": {
+    sector: "Luxe",
+    description: "LVMH Moët Hennessy Louis Vuitton — n°1 mondial du luxe. Louis Vuitton, Dior, Fendi, Bulgari, Tiffany, Hennessy, Dom Pérignon, Sephora. 6 283 magasins. CA ~85 Md€. Cession de marques non-stratégiques envisagée (FT, mai 2026).",
+    metrics: "Cap: ~235 Md€ · Marge EBITDA: 30% · Div: ~1,6% · PER: ~22x",
+  },
+  "EL": {
+    sector: "Santé / Optique",
+    description: "EssilorLuxottica — leader mondial de l'optique. Verres (Varilux, Transitions), montures (Ray-Ban, Oakley, Persol), retail (Sunglass Hut, LensCrafters). 204K employés. Lunettes connectées Ray-Ban Meta en croissance. CA T1 2026: 7,1 Md€ (+10,8% organique).",
+    metrics: "Cap: ~83 Md€ · Marge EBITDA: 23% · Div: 2,2% · PER: ~36x",
+  },
+  "UBI": {
+    sector: "Tech / Gaming",
+    description: "Ubisoft Entertainment — éditeur français de jeux vidéo. Franchises : Assassin's Creed, Far Cry, Rainbow Six, Just Dance. En restructuration depuis 2024. Rumeurs de rachat par Tencent / consortium. Cours au plus bas historique.",
+    metrics: "Cap: ~600 M€ · Marge op: négative · Div: 0% · PER: n/a",
+  },
+  "ALCAP": {
+    sector: "Immobilier",
+    description: "Altur Investissement (ex-Altarea Capital) — foncière française. Micro-cap. Activité de capital-investissement et prise de participations.",
+    metrics: "Cap: ~10 M€ · Micro-cap · Peu liquide",
+  },
+  "AI": {
+    sector: "Tech / IA",
+    description: "C3.ai — plateforme enterprise IA. Applications IA pour l'industrie, la défense, l'énergie. Fondée par Tom Siebel. Partenariat avec Microsoft Azure, AWS, Google Cloud. Revenus ~$310M/an.",
+    metrics: "Cap: ~$3,2 Md · Marge brute: 60% · Cash: $730M · Non profitable",
+  },
+  "BKKT": {
+    sector: "Crypto / Fintech",
+    description: "Bakkt Holdings — plateforme crypto institutionnelle (ICE/NYSE). Custody, trading, paiements crypto. Partenariat Mastercard. Rachat par ICE acté.",
+    metrics: "Cap: ~$2 Md · Early stage · Revenus faibles · Spéculatif",
+  },
+  "CRCL": {
+    sector: "Crypto / Fintech",
+    description: "Circle Internet Group — émetteur du stablecoin USDC (~$60 Md en circulation). Revenus tirés des réserves (T-bills). IPO avril 2025 sur NYSE.",
+    metrics: "Cap: ~$10 Md · Revenus: ~$1,7 Md · Profitable · Marge ~25%",
+  },
+  "NIO": {
+    sector: "Auto / EV",
+    description: "NIO Inc — constructeur chinois de véhicules électriques premium. Battery-as-a-Service (swap stations). Modèles : ES8, ES6, ET7, ET5. Expansion Europe en cours.",
+    metrics: "Cap: ~$10 Md · Cash burning · Livraisons: ~160K/an · Non profitable",
+  },
+  "RACE": {
+    sector: "Auto / Luxe",
+    description: "Ferrari N.V. — constructeur automobile de luxe et sport italien. Modèles iconiques, éditions limitées. Marge opérationnelle parmi les plus élevées de l'auto. Première Ferrari électrique annoncée pour 2026.",
+    metrics: "Cap: ~$60 Md · Marge op: 27% · Div: 0,7% · PER: ~45x",
+  },
+  "SNOW": {
+    sector: "Tech / Cloud",
+    description: "Snowflake Inc — plateforme cloud data (data warehousing, data lake, data sharing). Clients enterprise. Revenus produit ~$2,9 Md. Croissance ~25%/an.",
+    metrics: "Cap: ~$50 Md · Marge brute: 67% · Net retention: 127% · Non profitable",
+  },
+  "PATH": {
+    sector: "Tech / RPA",
+    description: "UiPath Inc — leader mondial de l'automatisation robotique des processus (RPA). Plateforme enterprise IA + automation. ~10 600 clients.",
+    metrics: "Cap: ~$6 Md · ARR: $1,6 Md · Marge brute: 85% · Breakeven",
+  },
+  "PUBM": {
+    sector: "Tech / AdTech",
+    description: "PubMatic Inc — plateforme SSP (supply-side) de publicité programmatique. Cloud infrastructure propriétaire. Revenus ~$280M. Profitable.",
+    metrics: "Cap: ~$550 M · Marge EBITDA: ~30% · Profitable · PER: ~18x",
+  },
+  "RIVN": {
+    sector: "Auto / EV",
+    description: "Rivian Automotive — constructeur américain de pickups et SUV électriques (R1T, R1S). Usine Normal, Illinois. Partenariat Amazon (vans de livraison). Lancement R2 prévu 2026.",
+    metrics: "Cap: ~$14 Md · Cash burn élevé · Livraisons: ~50K/an · Non profitable",
+  },
+  "SBET": {
+    sector: "Tech / iGaming",
+    description: "SharpLink Gaming — plateforme de paris sportifs et iGaming. Technologie de conversion de contenu sportif en paris. Small cap spéculative.",
+    metrics: "Cap: ~$100 M · Small cap · Revenus faibles · Spéculatif",
+  },
+  "FLUT": {
+    sector: "Paris sportifs",
+    description: "Flutter Entertainment — n°1 mondial des paris en ligne. FanDuel (US), Paddy Power, Betfair, PokerStars, Sportsbet. Listage NYSE + LSE.",
+    metrics: "Cap: ~$35 Md · Revenus: ~$14 Md · Leader US via FanDuel",
+  },
+  "P911": {
+    sector: "Auto / Luxe",
+    description: "Porsche AG — constructeur automobile de luxe et sport allemand. 911, Cayenne, Taycan (EV), Macan. IPO sept 2022. VW détient ~75%.",
+    metrics: "Cap: ~$40 Md · Marge op: ~18% · Div: ~1,5% · PER: ~14x",
+  },
+  "RI": {
+    sector: "Spiritueux",
+    description: "Pernod Ricard — n°2 mondial des vins et spiritueux. Absolut, Jameson, Martell, Chivas, Mumm, Perrier-Jouët. 160 pays. Impact Moyen-Orient sur les ventes.",
+    metrics: "Cap: ~$16 Md · Marge op: ~28% · Div: ~3,5% · PER: ~16x",
+  },
+}
+
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -166,6 +259,24 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
             <X size={18} />
           </button>
         </div>
+
+        {COMPANY_INFO[ticker] && (
+          <div className="p-4 pb-0">
+            <div className="border border-cyan-500/10 rounded p-3 bg-cyan-500/5">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">
+                  {COMPANY_INFO[ticker].sector}
+                </span>
+              </div>
+              <p className="text-xs font-mono text-zinc-300 leading-relaxed">
+                {COMPANY_INFO[ticker].description}
+              </p>
+              <p className="text-[10px] font-mono text-zinc-500 mt-1.5">
+                {COMPANY_INFO[ticker].metrics}
+              </p>
+            </div>
+          </div>
+        )}
 
         {loading && <div className="p-6 text-zinc-500 text-xs font-mono text-center">Chargement...</div>}
 

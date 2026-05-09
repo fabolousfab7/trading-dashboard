@@ -240,7 +240,7 @@ export default function Pea() {
           )
         })()}
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">POSITIONS</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">TITRES</div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{positions.length}</div>
         </div>
       </div>
@@ -275,7 +275,7 @@ export default function Pea() {
         const cashVsTotal = cashVsPos.reduce((s, d) => s + d.value, 0)
         const CASH_COLORS = ["#06b6d4", "#e879f9"]
 
-        const tooltipStyle = { background: "#18181b", border: "1px solid #06b6d4", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }
+        const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#e4e4e7" }
 
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -288,7 +288,7 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {tickerSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
@@ -312,7 +312,7 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
@@ -336,15 +336,16 @@ export default function Pea() {
                       outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
                       {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [fmtEur(value), ""]} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} formatter={(value: number) => [fmtEur(value), ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-col gap-1">
                   {cashVsPos.map((d: any, i: number) => (
-                    <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                      <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
-                      <span className="text-zinc-400">{d.name}</span>
-                      <span className="text-zinc-600 ml-auto">{((d.value / cashVsTotal) * 100).toFixed(1)}%</span>
+                    <div key={d.name} className="flex items-center gap-2 text-sm font-mono">
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
+                      <span className={`font-bold ${i === 0 ? "text-cyan-400" : "text-fuchsia-400"}`}>{d.name}</span>
+                      <span className="text-white ml-auto">{fmtEur(d.value)}</span>
+                      <span className="text-zinc-500">{((d.value / cashVsTotal) * 100).toFixed(1)}%</span>
                     </div>
                   ))}
                 </div>
@@ -356,7 +357,7 @@ export default function Pea() {
 
       <div className="border border-cyan-500/20 rounded bg-black/40">
         <div className="border-b border-cyan-500/20 p-3">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">Positions PEA</h2>
+          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">Positions PEA · {positions.length}</h2>
         </div>
         {positions.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 font-mono text-sm">
