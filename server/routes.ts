@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { supabase } from "./supabase.js";
 import { api } from "../shared/routes.js";
 import { registerPortfolioRoutes } from "./routes-portfolio.js";
+import { registerComptaRoutes } from "./routes-compta.js";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -102,6 +103,7 @@ export async function registerRoutes(
   });
 
   registerPortfolioRoutes(app, supabase);
+  registerComptaRoutes(app, supabase);
 
   return httpServer;
 }

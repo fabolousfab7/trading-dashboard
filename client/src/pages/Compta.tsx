@@ -1,0 +1,753 @@
+import { useEffect, useState, useCallback } from "react"
+import { supabase } from "@/lib/supabase"
+import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban } from "lucide-react"
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+
+const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
+
+const CATEGORIES = [
+  { code: "618100", label: "Logiciels & data" },
+  { code: "617000", label: "FTMO" },
+  { code: "626100", label: "Télécom" },
+  { code: "627000", label: "Frais bancaires" },
+  { code: "606300", label: "Fournitures" },
+  { code: "625100", label: "Déplacements" },
+  { code: "625600", label: "Missions" },
+  { code: "681000", label: "Amortissements" },
+  { code: "708000", label: "Produits divers" },
+  { code: "471000", label: "Compte d'attente" },
+]
+
+const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.code, c.label]))
+const VAT_RATES = [0, 5.5, 10, 20]
+const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+
+async function authFetch(url: string, options: RequestInit = {}) {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return fetch(url, {
+    ...options,
+    headers: { ...options.headers, "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  })
+}
+
+function fmtEur(n: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n)
+}
+
+function fmtDate(d: string) {
+  if (!d) return ""
+  return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
+type Tab = "all" | "unmatched" | "matched"
+
+export default function Compta() {
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [bankTxs, setBankTxs] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [vatSummary, setVatSummary] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>("all")
+  const [selectedMonth, setSelectedMonth] = useState<string>("")
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [importResult, setImportResult] = useState<string | null>(null)
+  const [reconcileResult, setReconcileResult] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalData, setModalData] = useState<any>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const monthParam = selectedMonth ? `?month=${selectedMonth}` : ""
+      const [invR, txR, statsR, vatR] = await Promise.all([
+        authFetch(`/api/compta/invoices${monthParam}`),
+        authFetch(`/api/compta/bank-transactions${monthParam}`),
+        authFetch("/api/compta/stats"),
+        authFetch("/api/compta/vat-summary"),
+      ])
+      const invD = await invR.json()
+      const txD = await txR.json()
+      setInvoices(invD.invoices || [])
+      setBankTxs(txD.transactions || [])
+      setStats(await statsR.json())
+      setVatSummary(await vatR.json())
+    } catch (e: any) { setError(e.message) }
+    finally { setLoading(false) }
+  }, [selectedMonth])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const currentYear = new Date().getFullYear()
+  const currentMonthIdx = new Date().getMonth()
+  const monthOptions = Array.from({ length: currentMonthIdx + 1 }, (_, i) => {
+    const m = String(i + 1).padStart(2, "0")
+    return { value: `${currentYear}-${m}`, label: `${MONTH_NAMES[i]} ${currentYear}` }
+  })
+
+  async function handleInvoiceDrop(e: React.DragEvent | React.ChangeEvent<HTMLInputElement>) {
+    e.preventDefault()
+    const files = "dataTransfer" in e ? e.dataTransfer.files : (e.target as HTMLInputElement).files
+    if (!files?.length) return
+    const file = files[0]
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      setError("Format non supporté. Utilisez une image ou un PDF.")
+      return
+    }
+    setOcrLoading(true)
+    setError(null)
+    try {
+      const base64 = await fileToBase64(file)
+      const r = await authFetch("/api/compta/invoices/ocr", {
+        method: "POST",
+        body: JSON.stringify({ image: base64, mimeType: file.type }),
+      })
+      const data = await r.json()
+      if (data.error && !data.party_name) {
+        setError(`OCR échouée : ${data.error}`)
+      } else {
+        setEditingId(null)
+        setModalData({
+          direction: "charge",
+          party_name: data.party_name || "",
+          invoice_number: data.invoice_number || "",
+          invoice_date: data.invoice_date || new Date().toISOString().slice(0, 10),
+          amount_ht: data.amount_ht || 0,
+          amount_vat: data.amount_vat || 0,
+          amount_ttc: data.amount_ttc || 0,
+          vat_rate: data.vat_rate || 20,
+          party_vat_number: data.party_vat_number || "",
+          party_country: data.party_country || "FR",
+          vat_reverse_charge: data.party_country && data.party_country !== "FR",
+          vat_deductible: true,
+          category: "618100",
+          description: data.description || "",
+          notes: "",
+        })
+        setModalOpen(true)
+      }
+    } catch (e: any) { setError(e.message) }
+    finally { setOcrLoading(false) }
+  }
+
+  async function handleCsvDrop(e: React.DragEvent | React.ChangeEvent<HTMLInputElement>) {
+    e.preventDefault()
+    const files = "dataTransfer" in e ? e.dataTransfer.files : (e.target as HTMLInputElement).files
+    if (!files?.length) return
+    const file = files[0]
+    setError(null)
+    setImportResult(null)
+    try {
+      const text = await file.text()
+      const r = await authFetch("/api/compta/bank-import", {
+        method: "POST",
+        body: JSON.stringify({ csv: text }),
+      })
+      const data = await r.json()
+      if (data.error) { setError(data.error); return }
+      setImportResult(`${data.imported} transactions importées (${data.dateRange.from} → ${data.dateRange.to})`)
+      await loadData()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  async function handleReconcile() {
+    setReconcileResult(null)
+    try {
+      const r = await authFetch("/api/compta/reconcile", { method: "POST" })
+      const data = await r.json()
+      setReconcileResult(`${data.matched} matchés, ${data.ambiguous} ambigus, ${data.unmatched} non matchés`)
+      await loadData()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  async function handleSaveInvoice() {
+    try {
+      const url = editingId ? `/api/compta/invoices/${editingId}` : "/api/compta/invoices"
+      const method = editingId ? "PUT" : "POST"
+      const r = await authFetch(url, { method, body: JSON.stringify(modalData) })
+      const data = await r.json()
+      if (data.error) { setError(typeof data.error === "string" ? data.error : JSON.stringify(data.error)); return }
+      setModalOpen(false)
+      await loadData()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  async function handleDeleteInvoice(id: string) {
+    if (!confirm("Supprimer cette facture ?")) return
+    await authFetch(`/api/compta/invoices/${id}`, { method: "DELETE" })
+    await loadData()
+  }
+
+  async function handleManualMatch(invoiceId: string, bankTxId: string) {
+    await authFetch("/api/compta/reconcile/manual", {
+      method: "POST",
+      body: JSON.stringify({ invoiceId, bankTransactionId: bankTxId }),
+    })
+    setMatchingTxId(null)
+    await loadData()
+  }
+
+  async function handleUnmatch(invoiceId: string) {
+    await authFetch(`/api/compta/reconcile/unmatch/${invoiceId}`, { method: "POST" })
+    await loadData()
+  }
+
+  async function handleIgnore(txId: string) {
+    await authFetch(`/api/compta/bank-transactions/${txId}`, {
+      method: "PUT",
+      body: JSON.stringify({ status: "ignored" }),
+    })
+    await loadData()
+  }
+
+  async function handleUnignore(txId: string) {
+    await authFetch(`/api/compta/bank-transactions/${txId}`, {
+      method: "PUT",
+      body: JSON.stringify({ status: "unmatched" }),
+    })
+    await loadData()
+  }
+
+  function openEditModal(inv: any) {
+    setEditingId(inv.id)
+    setModalData({
+      direction: inv.direction,
+      party_name: inv.party_name,
+      invoice_number: inv.invoice_number || "",
+      invoice_date: inv.invoice_date,
+      payment_date: inv.payment_date || "",
+      amount_ht: Number(inv.amount_ht),
+      amount_vat: Number(inv.amount_vat),
+      amount_ttc: Number(inv.amount_ttc),
+      vat_rate: Number(inv.vat_rate) || 20,
+      party_vat_number: inv.party_vat_number || "",
+      party_country: inv.party_country || "FR",
+      vat_reverse_charge: inv.vat_reverse_charge || false,
+      vat_deductible: inv.vat_deductible ?? true,
+      category: inv.category || "471000",
+      description: inv.description || "",
+      notes: inv.notes || "",
+    })
+    setModalOpen(true)
+  }
+
+  function updateModalField(field: string, value: any) {
+    setModalData((prev: any) => {
+      const next = { ...prev, [field]: value }
+      if (field === "amount_ht" || field === "vat_rate") {
+        const ht = field === "amount_ht" ? Number(value) : Number(prev.amount_ht)
+        const rate = field === "vat_rate" ? Number(value) : Number(prev.vat_rate)
+        next.amount_vat = Math.round(ht * rate) / 100
+        next.amount_ttc = Math.round((ht + next.amount_vat) * 100) / 100
+      }
+      if (field === "party_country") {
+        next.vat_reverse_charge = value !== "FR"
+      }
+      return next
+    })
+  }
+
+  // Build reconciliation rows
+  type Row = { id: string; date: string; counterparty: string; amount: number; type: "bank" | "invoice"; status: string; original: any; linkedInvoice?: any }
+  const rows: Row[] = []
+  for (const tx of bankTxs) {
+    const linked = tx.invoice_id ? invoices.find(i => i.id === tx.invoice_id) : null
+    rows.push({ id: `tx-${tx.id}`, date: tx.settlement_date, counterparty: tx.counterparty_name, amount: Math.abs(Number(tx.amount)), type: "bank", status: tx.status, original: tx, linkedInvoice: linked })
+  }
+  for (const inv of invoices) {
+    if (!inv.bank_transaction_id) {
+      rows.push({ id: `inv-${inv.id}`, date: inv.invoice_date, counterparty: inv.party_name, amount: Number(inv.amount_ttc), type: "invoice", status: "pending_payment", original: inv })
+    }
+  }
+  rows.sort((a, b) => b.date.localeCompare(a.date))
+
+  const filteredRows = tab === "all" ? rows : tab === "unmatched" ? rows.filter(r => r.status === "unmatched" || r.status === "pending_payment") : rows.filter(r => r.status === "matched")
+  const unmatchedCount = rows.filter(r => r.status === "unmatched" || r.status === "pending_payment").length
+  const matchedCount = rows.filter(r => r.status === "matched").length
+
+  const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+
+  // Unreconciled invoices for manual matching dropdown
+  const unreconciledInvoices = invoices.filter(i => !i.bank_transaction_id)
+
+  // VAT for selected month
+  const vatMonth = selectedMonth || `${currentYear}-${String(currentMonthIdx + 1).padStart(2, "0")}`
+  const vatData = vatSummary?.months?.find((m: any) => m.month === vatMonth)
+
+  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+        <div>
+          <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
+            <Receipt size={14} /> Comptabilité
+          </div>
+          <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
+            <span className="text-cyan-400">Comptabilité </span>
+            <span className="text-fuchsia-500">FHF</span>
+          </h1>
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider mt-1">
+            Rapprochement bancaire · TVA · Pilotage
+          </p>
+        </div>
+        <select
+          value={selectedMonth}
+          onChange={e => setSelectedMonth(e.target.value)}
+          className="bg-black/60 border border-cyan-500/30 text-zinc-300 rounded px-3 py-1.5 font-mono text-xs"
+        >
+          <option value="">Tous les mois</option>
+          {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </div>
+
+      {error && (
+        <div className="border border-red-500/30 bg-red-500/10 text-red-400 p-3 rounded font-mono text-xs flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">✕</button>
+        </div>
+      )}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">CHARGES HT YTD</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
+        </div>
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">TVA DÉDUCTIBLE YTD</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">
+            {fmtEur((vatSummary?.months || []).reduce((s: number, m: any) => s + m.tva_deductible_fr + m.tva_autoliquidee_intracom, 0))}
+          </div>
+        </div>
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">FACTURES</div>
+          <div className="text-2xl font-mono font-bold text-zinc-300">
+            {stats?.reconciled_count || 0} <span className="text-zinc-600">/ {stats?.invoices_count || 0}</span>
+          </div>
+          <div className="text-[10px] font-mono text-zinc-500 mt-1">rapprochées</div>
+        </div>
+        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">RAPPROCHEMENT</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">{(stats?.reconciliation_rate || 0).toFixed(0)}%</div>
+          <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
+            <div className="bg-cyan-400 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(stats?.reconciliation_rate || 0, 100)}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Upload zones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Left: Invoice upload */}
+        <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-2">
+            <FileText size={14} /> Upload facture
+          </h2>
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleInvoiceDrop}
+            className="border-2 border-dashed border-cyan-500/20 rounded-lg p-8 text-center cursor-pointer hover:border-cyan-500/40 transition"
+          >
+            {ocrLoading ? (
+              <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono text-sm">
+                <RefreshCw size={16} className="animate-spin" /> Analyse OCR en cours...
+              </div>
+            ) : (
+              <>
+                <Upload size={24} className="mx-auto text-zinc-500 mb-2" />
+                <p className="text-zinc-500 font-mono text-xs">Glissez une facture (image/PDF)</p>
+                <label className="mt-3 inline-block px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs uppercase cursor-pointer hover:bg-cyan-500/20 transition">
+                  Sélectionner un fichier
+                  <input type="file" accept="image/*,application/pdf" onChange={handleInvoiceDrop} className="hidden" />
+                </label>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => { setEditingId(null); setModalData({ direction: "charge", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
+            className="mt-3 w-full px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded font-mono text-xs uppercase hover:bg-fuchsia-500/20 transition"
+          >
+            + Saisie manuelle
+          </button>
+        </div>
+
+        {/* Right: CSV upload */}
+        <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-2">
+            <Receipt size={14} /> Import relevé Qonto
+          </h2>
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleCsvDrop}
+            className="border-2 border-dashed border-fuchsia-500/20 rounded-lg p-8 text-center cursor-pointer hover:border-fuchsia-500/40 transition"
+          >
+            <Upload size={24} className="mx-auto text-zinc-500 mb-2" />
+            <p className="text-zinc-500 font-mono text-xs">Glissez un export CSV Qonto</p>
+            <label className="mt-3 inline-block px-4 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded font-mono text-xs uppercase cursor-pointer hover:bg-fuchsia-500/20 transition">
+              Sélectionner un CSV
+              <input type="file" accept=".csv" onChange={handleCsvDrop} className="hidden" />
+            </label>
+          </div>
+          {importResult && <div className="mt-3 text-green-400 font-mono text-xs">{importResult}</div>}
+          <button
+            onClick={handleReconcile}
+            className="mt-3 w-full px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs uppercase hover:bg-cyan-500/20 transition flex items-center justify-center gap-2"
+          >
+            <RefreshCw size={12} /> Lancer le rapprochement
+          </button>
+          {reconcileResult && <div className="mt-2 text-cyan-400 font-mono text-xs">{reconcileResult}</div>}
+        </div>
+      </div>
+
+      {/* Reconciliation table */}
+      <div className="border border-cyan-500/20 rounded bg-black/40">
+        <div className="border-b border-cyan-500/20 p-3 flex items-center gap-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">Rapprochement</h2>
+          <div className="flex gap-1 ml-auto">
+            {([["all", "Tout", rows.length], ["unmatched", `À traiter`, unmatchedCount], ["matched", "Rapprochés", matchedCount]] as const).map(([t, label, count]) => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`px-3 py-1 rounded font-mono text-xs transition ${tab === t ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-zinc-500 hover:text-zinc-300"}`}>
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+        </div>
+        {filteredRows.length === 0 ? (
+          <div className="p-6 text-center text-zinc-500 text-xs font-mono">Aucune donnée</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="text-left p-3">Date</th>
+                  <th className="text-left p-3">Contrepartie</th>
+                  <th className="text-right p-3">Montant TTC</th>
+                  <th className="text-center p-3">Type</th>
+                  <th className="text-center p-3">Statut</th>
+                  <th className="text-left p-3">Facture liée</th>
+                  <th className="text-right p-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map(row => (
+                  <tr key={row.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 transition">
+                    <td className="p-3 text-zinc-300">{fmtDate(row.date)}</td>
+                    <td className="p-3 text-zinc-300 truncate max-w-[200px]">{row.counterparty}</td>
+                    <td className={`p-3 text-right ${row.type === "bank" && row.original.side === "credit" ? "text-green-400" : "text-zinc-300"}`}>
+                      {row.type === "bank" && row.original.side === "credit" ? "+" : "-"}{fmtEur(row.amount)}
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${row.type === "bank" ? "bg-cyan-500/20 text-cyan-400" : "bg-fuchsia-500/20 text-fuchsia-400"}`}>
+                        {row.type === "bank" ? "Banque" : "Facture"}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      {row.status === "matched" && <span className="text-green-400">✅</span>}
+                      {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
+                      {row.status === "pending_payment" && <span className="text-zinc-400">📄</span>}
+                      {row.status === "ignored" && <span className="text-zinc-600">🔕</span>}
+                    </td>
+                    <td className="p-3 text-zinc-500 text-[10px] truncate max-w-[150px]">
+                      {row.linkedInvoice && <span>{row.linkedInvoice.party_name} — {row.linkedInvoice.invoice_number || "N/A"}</span>}
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center gap-1 justify-end">
+                        {/* Bank tx: unmatched → match or ignore */}
+                        {row.type === "bank" && row.status === "unmatched" && (
+                          <>
+                            {matchingTxId === row.original.id ? (
+                              <select
+                                className="bg-black border border-cyan-500/30 text-zinc-300 rounded px-1 py-0.5 text-[10px] font-mono max-w-[120px]"
+                                onChange={e => { if (e.target.value) handleManualMatch(e.target.value, row.original.id) }}
+                                defaultValue=""
+                              >
+                                <option value="">Choisir facture...</option>
+                                {unreconciledInvoices.map(inv => (
+                                  <option key={inv.id} value={inv.id}>{inv.party_name} — {fmtEur(Number(inv.amount_ttc))}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <button onClick={() => setMatchingTxId(row.original.id)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Matcher">
+                                <Check size={12} />
+                              </button>
+                            )}
+                            <button onClick={() => handleIgnore(row.original.id)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Ignorer">
+                              <Ban size={12} />
+                            </button>
+                          </>
+                        )}
+                        {/* Bank tx: matched → unmatch */}
+                        {row.type === "bank" && row.status === "matched" && row.linkedInvoice && (
+                          <button onClick={() => handleUnmatch(row.linkedInvoice.id)} className="text-zinc-500 hover:text-red-400 p-1" title="Défaire">
+                            <Link2Off size={12} />
+                          </button>
+                        )}
+                        {/* Bank tx: ignored → unignore */}
+                        {row.type === "bank" && row.status === "ignored" && (
+                          <button onClick={() => handleUnignore(row.original.id)} className="text-zinc-500 hover:text-cyan-400 p-1" title="Restaurer">
+                            <RefreshCw size={12} />
+                          </button>
+                        )}
+                        {/* Invoice actions */}
+                        {row.type === "invoice" && (
+                          <>
+                            {row.original.attachment_url && (
+                              <button onClick={() => window.open(row.original.attachment_url, "_blank")} className="text-zinc-500 hover:text-cyan-400 p-1" title="Voir">
+                                <Eye size={12} />
+                              </button>
+                            )}
+                            <button onClick={() => openEditModal(row.original)} className="text-zinc-500 hover:text-fuchsia-400 p-1" title="Modifier">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => handleDeleteInvoice(row.original.id)} className="text-zinc-500 hover:text-red-400 p-1" title="Supprimer">
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* VAT block */}
+      <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+        <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3">
+          TVA — {monthOptions.find(m => m.value === vatMonth)?.label || vatMonth}
+        </h2>
+        {vatData ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA déductible (FR)</div>
+              <div className="text-lg font-mono font-bold text-cyan-400">{fmtEur(vatData.tva_deductible_fr)}</div>
+              <div className="text-[10px] font-mono text-zinc-600">Base HT : {fmtEur(vatData.base_ht_achats_fr)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA autoliquidée (intracom)</div>
+              <div className="text-lg font-mono font-bold text-fuchsia-400">{fmtEur(vatData.tva_autoliquidee_intracom)}</div>
+              <div className="text-[10px] font-mono text-zinc-600">Base HT : {fmtEur(vatData.base_ht_achats_intracom)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA collectée (ventes)</div>
+              <div className="text-lg font-mono font-bold text-zinc-300">{fmtEur(vatData.tva_collectee)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA nette</div>
+              <div className={`text-lg font-mono font-bold ${vatData.tva_nette >= 0 ? "text-red-400" : "text-green-400"}`}>
+                {vatData.tva_nette >= 0 ? "" : "Crédit "}{fmtEur(Math.abs(vatData.tva_nette))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-zinc-500 font-mono text-xs">Aucune donnée TVA pour ce mois</div>
+        )}
+        <p className="text-[10px] font-mono text-zinc-600 mt-3">Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</p>
+      </div>
+
+      {/* Charts */}
+      {stats && (stats.charges_by_category?.length > 0 || stats.monthly_by_category?.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Pie: charges by category */}
+          {stats.charges_by_category?.length > 0 && (
+            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Charges par catégorie (YTD)</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={stats.charges_by_category} dataKey="total_ht" nameKey="category" cx="50%" cy="50%"
+                    outerRadius={70} innerRadius={30} strokeWidth={1} stroke="#09090b">
+                    {stats.charges_by_category.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }}
+                    formatter={(value: number, name: string) => [fmtEur(value), CAT_LABEL[name] || name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {stats.charges_by_category.map((d: any, i: number) => (
+                  <div key={d.category} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-zinc-400">{CAT_LABEL[d.category] || d.category}</span>
+                    <span className="text-white ml-auto">{fmtEur(d.total_ht)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bar: monthly charges */}
+          {stats.monthly_by_category?.length > 0 && (() => {
+            const usedCats: string[] = Array.from(new Set(stats.monthly_by_category.flatMap((m: any) => Object.keys(m).filter((k: string) => k !== "month"))))
+            return (
+              <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+                <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Charges mensuelles (YTD)</h2>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.monthly_by_category}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                      tickFormatter={(v: string) => { const [, m] = v.split("-"); return MONTH_NAMES[parseInt(m) - 1]?.slice(0, 3) || v }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                      tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }}
+                      formatter={(value: number, name: string) => [fmtEur(value), CAT_LABEL[name] || name]}
+                      labelFormatter={(label: string) => { const [, m] = label.split("-"); return MONTH_NAMES[parseInt(m) - 1] || label }} />
+                    {usedCats.map((cat: string, i: number) => (
+                      <Bar key={cat} dataKey={cat} stackId="a" fill={COLORS[i % COLORS.length]} name={CAT_LABEL[cat] || cat} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* Invoice modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setModalOpen(false)}>
+          <div className="bg-[#0a0a1a] border border-cyan-500/20 rounded-lg w-[600px] max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-mono font-bold text-cyan-400 uppercase tracking-widest">
+                {editingId ? "Modifier facture" : "Nouvelle facture"}
+              </h3>
+              <button onClick={() => setModalOpen(false)} className="text-zinc-500 hover:text-zinc-300"><X size={16} /></button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Fournisseur</label>
+                  <input value={modalData.party_name || ""} onChange={e => updateModalField("party_name", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">N° facture</label>
+                  <input value={modalData.invoice_number || ""} onChange={e => updateModalField("invoice_number", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Date facture</label>
+                  <input type="date" value={modalData.invoice_date || ""} onChange={e => updateModalField("invoice_date", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Date paiement</label>
+                  <input type="date" value={modalData.payment_date || ""} onChange={e => updateModalField("payment_date", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT</label>
+                  <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Taux TVA</label>
+                  <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                    {VAT_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant TTC</label>
+                  <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Direction</label>
+                  <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                    <option value="charge">Charge</option>
+                    <option value="product">Produit</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Catégorie PCG</label>
+                  <select value={modalData.category || "471000"} onChange={e => updateModalField("category", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                    {CATEGORIES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Pays fournisseur</label>
+                  <input value={modalData.party_country || "FR"} onChange={e => updateModalField("party_country", e.target.value.toUpperCase())}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" maxLength={2} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-500 uppercase">N° TVA intracom</label>
+                  <input value={modalData.party_vat_number || ""} onChange={e => updateModalField("party_vat_number", e.target.value)}
+                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                  <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}
+                    className="rounded border-cyan-500/30" />
+                  Autoliquidation
+                </label>
+                <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                  <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)}
+                    className="rounded border-cyan-500/30" />
+                  TVA déductible
+                </label>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono text-zinc-500 uppercase">Description</label>
+                <input value={modalData.description || ""} onChange={e => updateModalField("description", e.target.value)}
+                  className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono text-zinc-500 uppercase">Notes</label>
+                <textarea value={modalData.notes || ""} onChange={e => updateModalField("notes", e.target.value)} rows={2}
+                  className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs resize-none" />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setModalOpen(false)}
+                className="px-4 py-1.5 border border-zinc-700 text-zinc-400 rounded font-mono text-xs hover:bg-zinc-800 transition">
+                Annuler
+              </button>
+              <button onClick={handleSaveInvoice}
+                className="px-4 py-1.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs hover:bg-cyan-500/30 transition">
+                {editingId ? "Enregistrer" : "Valider"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      resolve(dataUrl.split(",")[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}

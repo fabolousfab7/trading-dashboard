@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter"
-import { Home, BarChart3, Briefcase, Wallet, Bitcoin } from "lucide-react"
+import { Home, BarChart3, Briefcase, Wallet, Bitcoin, Receipt } from "lucide-react"
 
 const NAV = [
   { path: "/", label: "ACCUEIL", icon: Home },
@@ -7,6 +7,7 @@ const NAV = [
   { path: "/ibkr", label: "FHF / IBKR", icon: Briefcase },
   { path: "/crypto", label: "CRYPTO LT", icon: Bitcoin },
   { path: "/pea", label: "PEA PERSO", icon: Wallet },
+  { path: "/compta", label: "COMPTA", icon: Receipt },
 ]
 
 export default function Sidebar() {
