@@ -509,7 +509,6 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     if (txErr) return res.status(500).json({ error: txErr.message })
 
     const suggestions: any[] = []
-    const usedTxIds = new Set<string>()
 
     for (const inv of (invoices || [])) {
       const invAmount = Math.abs(Number(inv.amount_ttc))
@@ -517,17 +516,11 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       const dateMin = new Date(invDate); dateMin.setDate(dateMin.getDate() - 30)
       const dateMax = new Date(invDate); dateMax.setDate(dateMax.getDate() + 30)
 
-      const candidates = (txs || []).filter(tx => {
-        if (usedTxIds.has(tx.id)) return false
+      for (const tx of (txs || [])) {
         const diff = Math.abs(Math.abs(Number(tx.amount)) - invAmount)
-        if (diff > 0.50) return false
+        if (diff > 0.50) continue
         const txDate = new Date(tx.settlement_date)
-        return txDate >= dateMin && txDate <= dateMax
-      })
-
-      if (candidates.length === 1) {
-        const tx = candidates[0]
-        const diff = Math.abs(Math.abs(Number(tx.amount)) - invAmount)
+        if (txDate < dateMin || txDate > dateMax) continue
         suggestions.push({
           invoice_id: inv.id,
           invoice_party: inv.party_name,
@@ -540,7 +533,6 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
           amount_diff: Math.round(diff * 100) / 100,
           confidence: diff <= 0.01 ? "exact" : "approx",
         })
-        usedTxIds.add(tx.id)
       }
     }
 

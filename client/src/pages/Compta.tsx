@@ -542,7 +542,7 @@ export default function Compta() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
+                    onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id && x.bank_tx_id !== s.bank_tx_id)); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
                     className="px-2.5 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-mono text-[10px] uppercase hover:bg-green-500/20 transition"
                   >
                     Valider
