@@ -518,7 +518,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
       for (const tx of (txs || [])) {
         const diff = Math.abs(Math.abs(Number(tx.amount)) - invAmount)
-        if (diff > 0.50) continue
+        const tolerance = Math.max(0.50, invAmount * 0.05)
+        if (diff > tolerance) continue
         const txDate = new Date(tx.settlement_date)
         if (txDate < dateMin || txDate > dateMax) continue
         suggestions.push({
