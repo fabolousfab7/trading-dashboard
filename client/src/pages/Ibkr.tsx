@@ -79,7 +79,10 @@ export default function Ibkr() {
   const nlv = positionsBase + cashBase
   const unrealizedPnl = positions.reduce((s: number, p: any) => {
     const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
-    return s + (Number(p.unrealized_pnl) || 0) * fx
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price)
+    const cost = Number(p.avg_cost)
+    return s + (qty * (price - cost)) * fx
   }, 0)
   const capital = Number(data.account?.capital_invested) || Number(snapshot?.capital_invested) || 0
   const totalPerf = capital ? nlv - capital : 0
@@ -221,7 +224,7 @@ export default function Ibkr() {
                 {positions.map((p: any) => {
                   const qty = Number(p.quantity), pru = Number(p.avg_cost), price = Number(p.market_price)
                   const value = qty * price, cost = qty * pru
-                  const pnl = Number(p.unrealized_pnl) || (value - cost)
+                  const pnl = value - cost
                   const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
                   const sym = p.currency === "USD" ? "$" : "€"
                   return (
