@@ -19,10 +19,18 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
+function fmtUsd(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
+}
+
 function calcStats(pos: any[]) {
   const value = pos.reduce((s, p) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
+  }, 0)
+  const valueUsd = pos.reduce((s, p) => {
+    const own = (Number(p.ownership_pct) || 100) / 100
+    return s + Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
   }, 0)
   const cost = pos.reduce((s, p) => {
     const own = (Number(p.ownership_pct) || 100) / 100
@@ -30,7 +38,7 @@ function calcStats(pos: any[]) {
   }, 0)
   const pnl = value - cost
   const pct = cost ? (pnl / cost) * 100 : 0
-  return { value, cost, pnl, pct }
+  return { value, valueUsd, cost, pnl, pct }
 }
 
 export default function Crypto() {
@@ -86,6 +94,7 @@ export default function Crypto() {
   const sharedStats = calcStats(sharedPositions)
   const total = {
     value: persoStats.value + sharedStats.value,
+    valueUsd: persoStats.valueUsd + sharedStats.valueUsd,
     cost: persoStats.cost + sharedStats.cost,
     pnl: persoStats.pnl + sharedStats.pnl,
     pct: (persoStats.cost + sharedStats.cost) ? ((persoStats.pnl + sharedStats.pnl) / (persoStats.cost + sharedStats.cost)) * 100 : 0,
@@ -114,8 +123,9 @@ export default function Crypto() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">VALEUR TOTALE</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(total.value)}</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">VALEUR USD</div>
+          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtUsd(total.valueUsd)}</div>
+          <div className="text-[10px] font-mono text-zinc-500 mt-1">{fmtEur(total.value)}</div>
         </div>
         <div className="border border-zinc-500/30 bg-black/40 rounded p-4">
           <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">COST BASIS</div>
@@ -219,7 +229,8 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
         <div className="flex gap-6 text-right">
           <div>
             <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur</div>
-            <div className="text-base font-mono font-bold text-cyan-300">{fmtEur(stats.value)}</div>
+            <div className="text-base font-mono font-bold text-cyan-300">{fmtUsd(stats.valueUsd)}</div>
+            <div className="text-[10px] font-mono text-zinc-500">{fmtEur(stats.value)}</div>
           </div>
           <div>
             <div className="text-[10px] text-zinc-600 font-mono uppercase">Perf</div>
@@ -246,7 +257,9 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
               const own = (Number(p.ownership_pct) || 100) / 100
               const qty = Number(p.quantity) * own
               const pru = Number(p.avg_cost), price = Number(p.market_price)
+              const priceUsd = Number(p.market_price_usd) || 0
               const value = qty * price
+              const valueUsd = qty * priceUsd
               const cost = qty * pru
               const ppnl = value - cost
               const ppnlPct = cost ? (ppnl / cost) * 100 : 0
@@ -259,8 +272,14 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
                   </td>
                   <td className="p-3 text-right text-zinc-300">{qty.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
                   <td className="p-3 text-right text-zinc-500">{pru < 1 ? pru.toFixed(6) : pru.toFixed(2)} €</td>
-                  <td className="p-3 text-right text-cyan-300">{price < 1 ? price.toFixed(6) : price.toFixed(2)} €</td>
-                  <td className="p-3 text-right text-zinc-300">{fmtEur(value)}</td>
+                  <td className="p-3 text-right">
+                    <div className="text-cyan-300">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : `$${priceUsd.toFixed(2)}`}</div>
+                    <div className="text-zinc-600 text-[10px]">{price < 1 ? price.toFixed(6) : price.toFixed(2)} €</div>
+                  </td>
+                  <td className="p-3 text-right">
+                    <div className="text-zinc-300">{fmtUsd(valueUsd)}</div>
+                    <div className="text-zinc-600 text-[10px]">{fmtEur(value)}</div>
+                  </td>
                   <td className={`p-3 text-right ${ppnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                     {ppnl >= 0 ? "+" : ""}{fmtEur(ppnl)} ({ppnlPct >= 0 ? "+" : ""}{ppnlPct.toFixed(1)}%)
                   </td>

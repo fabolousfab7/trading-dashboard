@@ -473,11 +473,13 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
 
             if (cryptoPositions.length > 0) {
               const ids = [...new Set(cryptoPositions.map((p: any) => p.coingecko_id))]
-              const prices = await fetchCoinGeckoPrices(ids, "eur")
+              const prices = await fetchCoinGeckoPrices(ids, ["eur", "usd"])
               for (const p of cryptoPositions) {
-                if (prices[p.coingecko_id] !== undefined) {
+                const coinPrices = prices[p.coingecko_id]
+                if (coinPrices?.eur !== undefined) {
                   await serviceClient.from("positions").update({
-                    market_price: prices[p.coingecko_id],
+                    market_price: coinPrices.eur,
+                    market_price_usd: coinPrices.usd || null,
                     last_synced_at: new Date().toISOString(),
                   }).eq("id", p.id)
                 }
@@ -551,18 +553,22 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
     const stockPositions = positions.filter((p: any) => !p.coingecko_id)
     const cryptoIds = Array.from(new Set(cryptoPositions.map((p: any) => p.coingecko_id)))
-    const baseCcy = cryptoPositions[0]?.currency?.toLowerCase() || "eur"
-    const cryptoPrices = await fetchCoinGeckoPrices(cryptoIds, baseCcy)
+    const cryptoPrices = await fetchCoinGeckoPrices(cryptoIds, ["eur", "usd"])
 
     // 2. Build results pour crypto + stock
     const results = await Promise.all([
-      ...cryptoPositions.map(async (p: any) => ({
-        id: p.id, ticker: p.ticker, price: cryptoPrices[p.coingecko_id] ?? null,
-      })),
+      ...cryptoPositions.map(async (p: any) => {
+        const coinPrices = cryptoPrices[p.coingecko_id]
+        return {
+          id: p.id, ticker: p.ticker,
+          price: coinPrices?.eur ?? null,
+          priceUsd: coinPrices?.usd ?? null,
+        }
+      }),
       ...stockPositions.map(async (p: any) => {
         const stooqSym = p.stooq_symbol || defaultStooqSymbol(p.ticker, p.currency)
         const price = await fetchStooqPrice(stooqSym).catch(() => null)
-        return { id: p.id, ticker: p.ticker, price }
+        return { id: p.id, ticker: p.ticker, price, priceUsd: null as number | null }
       }),
     ])
     const updates = results.filter((r) => r.price !== null)
@@ -572,7 +578,11 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       updates.map((u) =>
         userClient
           .from("positions")
-          .update({ market_price: u.price, last_synced_at: new Date().toISOString() })
+          .update({
+            market_price: u.price,
+            market_price_usd: u.priceUsd,
+            last_synced_at: new Date().toISOString(),
+          })
           .eq("id", u.id)
       )
     )

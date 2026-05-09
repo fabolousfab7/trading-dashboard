@@ -17,6 +17,10 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
+function fmtUsd(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
+}
+
 const ALLOC_COLORS = ["#e879f9", "#06b6d4", "#a78bfa"]
 
 export default function Home() {
@@ -258,6 +262,10 @@ export default function Home() {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
   }, 0)
+  const cryptoValueUsd = cryptoPositions.reduce((s: number, p: any) => {
+    const own = (Number(p.ownership_pct) || 100) / 100
+    return s + Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
+  }, 0)
   const cryptoCost = cryptoPositions.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.avg_cost) * own
@@ -386,6 +394,7 @@ export default function Home() {
         <SubCard icon={Bitcoin} title="Crypto LT" subtitle="Long terme"
           mainValue={cryptoPositions.length > 0 ? fmtEur(cryptoValue) : "—"}
           mainLabel={cryptoPositions.length > 0 ? "Valeur" : "Pas connecté"}
+          subValue={cryptoPositions.length > 0 && cryptoValueUsd > 0 ? fmtUsd(cryptoValueUsd) : undefined}
           stats={cryptoPositions.length > 0 ? [
             { label: "Perf", value: `${cryptoPerfPct >= 0 ? "+" : ""}${cryptoPerfPct.toFixed(1)}%`, color: cryptoPerfPct >= 0 ? "green" : "red" },
             { label: "Positions", value: String(cryptoPositions.length) },
@@ -545,7 +554,7 @@ export default function Home() {
   )
 }
 
-function SubCard({ icon: Icon, title, subtitle, mainValue, mainLabel, stats, link, accent }: any) {
+function SubCard({ icon: Icon, title, subtitle, mainValue, mainLabel, subValue, stats, link, accent }: any) {
   const border = accent === "cyan" ? "border-cyan-500/30 hover:border-cyan-500/60" : accent === "fuchsia" ? "border-fuchsia-500/30 hover:border-fuchsia-500/60" : "border-zinc-700/30 hover:border-zinc-500/60"
   const titleColor = accent === "cyan" ? "text-cyan-400" : accent === "fuchsia" ? "text-fuchsia-400" : "text-zinc-500"
   return (
@@ -558,6 +567,7 @@ function SubCard({ icon: Icon, title, subtitle, mainValue, mainLabel, stats, lin
       </div>
       <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider mb-3">{subtitle}</div>
       <div className="text-3xl font-mono font-bold text-white">{mainValue}</div>
+      {subValue && <div className="text-xs font-mono text-zinc-500 mt-0.5">{subValue}</div>}
       <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mt-1">{mainLabel}</div>
       <div className="border-t border-zinc-800 mt-4 pt-3 flex justify-between text-xs font-mono">
         {stats.map((s: any, i: number) => (
