@@ -10,6 +10,7 @@ import Ibkr from "@/pages/Ibkr";
 import Pea from "@/pages/Pea";
 import Crypto from "@/pages/Crypto";
 import Compta from "@/pages/Compta";
+import Fhf from "@/pages/Fhf";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -18,6 +19,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/analytics" component={Analytics} />
+        <Route path="/fhf" component={Fhf} />
         <Route path="/ibkr" component={Ibkr} />
         <Route path="/crypto" component={Crypto} />
         <Route path="/pea" component={Pea} />
