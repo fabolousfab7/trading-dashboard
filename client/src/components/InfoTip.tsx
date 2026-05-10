@@ -6,12 +6,12 @@ export default function InfoTip({ text, wide }: { text: string; wide?: boolean }
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex items-center ml-1 cursor-help">
-          <Info size={11} className="text-zinc-600 hover:text-cyan-400 transition-colors" />
+          <Info size={11} className="text-[--ink3] hover:text-[--at-accent] transition-colors" />
         </span>
       </TooltipTrigger>
       <TooltipContent
         side="top"
-        className={`${wide ? "max-w-sm" : "max-w-xs"} bg-zinc-900 border border-cyan-500/30 text-[10px] text-zinc-300 font-mono leading-relaxed px-3 py-2 shadow-lg shadow-cyan-500/5`}
+        className={`${wide ? "max-w-sm" : "max-w-xs"} bg-[--at-surface] border border-[--rule] text-[10px] text-[--ink2] font-serif leading-relaxed px-3 py-2 shadow-sm`}
       >
         {text}
       </TooltipContent>

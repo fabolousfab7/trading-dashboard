@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast"
 import InfoTip from "@/components/InfoTip"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 
-const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
+const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 
 const CATEGORIES = [
   { code: "618100", label: "Logiciels & data" },
@@ -400,7 +400,7 @@ export default function Compta() {
   const unmatchedCount = rows.filter(r => r.status === "unmatched" || r.status === "pending_payment").length
   const matchedCount = rows.filter(r => r.status === "matched" || r.status === "settled_cca").length
 
-  const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+  const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
 
   // Unreconciled invoices for manual matching dropdown
   const unreconciledInvoices = invoices.filter(i => !i.bank_transaction_id)
@@ -409,28 +409,28 @@ export default function Compta() {
   const vatMonth = selectedMonth || `${currentYear}-${String(currentMonthIdx + 1).padStart(2, "0")}`
   const vatData = vatSummary?.months?.find((m: any) => m.month === vatMonth)
 
-  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
+  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
         <div>
-          <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
+          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
             <Receipt size={14} /> Comptabilité
           </div>
           <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-cyan-400">Comptabilité </span>
-            <span className="text-fuchsia-500">FHF</span>
+            <span className="text-[--at-accent]">Comptabilité </span>
+            <span className="text-[--at-accent]">FHF</span>
           </h1>
-          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider mt-1">
+          <p className="text-[10px] text-[--ink3] font-mono uppercase tracking-wider mt-1">
             Rapprochement bancaire · TVA · Pilotage
           </p>
         </div>
         <select
           value={selectedMonth}
           onChange={e => setSelectedMonth(e.target.value)}
-          className="bg-black/60 border border-cyan-500/30 text-zinc-300 rounded px-3 py-1.5 font-mono text-xs"
+          className="bg-[--at-surface] border border-[--rule] text-[--ink] rounded px-3 py-1.5 font-mono text-xs"
         >
           <option value="">Tous les mois</option>
           {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -438,37 +438,37 @@ export default function Compta() {
       </div>
 
       {error && (
-        <div className="border border-red-500/30 bg-red-500/10 text-red-400 p-3 rounded font-mono text-xs flex items-center justify-between">
+        <div className="border border-[--at-neg]/30 bg-[--at-neg]/10 text-[--at-neg] p-3 rounded font-mono text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">✕</button>
+          <button onClick={() => setError(null)} className="text-[--at-neg] hover:text-red-300">✕</button>
         </div>
       )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">CHARGES HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." /></div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">CHARGES HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." /></div>
+          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
         </div>
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">TVA DÉDUCTIBLE YTD<InfoTip text="TVA payée sur les achats pro (logiciels, abonnements, matériel). Récupérable via la déclaration CA3 mensuelle. Source : factures avec vat_deductible = true." /></div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">TVA DÉDUCTIBLE YTD<InfoTip text="TVA payée sur les achats pro (logiciels, abonnements, matériel). Récupérable via la déclaration CA3 mensuelle. Source : factures avec vat_deductible = true." /></div>
+          <div className="text-2xl font-mono font-bold text-[--at-accent]">
             {fmtEur((vatSummary?.months || []).reduce((s: number, m: any) => s + m.tva_deductible_fr + m.tva_autoliquidee_intracom, 0))}
           </div>
         </div>
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">FACTURES</div>
-          <div className="text-2xl font-mono font-bold text-zinc-300">
-            {stats?.reconciled_count || 0} <span className="text-zinc-600">/ {stats?.invoices_count || 0}</span>
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2">FACTURES</div>
+          <div className="text-2xl font-mono font-bold text-[--ink]">
+            {stats?.reconciled_count || 0} <span className="text-[--ink3]">/ {stats?.invoices_count || 0}</span>
           </div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">rapprochées</div>
+          <div className="text-[10px] font-mono text-[--ink3] mt-1">rapprochées</div>
         </div>
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">COMPTE COURANT ASSOCIE<InfoTip text="Compte Courant Associé 455000. Positif = FHF doit à Fabien. Calculé depuis les factures catégorie 455000." /></div>
-          <div className={`text-2xl font-mono font-bold ${(stats?.cca_balance || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">COMPTE COURANT ASSOCIE<InfoTip text="Compte Courant Associé 455000. Positif = FHF doit à Fabien. Calculé depuis les factures catégorie 455000." /></div>
+          <div className={`text-2xl font-mono font-bold ${(stats?.cca_balance || 0) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
             {fmtEur(Math.abs(stats?.cca_balance || 0))}
           </div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+          <div className="text-[10px] font-mono text-[--ink3] mt-1">
             {(stats?.cca_balance || 0) >= 0 ? "FHF te doit" : "Tu dois a FHF"}
           </div>
         </div>
@@ -477,24 +477,24 @@ export default function Compta() {
       {/* Upload zones */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Left: Invoice upload */}
-        <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-2">
+        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3 flex items-center gap-2">
             <FileText size={14} /> Upload facture
           </h2>
           <div
             onDragOver={e => e.preventDefault()}
             onDrop={handleInvoiceDrop}
-            className="border-2 border-dashed border-cyan-500/20 rounded-lg p-8 text-center cursor-pointer hover:border-cyan-500/40 transition"
+            className="border-2 border-dashed border-[--rule] rounded-lg p-8 text-center cursor-pointer hover:border-[--at-accent]/40 transition"
           >
             {ocrLoading ? (
-              <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono text-sm">
+              <div className="flex items-center justify-center gap-2 text-[--at-accent] font-mono text-sm">
                 <RefreshCw size={16} className="animate-spin" /> Analyse OCR en cours...
               </div>
             ) : (
               <>
-                <Upload size={24} className="mx-auto text-zinc-500 mb-2" />
-                <p className="text-zinc-500 font-mono text-xs">Glissez une facture (image/PDF)</p>
-                <label className="mt-3 inline-block px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs uppercase cursor-pointer hover:bg-cyan-500/20 transition">
+                <Upload size={24} className="mx-auto text-[--ink3] mb-2" />
+                <p className="text-[--ink3] font-mono text-xs">Glissez une facture (image/PDF)</p>
+                <label className="mt-3 inline-block px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase cursor-pointer hover:bg-[--at-accent]/10 transition">
                   Sélectionner un fichier
                   <input type="file" accept="image/*,application/pdf" onChange={handleInvoiceDrop} className="hidden" />
                 </label>
@@ -503,58 +503,58 @@ export default function Compta() {
           </div>
           <button
             onClick={() => { setEditingId(null); setModalData({ direction: "expense", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
-            className="mt-3 w-full px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded font-mono text-xs uppercase hover:bg-fuchsia-500/20 transition"
+            className="mt-3 w-full px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase hover:bg-[--at-accent]/20 transition"
           >
             + Saisie manuelle
           </button>
         </div>
 
         {/* Right: CSV upload */}
-        <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-2">
+        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3 flex items-center gap-2">
             <Receipt size={14} /> Import relevé Qonto
           </h2>
           <div
             onDragOver={e => e.preventDefault()}
             onDrop={handleCsvDrop}
-            className="border-2 border-dashed border-fuchsia-500/20 rounded-lg p-8 text-center cursor-pointer hover:border-fuchsia-500/40 transition"
+            className="border-2 border-dashed border-[--rule] rounded-lg p-8 text-center cursor-pointer hover:border-[--at-accent]/40 transition"
           >
-            <Upload size={24} className="mx-auto text-zinc-500 mb-2" />
-            <p className="text-zinc-500 font-mono text-xs">Glissez un export CSV Qonto</p>
-            <label className="mt-3 inline-block px-4 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded font-mono text-xs uppercase cursor-pointer hover:bg-fuchsia-500/20 transition">
+            <Upload size={24} className="mx-auto text-[--ink3] mb-2" />
+            <p className="text-[--ink3] font-mono text-xs">Glissez un export CSV Qonto</p>
+            <label className="mt-3 inline-block px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase cursor-pointer hover:bg-[--at-accent]/20 transition">
               Sélectionner un CSV
               <input type="file" accept=".csv" onChange={handleCsvDrop} className="hidden" />
             </label>
           </div>
-          {importResult && <div className="mt-3 text-green-400 font-mono text-xs">{importResult}</div>}
+          {importResult && <div className="mt-3 text-[--at-pos] font-mono text-xs">{importResult}</div>}
           <button
             onClick={handleReconcile}
-            className="mt-3 w-full px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs uppercase hover:bg-cyan-500/20 transition flex items-center justify-center gap-2"
+            className="mt-3 w-full px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase hover:bg-[--at-accent]/10 transition flex items-center justify-center gap-2"
           >
             <RefreshCw size={12} /> Lancer le rapprochement
           </button>
-          {reconcileResult && <div className="mt-2 text-cyan-400 font-mono text-xs">{reconcileResult}</div>}
+          {reconcileResult && <div className="mt-2 text-[--at-accent] font-mono text-xs">{reconcileResult}</div>}
         </div>
       </div>
 
       {/* Match suggestions */}
       {suggestions.length > 0 && (
-        <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-3">
+        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3">
             Suggestions de rapprochement · {suggestions.length}
           </h2>
           <div className="space-y-2">
             {suggestions.map(s => (
-              <div key={`${s.invoice_id}-${s.bank_tx_id}`} className="flex items-center gap-3 border border-cyan-500/10 rounded p-2.5 hover:bg-cyan-500/5 transition">
+              <div key={`${s.invoice_id}-${s.bank_tx_id}`} className="flex items-center gap-3 border border-[--rule] rounded p-2.5 hover:bg-[--at-accent]/5 transition">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 text-xs font-mono">
-                    <span className="text-fuchsia-400">Facture</span>
-                    <span className="text-zinc-300 truncate">{s.invoice_party}</span>
-                    <span className="text-zinc-500">({fmtEur(s.invoice_amount)}, {fmtDate(s.invoice_date)})</span>
-                    <span className="text-zinc-600 mx-1">↔</span>
-                    <span className="text-cyan-400">Banque</span>
-                    <span className="text-zinc-300 truncate">{s.bank_counterparty}</span>
-                    <span className="text-zinc-500">({fmtEur(s.bank_amount)}, {fmtDate(s.bank_date)})</span>
+                    <span className="text-[--at-accent]">Facture</span>
+                    <span className="text-[--ink] truncate">{s.invoice_party}</span>
+                    <span className="text-[--ink3]">({fmtEur(s.invoice_amount)}, {fmtDate(s.invoice_date)})</span>
+                    <span className="text-[--ink3] mx-1">↔</span>
+                    <span className="text-[--at-accent]">Banque</span>
+                    <span className="text-[--ink] truncate">{s.bank_counterparty}</span>
+                    <span className="text-[--ink3]">({fmtEur(s.bank_amount)}, {fmtDate(s.bank_date)})</span>
                   </div>
                   {s.confidence === "approx" && (
                     <div className="text-[10px] font-mono text-amber-400 mt-0.5">
@@ -562,19 +562,19 @@ export default function Compta() {
                     </div>
                   )}
                   {s.confidence === "exact" && (
-                    <div className="text-[10px] font-mono text-green-400 mt-0.5">montant exact</div>
+                    <div className="text-[10px] font-mono text-[--at-pos] mt-0.5">montant exact</div>
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id && x.bank_tx_id !== s.bank_tx_id)); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
-                    className="px-2.5 py-1 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-mono text-[10px] uppercase hover:bg-green-500/20 transition"
+                    className="px-2.5 py-1 bg-green-500/10 border border-[--at-pos]/30 text-[--at-pos] rounded font-mono text-[10px] uppercase hover:bg-green-500/20 transition"
                   >
                     Valider
                   </button>
                   <button
                     onClick={() => setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id || x.bank_tx_id !== s.bank_tx_id))}
-                    className="px-2.5 py-1 border border-zinc-700 text-zinc-500 rounded font-mono text-[10px] uppercase hover:bg-zinc-800 transition"
+                    className="px-2.5 py-1 border border-[--rule] text-[--ink3] rounded font-mono text-[10px] uppercase hover:bg-[--at-accent]/5 transition"
                   >
                     Ignorer
                   </button>
@@ -586,24 +586,24 @@ export default function Compta() {
       )}
 
       {/* Reconciliation table */}
-      <div className="border border-cyan-500/20 rounded bg-black/40">
-        <div className="border-b border-cyan-500/20 p-3 flex items-center gap-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">Rapprochement</h2>
+      <div className="border border-[--rule] rounded bg-[--at-surface]">
+        <div className="border-b border-[--rule] p-3 flex items-center gap-4">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">Rapprochement</h2>
           <div className="flex gap-1 ml-auto">
             {([["all", "Tout", rows.length], ["unmatched", `À traiter`, unmatchedCount], ["matched", "Rapprochés", matchedCount]] as const).map(([t, label, count]) => (
               <button key={t} onClick={() => setTab(t)}
-                className={`px-3 py-1 rounded font-mono text-xs transition ${tab === t ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-zinc-500 hover:text-zinc-300"}`}>
+                className={`px-3 py-1 rounded font-mono text-xs transition ${tab === t ? "bg-[--at-accent]/10 text-[--at-accent] border border-[--rule]" : "text-[--ink3] hover:text-[--ink]"}`}>
                 {label} ({count})
               </button>
             ))}
           </div>
         </div>
         {filteredRows.length === 0 ? (
-          <div className="p-6 text-center text-zinc-500 text-xs font-mono">Aucune donnée</div>
+          <div className="p-6 text-center text-[--ink3] text-xs font-mono">Aucune donnée</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs font-mono">
-              <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="text-left p-3">Date</th>
                   <th className="text-left p-3">Contrepartie</th>
@@ -616,14 +616,14 @@ export default function Compta() {
               </thead>
               <tbody>
                 {filteredRows.map(row => (
-                  <tr key={row.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 transition">
-                    <td className="p-3 text-zinc-300">{fmtDate(row.date)}</td>
-                    <td className="p-3 text-zinc-300 truncate max-w-[200px]">{row.counterparty}</td>
-                    <td className={`p-3 text-right ${row.type === "bank" && row.original.side === "credit" ? "text-green-400" : "text-zinc-300"}`}>
+                  <tr key={row.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 transition">
+                    <td className="p-3 text-[--ink]">{fmtDate(row.date)}</td>
+                    <td className="p-3 text-[--ink] truncate max-w-[200px]">{row.counterparty}</td>
+                    <td className={`p-3 text-right ${row.type === "bank" && row.original.side === "credit" ? "text-[--at-pos]" : "text-[--ink]"}`}>
                       {row.type === "bank" && row.original.side === "credit" ? "+" : "-"}{fmtEur(row.amount)}
                     </td>
                     <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${row.type === "bank" ? "bg-cyan-500/20 text-cyan-400" : "bg-fuchsia-500/20 text-fuchsia-400"}`}>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${row.type === "bank" ? "bg-[--at-accent]/10 text-[--at-accent]" : "bg-[--at-accent]/20 text-[--at-accent]"}`}>
                         {row.type === "bank" ? "Banque" : "Facture"}
                       </span>
                     </td>
@@ -632,20 +632,20 @@ export default function Compta() {
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
                       )}
                       {row.status === "matched" && row.linkedInvoice?.category === "512100" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">IBKR</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[--at-accent]/10 text-[--at-accent] border border-[--rule]">IBKR</span>
                       )}
                       {row.status === "matched" && row.linkedInvoice?.category === "512200" && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">KRK</span>
                       )}
-                      {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span className="text-green-400">✅</span>}
+                      {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span className="text-[--at-pos]">✅</span>}
                       {row.status === "settled_cca" && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
                       )}
                       {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
-                      {row.status === "pending_payment" && <span className="text-zinc-400">📄</span>}
-                      {row.status === "ignored" && <span className="text-zinc-600">🔕</span>}
+                      {row.status === "pending_payment" && <span className="text-[--ink2]">📄</span>}
+                      {row.status === "ignored" && <span className="text-[--ink3]">🔕</span>}
                     </td>
-                    <td className="p-3 text-zinc-500 text-[10px] truncate max-w-[150px]">
+                    <td className="p-3 text-[--ink3] text-[10px] truncate max-w-[150px]">
                       {row.linkedInvoice && <span>{row.linkedInvoice.party_name} — {row.linkedInvoice.invoice_number || "N/A"}</span>}
                     </td>
                     <td className="p-3 text-right">
@@ -655,7 +655,7 @@ export default function Compta() {
                           <>
                             {matchingTxId === row.original.id ? (
                               <select
-                                className="bg-black border border-cyan-500/30 text-zinc-300 rounded px-1 py-0.5 text-[10px] font-mono max-w-[120px]"
+                                className="bg-[--at-bg] border border-[--rule] text-[--ink] rounded px-1 py-0.5 text-[10px] font-mono max-w-[120px]"
                                 onChange={e => { if (e.target.value) handleManualMatch(e.target.value, row.original.id) }}
                                 defaultValue=""
                               >
@@ -665,33 +665,33 @@ export default function Compta() {
                                 ))}
                               </select>
                             ) : (
-                              <button onClick={() => setMatchingTxId(row.original.id)} className="text-cyan-400 hover:text-cyan-300 p-1" title="Matcher">
+                              <button onClick={() => setMatchingTxId(row.original.id)} className="text-[--at-accent] hover:text-[--at-accent] p-1" title="Matcher">
                                 <Check size={12} />
                               </button>
                             )}
                             <button onClick={() => handleQuickCategory(row.original, "455000", "Dépense personnelle — avance CCA", "Apport personnel — CCA")} className="text-amber-500 hover:text-amber-400 p-1" title="Opération perso — compte courant associé (455000)">
                               <UserMinus size={12} />
                             </button>
-                            <button onClick={() => handleQuickCategory(row.original, "512100", "Virement vers Interactive Brokers", "Rapatriement depuis Interactive Brokers")} className="text-cyan-500 hover:text-cyan-400 p-1" title="Virement IBKR (512100)">
+                            <button onClick={() => handleQuickCategory(row.original, "512100", "Virement vers Interactive Brokers", "Rapatriement depuis Interactive Brokers")} className="text-cyan-500 hover:text-[--at-accent] p-1" title="Virement IBKR (512100)">
                               <Briefcase size={12} />
                             </button>
                             <button onClick={() => handleQuickCategory(row.original, "512200", "Virement vers Kraken Pro Futures", "Rapatriement depuis Kraken Pro Futures")} className="text-purple-500 hover:text-purple-400 p-1" title="Virement Kraken (512200)">
                               <Bitcoin size={12} />
                             </button>
-                            <button onClick={() => handleIgnore(row.original.id)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Ignorer">
+                            <button onClick={() => handleIgnore(row.original.id)} className="text-[--ink3] hover:text-[--ink] p-1" title="Ignorer">
                               <Ban size={12} />
                             </button>
                           </>
                         )}
                         {/* Bank tx: matched → unmatch */}
                         {row.type === "bank" && row.status === "matched" && row.linkedInvoice && (
-                          <button onClick={() => handleUnmatch(row.linkedInvoice.id)} className="text-zinc-500 hover:text-red-400 p-1" title="Défaire">
+                          <button onClick={() => handleUnmatch(row.linkedInvoice.id)} className="text-[--ink3] hover:text-[--at-neg] p-1" title="Défaire">
                             <Link2Off size={12} />
                           </button>
                         )}
                         {/* Bank tx: ignored → unignore */}
                         {row.type === "bank" && row.status === "ignored" && (
-                          <button onClick={() => handleUnignore(row.original.id)} className="text-zinc-500 hover:text-cyan-400 p-1" title="Restaurer">
+                          <button onClick={() => handleUnignore(row.original.id)} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Restaurer">
                             <RefreshCw size={12} />
                           </button>
                         )}
@@ -699,14 +699,14 @@ export default function Compta() {
                         {row.type === "invoice" && (
                           <>
                             {row.original.attachment_url && (
-                              <button onClick={() => window.open(row.original.attachment_url, "_blank")} className="text-zinc-500 hover:text-cyan-400 p-1" title="Voir">
+                              <button onClick={() => window.open(row.original.attachment_url, "_blank")} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Voir">
                                 <Eye size={12} />
                               </button>
                             )}
-                            <button onClick={() => openEditModal(row.original)} className="text-zinc-500 hover:text-fuchsia-400 p-1" title="Modifier">
+                            <button onClick={() => openEditModal(row.original)} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Modifier">
                               <Pencil size={12} />
                             </button>
-                            <button onClick={() => handleDeleteInvoice(row.original.id)} className="text-zinc-500 hover:text-red-400 p-1" title="Supprimer">
+                            <button onClick={() => handleDeleteInvoice(row.original.id)} className="text-[--ink3] hover:text-[--at-neg] p-1" title="Supprimer">
                               <Trash2 size={12} />
                             </button>
                           </>
@@ -722,37 +722,37 @@ export default function Compta() {
       </div>
 
       {/* VAT block */}
-      <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-3">
+      <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+        <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3">
           TVA — {monthOptions.find(m => m.value === vatMonth)?.label || vatMonth}
         </h2>
         {vatData ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA déductible (FR)</div>
-              <div className="text-lg font-mono font-bold text-cyan-400">{fmtEur(vatData.tva_deductible_fr)}</div>
-              <div className="text-[10px] font-mono text-zinc-600">Base HT : {fmtEur(vatData.base_ht_achats_fr)}</div>
+              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA déductible (FR)</div>
+              <div className="text-lg font-mono font-bold text-[--at-accent]">{fmtEur(vatData.tva_deductible_fr)}</div>
+              <div className="text-[10px] font-mono text-[--ink3]">Base HT : {fmtEur(vatData.base_ht_achats_fr)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA autoliquidée (intracom)</div>
-              <div className="text-lg font-mono font-bold text-fuchsia-400">{fmtEur(vatData.tva_autoliquidee_intracom)}</div>
-              <div className="text-[10px] font-mono text-zinc-600">Base HT : {fmtEur(vatData.base_ht_achats_intracom)}</div>
+              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA autoliquidée (intracom)</div>
+              <div className="text-lg font-mono font-bold text-[--at-accent]">{fmtEur(vatData.tva_autoliquidee_intracom)}</div>
+              <div className="text-[10px] font-mono text-[--ink3]">Base HT : {fmtEur(vatData.base_ht_achats_intracom)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA collectée (ventes)</div>
-              <div className="text-lg font-mono font-bold text-zinc-300">{fmtEur(vatData.tva_collectee)}</div>
+              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA collectée (ventes)</div>
+              <div className="text-lg font-mono font-bold text-[--ink]">{fmtEur(vatData.tva_collectee)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase">TVA nette</div>
-              <div className={`text-lg font-mono font-bold ${vatData.tva_nette >= 0 ? "text-red-400" : "text-green-400"}`}>
+              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA nette</div>
+              <div className={`text-lg font-mono font-bold ${vatData.tva_nette >= 0 ? "text-[--at-neg]" : "text-[--at-pos]"}`}>
                 {vatData.tva_nette >= 0 ? "" : "Crédit "}{fmtEur(Math.abs(vatData.tva_nette))}
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-zinc-500 font-mono text-xs">Aucune donnée TVA pour ce mois</div>
+          <div className="text-[--ink3] font-mono text-xs">Aucune donnée TVA pour ce mois</div>
         )}
-        <p className="text-[10px] font-mono text-zinc-600 mt-3">Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</p>
+        <p className="text-[10px] font-mono text-[--ink3] mt-3">Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</p>
       </div>
 
       {/* Charts */}
@@ -760,8 +760,8 @@ export default function Compta() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Pie: charges by category */}
           {stats.charges_by_category?.length > 0 && (
-            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Charges par catégorie (YTD)</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Charges par catégorie (YTD)</h2>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={stats.charges_by_category} dataKey="total_ht" nameKey="category" cx="50%" cy="50%"
@@ -776,8 +776,8 @@ export default function Compta() {
                 {stats.charges_by_category.map((d: any, i: number) => (
                   <div key={d.category} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-zinc-400">{CAT_LABEL[d.category] || d.category}</span>
-                    <span className="text-white ml-auto">{fmtEur(d.total_ht)}</span>
+                    <span className="text-[--ink2]">{CAT_LABEL[d.category] || d.category}</span>
+                    <span className="text-[--ink] ml-auto">{fmtEur(d.total_ht)}</span>
                   </div>
                 ))}
               </div>
@@ -788,8 +788,8 @@ export default function Compta() {
           {stats.monthly_by_category?.length > 0 && (() => {
             const usedCats: string[] = Array.from(new Set(stats.monthly_by_category.flatMap((m: any) => Object.keys(m).filter((k: string) => k !== "month"))))
             return (
-              <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-                <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Charges mensuelles (YTD)</h2>
+              <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+                <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Charges mensuelles (YTD)</h2>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={stats.monthly_by_category}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
@@ -813,46 +813,46 @@ export default function Compta() {
 
       {/* Invoice modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setModalOpen(false)}>
-          <div className="bg-[#0a0a1a] border border-cyan-500/20 rounded-lg w-[600px] max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[--at-bg]/70" onClick={() => setModalOpen(false)}>
+          <div className="bg-[--at-surface] border border-[--rule] rounded-lg w-[600px] max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-mono font-bold text-cyan-400 uppercase tracking-widest">
+              <h3 className="text-sm font-mono font-bold text-[--at-accent] uppercase tracking-widest">
                 {editingId ? "Modifier facture" : "Nouvelle facture"}
               </h3>
-              <button onClick={() => setModalOpen(false)} className="text-zinc-500 hover:text-zinc-300"><X size={16} /></button>
+              <button onClick={() => setModalOpen(false)} className="text-[--ink3] hover:text-[--ink]"><X size={16} /></button>
             </div>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Fournisseur</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Fournisseur</label>
                   <input value={modalData.party_name || ""} onChange={e => updateModalField("party_name", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">N° facture</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">N° facture</label>
                   <input value={modalData.invoice_number || ""} onChange={e => updateModalField("invoice_number", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Date facture</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Date facture</label>
                   <input type="date" value={modalData.invoice_date || ""} onChange={e => updateModalField("invoice_date", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Date paiement</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Date paiement</label>
                   <input type="date" value={modalData.payment_date || ""} onChange={e => updateModalField("payment_date", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                 </div>
               </div>
 
               {modalData._fxInfo && (
-                <div className="bg-fuchsia-500/10 border border-fuchsia-500/30 rounded p-2 text-xs font-mono text-fuchsia-300">
+                <div className="bg-[--at-accent]/10 border border-[--rule] rounded p-2 text-xs font-mono text-fuchsia-300">
                   Taux BCE du {fmtDate(modalData._fxInfo.fx_date)} : 1 {modalData._fxInfo.original_currency} = {modalData._fxInfo.fx_rate.toFixed(4)} EUR
-                  <span className="text-zinc-500 ml-2">
+                  <span className="text-[--ink3] ml-2">
                     (original : {modalData._fxInfo.original_ht.toFixed(2)} {modalData._fxInfo.original_currency} HT)
                   </span>
                 </div>
@@ -861,53 +861,53 @@ export default function Compta() {
               {IS_NON_CHARGE(modalData.category) ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant (EUR)</label>
+                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant (EUR)</label>
                     <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                   </div>
                   <div className="flex items-end">
-                    <div className="text-[10px] font-mono text-zinc-600 pb-2">Pas de TVA ({CAT_LABEL[modalData.category] || "hors exploitation"})</div>
+                    <div className="text-[10px] font-mono text-[--ink3] pb-2">Pas de TVA ({CAT_LABEL[modalData.category] || "hors exploitation"})</div>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant HT (EUR)</label>
+                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant HT (EUR)</label>
                     <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Taux TVA</label>
+                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Taux TVA</label>
                     <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))}
-                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
                       {VAT_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-mono text-zinc-500 uppercase">Montant TTC</label>
+                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant TTC</label>
                     <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                   </div>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Direction</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Direction</label>
                   {IS_NON_CHARGE(modalData.category) ? (
-                    <div className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-500 font-mono text-xs">Hors exploitation ({CAT_LABEL[modalData.category] || modalData.category})</div>
+                    <div className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink3] font-mono text-xs">Hors exploitation ({CAT_LABEL[modalData.category] || modalData.category})</div>
                   ) : (
                     <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
-                      className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
                       <option value="expense">Charge</option>
                       <option value="revenue">Produit</option>
                     </select>
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Catégorie PCG</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Catégorie PCG</label>
                   <select value={modalData.category || "471000"} onChange={e => updateModalField("category", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs">
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
                     {CATEGORIES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
                   </select>
                 </div>
@@ -915,52 +915,52 @@ export default function Compta() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">Pays fournisseur</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Pays fournisseur</label>
                   <input value={modalData.party_country || "FR"} onChange={e => updateModalField("party_country", e.target.value.toUpperCase())}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" maxLength={2} />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" maxLength={2} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase">N° TVA intracom</label>
+                  <label className="text-[10px] font-mono text-[--ink3] uppercase">N° TVA intracom</label>
                   <input value={modalData.party_vat_number || ""} onChange={e => updateModalField("party_vat_number", e.target.value)}
-                    className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
                 </div>
               </div>
 
               {!IS_NON_CHARGE(modalData.category) && (
                 <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-mono text-[--ink2] cursor-pointer">
                     <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}
-                      className="rounded border-cyan-500/30" />
+                      className="rounded border-[--rule]" />
                     Autoliquidation
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-mono text-zinc-400 cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-mono text-[--ink2] cursor-pointer">
                     <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)}
-                      className="rounded border-cyan-500/30" />
+                      className="rounded border-[--rule]" />
                     TVA déductible
                   </label>
                 </div>
               )}
 
               <div>
-                <label className="text-[10px] font-mono text-zinc-500 uppercase">Description</label>
+                <label className="text-[10px] font-mono text-[--ink3] uppercase">Description</label>
                 <input value={modalData.description || ""} onChange={e => updateModalField("description", e.target.value)}
-                  className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs" />
+                  className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono text-zinc-500 uppercase">Notes</label>
+                <label className="text-[10px] font-mono text-[--ink3] uppercase">Notes</label>
                 <textarea value={modalData.notes || ""} onChange={e => updateModalField("notes", e.target.value)} rows={2}
-                  className="w-full bg-black/60 border border-cyan-500/20 rounded px-2 py-1.5 text-zinc-300 font-mono text-xs resize-none" />
+                  className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs resize-none" />
               </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setModalOpen(false)}
-                className="px-4 py-1.5 border border-zinc-700 text-zinc-400 rounded font-mono text-xs hover:bg-zinc-800 transition">
+                className="px-4 py-1.5 border border-[--rule] text-[--ink2] rounded font-mono text-xs hover:bg-[--at-accent]/5 transition">
                 Annuler
               </button>
               <button onClick={handleSaveInvoice}
-                className="px-4 py-1.5 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded font-mono text-xs hover:bg-cyan-500/30 transition">
+                className="px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs hover:bg-[--at-accent]/20 transition">
                 {editingId ? "Enregistrer" : "Valider"}
               </button>
             </div>

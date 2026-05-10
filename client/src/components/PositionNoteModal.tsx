@@ -246,39 +246,39 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[#0d0e14] border border-cyan-500/20 rounded-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[--at-bg]/70" onClick={onClose}>
+      <div className="bg-[--at-surface] border border-[--rule] rounded-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4"
         onClick={e => e.stopPropagation()}>
 
-        <div className="flex items-center justify-between p-4 border-b border-cyan-500/10">
+        <div className="flex items-center justify-between p-4 border-b border-[--rule]">
           <div className="flex items-center gap-3">
-            <span className="text-fuchsia-400 font-bold font-mono text-lg">{ticker}</span>
-            <span className="text-zinc-500 text-xs font-mono">Thèse & Conviction</span>
+            <span className="text-[--at-accent] font-bold font-mono text-lg">{ticker}</span>
+            <span className="text-[--ink3] text-xs font-mono">Thèse & Conviction</span>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition">
+          <button onClick={onClose} className="text-[--ink3] hover:text-[--ink] transition">
             <X size={18} />
           </button>
         </div>
 
         {COMPANY_INFO[ticker] && (
           <div className="p-4 pb-0">
-            <div className="border border-cyan-500/10 rounded p-3 bg-cyan-500/5">
+            <div className="border border-[--rule] rounded p-3 bg-[--at-accent]/5">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[--at-accent] bg-[--at-accent]/10 px-2 py-0.5 rounded">
                   {COMPANY_INFO[ticker].sector}
                 </span>
               </div>
-              <p className="text-xs font-mono text-zinc-300 leading-relaxed">
+              <p className="text-xs font-mono text-[--ink] leading-relaxed">
                 {COMPANY_INFO[ticker].description}
               </p>
-              <p className="text-[10px] font-mono text-zinc-500 mt-1.5">
+              <p className="text-[10px] font-mono text-[--ink3] mt-1.5">
                 {COMPANY_INFO[ticker].metrics}
               </p>
             </div>
           </div>
         )}
 
-        {loading && <div className="p-6 text-zinc-500 text-xs font-mono text-center">Chargement...</div>}
+        {loading && <div className="p-6 text-[--ink3] text-xs font-mono text-center">Chargement...</div>}
 
         {!loading && !isEditing && (
           <div className="p-4 space-y-4">
@@ -286,15 +286,15 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
               <>
                 <div className="flex items-center gap-2">
                   {activeNote.horizon && (
-                    <span className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-[10px] font-mono text-cyan-400 uppercase">
+                    <span className="px-2 py-0.5 bg-[--at-accent]/10 border border-[--rule] rounded text-[10px] font-mono text-[--at-accent] uppercase">
                       {activeNote.horizon}
                     </span>
                   )}
                   {activeNote.status && (
                     <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase ${
-                      activeNote.status === "active" ? "bg-green-500/10 border border-green-500/20 text-green-400" :
-                      activeNote.status === "closed" ? "bg-zinc-500/10 border border-zinc-500/20 text-zinc-400" :
-                      "bg-red-500/10 border border-red-500/20 text-red-400"
+                      activeNote.status === "active" ? "bg-[--at-pos]/10 border border-[--at-pos]/20 text-[--at-pos]" :
+                      activeNote.status === "closed" ? "bg-[--ink3]/10 border border-[--rule] text-[--ink2]" :
+                      "bg-[--at-neg]/10 border border-[--at-neg]/20 text-[--at-neg]"
                     }`}>
                       {activeNote.status}
                     </span>
@@ -305,61 +305,61 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
                   <div className="flex gap-4">
                     {activeNote.target_price && (
                       <div className="text-xs font-mono">
-                        <span className="text-zinc-500">Target: </span>
-                        <span className="text-green-400">{activeNote.target_price} {currency}</span>
+                        <span className="text-[--ink3]">Target: </span>
+                        <span className="text-[--at-pos]">{activeNote.target_price} {currency}</span>
                       </div>
                     )}
                     {activeNote.stop_loss && (
                       <div className="text-xs font-mono">
-                        <span className="text-zinc-500">Stop: </span>
-                        <span className="text-red-400">{activeNote.stop_loss} {currency}</span>
+                        <span className="text-[--ink3]">Stop: </span>
+                        <span className="text-[--at-neg]">{activeNote.stop_loss} {currency}</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {activeNote.thesis && (
-                  <p className="text-sm font-mono text-zinc-300 whitespace-pre-wrap">{activeNote.thesis}</p>
+                  <p className="text-sm font-mono text-[--ink] whitespace-pre-wrap">{activeNote.thesis}</p>
                 )}
 
                 {activeNote.image_url && (
                   <img src={activeNote.image_url} alt="chart"
-                    className="rounded border border-cyan-500/10 max-h-64 w-full object-contain cursor-pointer hover:border-cyan-500/30 transition"
+                    className="rounded border border-[--rule] max-h-64 w-full object-contain cursor-pointer hover:border-[--at-accent]/30 transition"
                     onClick={() => window.open(activeNote.image_url, "_blank")} />
                 )}
 
-                <div className="text-[9px] font-mono text-zinc-600">
+                <div className="text-[9px] font-mono text-[--ink3]">
                   Mis à jour : {new Date(activeNote.updated_at || activeNote.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </div>
               </>
             ) : (
-              <p className="text-zinc-600 text-xs font-mono text-center py-4">Aucune thèse enregistrée pour {ticker}</p>
+              <p className="text-[--ink3] text-xs font-mono text-center py-4">Aucune thèse enregistrée pour {ticker}</p>
             )}
           </div>
         )}
 
         {!loading && isEditing && (
-          <div className="p-4 border-t border-cyan-500/10 space-y-3" onPaste={handleImagePaste}>
+          <div className="p-4 border-t border-[--rule] space-y-3" onPaste={handleImagePaste}>
             <textarea value={thesis} onChange={e => setThesis(e.target.value)}
               placeholder="Ta thèse : pourquoi ce trade, quel setup, quel catalyseur..."
               rows={4}
-              className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none" />
+              className="w-full bg-[--at-bg] border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50 resize-none" />
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-[9px] font-mono text-zinc-500 uppercase mb-1 block">Target</label>
+                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Target</label>
                 <input type="number" step="any" value={targetPrice} onChange={e => setTargetPrice(e.target.value)}
-                  placeholder="0.00" className="w-full bg-transparent border border-cyan-500/20 rounded px-2 py-1.5 text-xs font-mono text-green-400 placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" />
+                  placeholder="0.00" className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-pos] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50" />
               </div>
               <div>
-                <label className="text-[9px] font-mono text-zinc-500 uppercase mb-1 block">Stop Loss</label>
+                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Stop Loss</label>
                 <input type="number" step="any" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
-                  placeholder="0.00" className="w-full bg-transparent border border-cyan-500/20 rounded px-2 py-1.5 text-xs font-mono text-red-400 placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" />
+                  placeholder="0.00" className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-neg] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50" />
               </div>
               <div>
-                <label className="text-[9px] font-mono text-zinc-500 uppercase mb-1 block">Horizon</label>
+                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Horizon</label>
                 <select value={horizon} onChange={e => setHorizon(e.target.value)}
-                  className="w-full bg-[#0d0e14] border border-cyan-500/20 rounded px-2 py-1.5 text-xs font-mono text-cyan-400 focus:outline-none focus:border-cyan-500/50">
+                  className="w-full bg-[--at-surface] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-accent] focus:outline-none focus:border-[--at-accent]/50">
                   <option value="">—</option>
                   <option value="swing">Swing</option>
                   <option value="position">Position</option>
@@ -369,30 +369,30 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
             </div>
 
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-300 hover:border-zinc-500 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
+              <label className="flex items-center gap-1.5 px-3 py-1.5 border border-[--rule] rounded text-[--ink2] hover:text-[--ink] hover:border-[--at-accent]/30 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
                 <ImageIcon size={12} /> {imagePreview ? "Changer chart" : "Ajouter chart (Ctrl+V)"}
                 <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
               </label>
               {imagePreview && (
                 <div className="relative">
-                  <img src={imagePreview} alt="preview" className="h-16 rounded border border-cyan-500/20" />
-                  <button onClick={clearImage} className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
-                    <X size={10} className="text-white" />
+                  <img src={imagePreview} alt="preview" className="h-16 rounded border border-[--rule]" />
+                  <button onClick={clearImage} className="absolute -top-1.5 -right-1.5 bg-[--at-neg] rounded-full p-0.5">
+                    <X size={10} className="text-[--at-bg]" />
                   </button>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-[9px] font-mono text-zinc-500 uppercase">Statut</label>
+              <label className="text-[9px] font-mono text-[--ink3] uppercase">Statut</label>
               {(["active", "closed", "invalidated"] as const).map(s => (
                 <button key={s} onClick={() => setStatus(s)}
                   className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase transition ${
                     status === s
-                      ? s === "active" ? "bg-green-500/20 border border-green-500/30 text-green-400"
-                        : s === "closed" ? "bg-zinc-500/20 border border-zinc-500/30 text-zinc-400"
-                        : "bg-red-500/20 border border-red-500/30 text-red-400"
-                      : "text-zinc-600 border border-transparent hover:border-zinc-700"
+                      ? s === "active" ? "bg-[--at-pos]/20 border border-[--at-pos]/30 text-[--at-pos]"
+                        : s === "closed" ? "bg-[--ink3]/20 border border-[--rule] text-[--ink2]"
+                        : "bg-[--at-neg]/20 border border-[--at-neg]/30 text-[--at-neg]"
+                      : "text-[--ink3] border border-transparent hover:border-[--rule]"
                   }`}>
                   {s === "active" ? "Active" : s === "closed" ? "Clôturée" : "Invalidée"}
                 </button>
@@ -401,11 +401,11 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
 
             <div className="flex justify-end gap-2">
               <button onClick={() => { setIsEditing(false); resetForm() }}
-                className="px-3 py-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[10px] uppercase tracking-wider transition">
+                className="px-3 py-1.5 text-[--ink3] hover:text-[--ink] font-mono text-[10px] uppercase tracking-wider transition">
                 Annuler
               </button>
               <button onClick={saveNote} disabled={saving}
-                className="px-4 py-1.5 bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
+                className="px-4 py-1.5 bg-[--at-accent]/20 border border-[--at-accent]/40 text-[--at-accent] hover:bg-[--at-accent]/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
                 {saving ? "..." : editingNoteId ? "Modifier" : "Sauvegarder"}
               </button>
             </div>
@@ -413,14 +413,14 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
         )}
 
         {!loading && !isEditing && (
-          <div className="p-4 border-t border-cyan-500/10 flex gap-2">
+          <div className="p-4 border-t border-[--rule] flex gap-2">
             <button onClick={() => { prefillFromNote(activeNote); setIsEditing(true) }}
-              className="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
+              className="px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
               {activeNote ? "Modifier" : "Écrire ma thèse"}
             </button>
             {activeNote && (
               <button onClick={() => { resetForm(); setIsEditing(true) }}
-                className="px-3 py-1.5 border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition rounded font-mono text-[10px] uppercase tracking-wider">
+                className="px-3 py-1.5 border border-[--rule] text-[--ink3] hover:text-[--ink] transition rounded font-mono text-[10px] uppercase tracking-wider">
                 Nouvelle note
               </button>
             )}
@@ -428,22 +428,22 @@ export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, 
         )}
 
         {allNotes.length > 1 && (
-          <div className="p-4 border-t border-cyan-500/10">
-            <h4 className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-2">
+          <div className="p-4 border-t border-[--rule]">
+            <h4 className="text-[10px] font-mono text-[--ink3] uppercase tracking-wider mb-2">
               Historique · {allNotes.length - 1} note{allNotes.length > 2 ? "s" : ""} précédente{allNotes.length > 2 ? "s" : ""}
             </h4>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {allNotes.slice(1).map((note: any) => (
-                <div key={note.id} className="border border-zinc-800 rounded p-2 text-xs font-mono">
+                <div key={note.id} className="border border-[--rule] rounded p-2 text-xs font-mono">
                   <div className="flex items-center justify-between">
                     <span className={`text-[9px] uppercase ${
-                      note.status === "active" ? "text-green-400" : note.status === "closed" ? "text-zinc-500" : "text-red-400"
+                      note.status === "active" ? "text-[--at-pos]" : note.status === "closed" ? "text-[--ink3]" : "text-[--at-neg]"
                     }`}>{note.status}</span>
-                    <span className="text-zinc-600 text-[9px]">
+                    <span className="text-[--ink3] text-[9px]">
                       {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
                     </span>
                   </div>
-                  {note.thesis && <p className="text-zinc-400 mt-1 line-clamp-2">{note.thesis}</p>}
+                  {note.thesis && <p className="text-[--ink2] mt-1 line-clamp-2">{note.thesis}</p>}
                   {note.image_url && <img src={note.image_url} alt="chart" className="mt-1 h-20 rounded object-contain" />}
                 </div>
               ))}

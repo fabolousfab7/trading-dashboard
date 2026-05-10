@@ -79,17 +79,17 @@ function MetricHint({ label, children }: { label: ReactNode; children: ReactNode
     <Hint delayDuration={150}>
       <HintTrigger asChild>
         <span
-          className="relative z-20 inline-flex cursor-help items-center gap-1 border-b border-dotted border-white/30 text-left underline-offset-2 hover:border-white/50"
+          className="relative z-20 inline-flex cursor-help items-center gap-1 border-b border-dotted border-[--ink3]/40 text-left underline-offset-2 hover:border-[--at-accent]/60"
           tabIndex={0}
         >
           {label}
-          <HelpCircle className="h-3 w-3 shrink-0 text-white/35" aria-hidden />
+          <HelpCircle className="h-3 w-3 shrink-0 text-[--ink3]" aria-hidden />
         </span>
       </HintTrigger>
       <HintContent
         side="top"
         sideOffset={8}
-        className="z-[9999] min-w-[260px] max-w-[420px] rounded-xl border border-white/20 bg-[#090b12]/95 px-4 py-3 text-left text-[12px] font-medium font-cyber normal-case leading-relaxed tracking-normal text-white/95 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+        className="z-[9999] min-w-[260px] max-w-[420px] rounded-xl border border-[--rule] bg-[--at-surface] px-4 py-3 text-left text-[12px] font-medium font-cyber normal-case leading-relaxed tracking-normal text-[--ink] shadow-md"
       >
         {children}
       </HintContent>
@@ -474,7 +474,7 @@ export default function TradingDashboard() {
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
         >
-          <Loader2 className="h-12 w-12 text-primary" />
+          <Loader2 className="h-12 w-12 text-[--at-accent]" />
         </motion.div>
       </div>
     );
@@ -485,41 +485,41 @@ export default function TradingDashboard() {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md p-0.5 bg-gradient-to-br from-primary via-accent to-secondary rounded-2xl shadow-2xl shadow-primary/20"
+          className="w-full max-w-md p-0.5 bg-[--at-accent]/10 border border-[--at-accent]/20 rounded-2xl"
         >
-          <Card className="cyber-card border-none bg-[#0a0b10] rounded-2xl">
+          <Card className="cyber-card border-none bg-[--at-surface] rounded-2xl">
             <CardHeader className="text-center pt-8">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20 glow-primary">
-                <Hexagon className="h-8 w-8 text-primary animate-pulse" />
+              <div className="w-16 h-16 bg-[--at-accent]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[--at-accent]/20">
+                <Hexagon className="h-8 w-8 text-[--at-accent]" />
               </div>
-              <CardTitle className="font-arcade text-xl text-primary tracking-widest drop-shadow-[0_0_8px_rgba(255,0,128,0.5)]">
+              <CardTitle className="font-arcade text-xl text-[--at-accent] tracking-widest">
                 TRADING TERMINAL
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-8">
               <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">
+                  <Label className="text-[--at-accent] font-arcade text-[9px] uppercase tracking-wider">
                     Email
                   </Label>
                   <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-white/5 border-white/10 focus:border-secondary transition-all rounded-xl h-12"
+                    className="bg-[--at-bg] border-[--rule] focus:border-[--at-accent] transition-all rounded-xl h-12"
                     placeholder="Enter your email"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-secondary font-arcade text-[9px] uppercase tracking-wider">
+                  <Label className="text-[--at-accent] font-arcade text-[9px] uppercase tracking-wider">
                     Password
                   </Label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-white/5 border-white/10 focus:border-primary transition-all rounded-xl h-12"
+                    className="bg-[--at-bg] border-[--rule] focus:border-[--at-accent] transition-all rounded-xl h-12"
                     placeholder="••••••••"
                     required
                   />
@@ -527,7 +527,7 @@ export default function TradingDashboard() {
                 <div className="flex flex-col gap-3 pt-4">
                   <Button
                     type="submit"
-                    className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]"
+                    className="w-full bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]"
                   >
                     CONNECT
                   </Button>
@@ -535,7 +535,7 @@ export default function TradingDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={handleSignUp}
-                    className="w-full text-white/50 hover:text-white font-arcade text-[10px] h-10 transition-all"
+                    className="w-full text-[--ink3] hover:text-[--ink] font-arcade text-[10px] h-10 transition-all"
                   >
                     SIGN UP
                   </Button>
@@ -959,40 +959,40 @@ export default function TradingDashboard() {
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
   const sectionTitleStyle =
-    "font-arcade text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary drop-shadow-[0_0_8px_rgba(255,0,128,0.3)] tracking-[0.2em] uppercase";
+    "font-serif text-sm font-bold text-[--at-accent] tracking-[0.15em] uppercase";
 
   const goalProgress = (totalProfit / profitGoal) * 100;
 
   return (
-    <div className="min-h-screen font-cyber pb-20 selection:bg-primary/30">
+    <div className="min-h-screen font-cyber pb-20 selection:bg-[--at-accent]/30">
       <div className="mx-auto max-w-7xl p-4 lg:p-8 space-y-10">
-        <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-white/10 pb-10">
+        <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-[--rule] pb-10">
           <div className="flex items-center gap-5">
-            <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 glow-primary shadow-lg shadow-primary/10">
-              <Hexagon className="h-8 w-8 text-primary animate-pulse" />
+            <div className="p-4 bg-[--at-accent]/10 rounded-2xl border border-[--at-accent]/20">
+              <Hexagon className="h-8 w-8 text-[--at-accent]" />
             </div>
             <div>
-              <h1 className="text-3xl font-arcade text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary drop-shadow-[0_0_10px_rgba(255,0,128,0.3)] leading-tight tracking-wider uppercase">
+              <h1 className="text-3xl font-arcade text-[--at-accent] leading-tight tracking-wider uppercase">
                 Trading Terminal
               </h1>
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
-            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+            <div className="flex bg-[--at-bg] p-1 rounded-xl border border-[--rule]">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={exportJSON}
-                className="text-white/60 hover:text-white hover:bg-white/5 rounded-lg px-4"
+                className="text-[--ink2] hover:text-[--ink] hover:bg-[--at-accent]/5 rounded-lg px-4"
               >
                 <Download className="mr-2 h-4 w-4" /> EXPORT
               </Button>
-              <div className="w-px h-4 bg-white/10 my-auto mx-1" />
+              <div className="w-px h-4 bg-[--rule] my-auto mx-1" />
               <Button
                 variant="ghost"
                 size="sm"
                 asChild
-                className="text-white/60 hover:text-white hover:bg-white/5 rounded-lg px-4"
+                className="text-[--ink2] hover:text-[--ink] hover:bg-[--at-accent]/5 rounded-lg px-4"
               >
                 <label className="cursor-pointer">
                   <Upload className="mr-2 h-4 w-4" /> IMPORT
@@ -1009,7 +1009,7 @@ export default function TradingDashboard() {
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="border-primary/20 text-primary/70 hover:text-primary hover:bg-primary/10 hover:border-primary/40 rounded-xl px-4 transition-all"
+              className="border-[--at-accent]/20 text-[--at-accent]/70 hover:text-[--at-accent] hover:bg-[--at-accent]/10 hover:border-[--at-accent]/40 rounded-xl px-4 transition-all"
             >
               <LogOut className="mr-2 h-4 w-4" /> DISCONNECT
             </Button>
@@ -1018,17 +1018,17 @@ export default function TradingDashboard() {
 
         {/* TABS */}
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white/5 border border-white/10 p-1 rounded-2xl h-14">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-[--at-bg] border border-[--rule] p-1 rounded-2xl h-14">
             <TabsTrigger
               value="dashboard"
-              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-primary data-[state=active]:text-black data-[state=active]:shadow-lg transition-all"
+              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-[--at-accent] data-[state=active]:text-[--at-bg] transition-all"
             >
               <Activity className="mr-2 h-4 w-4" />
               DASHBOARD
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
-              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-accent data-[state=active]:text-black data-[state=active]:shadow-lg transition-all"
+              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-[--at-accent] data-[state=active]:text-[--at-bg] transition-all"
             >
               <LineChartIcon className="mr-2 h-4 w-4" />
               ANALYTICS
@@ -1037,66 +1037,66 @@ export default function TradingDashboard() {
 
         <TabsContent value="dashboard" className="space-y-12 mt-10">
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
+            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                   Profit
                 </CardTitle>
-                <TrendingUp className="h-4 w-4 text-primary" />
+                <TrendingUp className="h-4 w-4 text-[--at-neg]" />
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-3xl font-bold font-cyber ${globalProfit >= 0 ? "text-secondary" : "text-primary"} drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]`}
+                  className={`text-3xl font-bold font-cyber ${globalProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                 >
                   {globalProfit >= 0 ? "+" : "-"}$
                   {Math.abs(globalProfit).toLocaleString()}
                 </div>
-                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                   Overall net performance
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
+            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                   Win Rate
                 </CardTitle>
-                <Target className="h-4 w-4 text-secondary" />
+                <Target className="h-4 w-4 text-[--at-pos]" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-secondary font-cyber drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]">
+                <div className="text-3xl font-bold text-[--at-pos] font-cyber">
                   {globalWinRate}%
                 </div>
-                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                   {globalCount} trades executed
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-xl hover:shadow-accent/5 transition-all">
+            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                   Profit Goal
                 </CardTitle>
-                <Zap className="h-4 w-4 text-accent" />
+                <Zap className="h-4 w-4 text-[--at-accent]" />
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-end justify-between">
                   <div
-                    className="text-3xl font-bold text-accent font-cyber cursor-pointer group flex items-center gap-2"
+                    className="text-3xl font-bold text-[--at-accent] font-cyber cursor-pointer group flex items-center gap-2"
                     onClick={() => setShowGoalInput(true)}
                   >
                     {goalProgress.toFixed(1)}%
                     <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <div className="text-[10px] text-white/40 font-mono">
+                  <div className="text-[10px] text-[--ink3] font-mono">
                     / ${profitGoal.toLocaleString()}
                   </div>
                 </div>
-                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                <div className="h-1.5 w-full bg-[--at-bg] rounded-full overflow-hidden border border-[--rule]">
                   <motion.div
-                    className="h-full bg-gradient-to-r from-primary via-accent to-secondary"
+                    className="h-full bg-[--at-accent]"
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min(goalProgress, 100)}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
@@ -1105,24 +1105,24 @@ export default function TradingDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
+            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                   <MetricHint label="R-multiple">
                     Sum of R values: each trade result divided by max loss
                     (risk). The total shows how many risk units were gained or
                     lost overall.
                   </MetricHint>
                 </CardTitle>
-                <TrendingUp className="h-4 w-4 text-secondary" />
+                <TrendingUp className="h-4 w-4 text-[--at-pos]" />
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-3xl font-bold font-cyber ${globalTotalR >= 0 ? "text-secondary" : "text-primary"}`}
+                  className={`text-3xl font-bold font-cyber ${globalTotalR >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                 >
                   {formatR(globalTotalR)}
                 </div>
-                <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                   Total R-multiple generated
                 </p>
               </CardContent>
@@ -1136,66 +1136,66 @@ export default function TradingDashboard() {
               className="space-y-6"
             >
               <div className="flex items-center gap-3 mb-2 px-2">
-                <Plus className="h-5 w-5 text-primary" />
+                <Plus className="h-5 w-5 text-[--at-neg]" />
                 <h2 className={sectionTitleStyle}>Add New Trade</h2>
               </div>
-              <Card className="cyber-card border-primary/20 bg-[#0d0e14]/80 rounded-2xl shadow-2xl shadow-primary/5">
+              <Card className="cyber-card border-[--rule] bg-[--at-surface] rounded-2xl">
                 <CardContent className="p-8">
                   <form
                     onSubmit={addTrade}
                     className="grid gap-8 md:grid-cols-2 lg:grid-cols-4"
                   >
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Calendar className="h-4 w-4 text-secondary" /> Date
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Calendar className="h-4 w-4 text-[--at-pos]" /> Date
                       </Label>
                       <Input
                         name="date"
                         type="date"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         defaultValue={new Date().toISOString().split("T")[0]}
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Clock className="h-4 w-4 text-accent" /> Entry Time
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Clock className="h-4 w-4 text-[--at-accent]" /> Entry Time
                       </Label>
                       <Input
                         name="entry_time"
                         type="time"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-accent/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         value={entryTime}
                         onChange={(e) => setEntryTime(e.target.value)}
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Target className="h-4 w-4 text-primary" /> Asset
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Target className="h-4 w-4 text-[--at-neg]" /> Asset
                         (Actif)
                       </Label>
                       <Input
                         name="actif"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         placeholder="e.g. BTC/USD"
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Clock className="h-4 w-4 text-secondary" /> Timeframe
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Clock className="h-4 w-4 text-[--at-pos]" /> Timeframe
                       </Label>
                       <Select name="timeframe" defaultValue="1H">
-                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
+                        <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11 text-[--ink]">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                        <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                           {timeframes.map((tf) => (
                             <SelectItem
                               key={tf}
                               value={tf}
-                              className="hover:bg-primary/20 focus:bg-primary/20"
+                              className="hover:bg-[--at-accent]/20 focus:bg-[--at-accent]/20"
                             >
                               {tf}
                             </SelectItem>
@@ -1204,20 +1204,20 @@ export default function TradingDashboard() {
                       </Select>
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Activity className="h-4 w-4 text-primary" /> Type
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Activity className="h-4 w-4 text-[--at-neg]" /> Type
                       </Label>
                       <Select name="type" defaultValue="long">
-                        <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11 text-white">
+                        <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11 text-[--ink]">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
-                          <SelectItem value="long" className="text-secondary">
+                        <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
+                          <SelectItem value="long" className="text-[--at-pos]">
                             Long
                           </SelectItem>
                           <SelectItem
                             value="short"
-                            className="text-primary"
+                            className="text-[--at-neg]"
                           >
                             Short
                           </SelectItem>
@@ -1225,70 +1225,70 @@ export default function TradingDashboard() {
                       </Select>
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <TrendingUp className="h-4 w-4 text-secondary" /> Result
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <TrendingUp className="h-4 w-4 text-[--at-pos]" /> Result
                         ($)
                       </Label>
                       <Input
                         name="profit"
                         type="number"
                         step="0.01"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-secondary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         placeholder="0.00"
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <ShieldAlert className="h-4 w-4 text-primary" /> Max
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <ShieldAlert className="h-4 w-4 text-[--at-neg]" /> Max
                         Loss ($)
                       </Label>
                       <Input
                         name="risk"
                         type="number"
                         step="0.01"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         placeholder="100.00"
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Wallet className="h-4 w-4 text-secondary" /> Account
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Wallet className="h-4 w-4 text-[--at-pos]" /> Account
                       </Label>
                       <Input
                         name="compte"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         placeholder="e.g. Main"
                         required
                       />
                     </div>
                     <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Layers className="h-4 w-4 text-primary" /> Strategy
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
+                        <Layers className="h-4 w-4 text-[--at-neg]" /> Strategy
                       </Label>
                       <Input
                         name="strategie"
-                        className="bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/20 h-11"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
                         placeholder="e.g. Trend Follow"
                         required
                       />
                     </div>
                     <div className="space-y-4 md:col-span-2 lg:col-span-4">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] uppercase font-semibold">
                         Observations
                       </Label>
                       <Textarea
                         name="observations"
-                        className="bg-white/5 border-white/10 text-white min-h-[120px] rounded-2xl p-4 focus:ring-primary/20"
+                        className="bg-[--at-bg] border-[--rule] text-[--ink] min-h-[120px] rounded-2xl p-4 focus:ring-[--at-accent]/20"
                         placeholder="Analyze market behavior, emotional state, and core learnings..."
                       />
-                      <p className="text-[8px] text-white/20 font-arcade tracking-wider mt-2 uppercase">
+                      <p className="text-[8px] text-[--ink3] font-arcade tracking-wider mt-2 uppercase">
                         CTRL+V TO PASTE SCREENSHOTS
                       </p>
                     </div>
                     <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                      <Label className="font-arcade text-[10px] text-white tracking-[0.1em] uppercase font-semibold">
+                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] uppercase font-semibold">
                         Photos (Max 3)
                       </Label>
                       <div className="flex flex-wrap gap-5 mt-2">
@@ -1297,14 +1297,14 @@ export default function TradingDashboard() {
                             key={i}
                             initial={{ scale: 0, rotate: -10 }}
                             animate={{ scale: 1, rotate: 0 }}
-                            className="relative w-28 h-28 border border-white/10 rounded-2xl overflow-hidden group shadow-lg shadow-black/50"
+                            className="relative w-28 h-28 border border-[--rule] rounded-2xl overflow-hidden group"
                           >
                             <img
                               src={url}
                               className="w-full h-full object-cover"
                               alt="Intel"
                             />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                            <div className="absolute inset-0 bg-[--at-surface] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1314,7 +1314,7 @@ export default function TradingDashboard() {
                                     ),
                                   )
                                 }
-                                className="p-2 bg-primary/80 text-white rounded-xl hover:bg-primary transition-colors"
+                                className="p-2 bg-[--at-accent]/80 text-[--ink] rounded-xl hover:bg-[--at-accent] transition-colors"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -1322,13 +1322,13 @@ export default function TradingDashboard() {
                           </motion.div>
                         ))}
                         {selectedPhotos.length < 3 && (
-                          <Label className="flex flex-col items-center justify-center w-28 h-28 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:border-secondary/50 hover:bg-secondary/5 transition-all group shadow-inner">
+                          <Label className="flex flex-col items-center justify-center w-28 h-28 border-2 border-dashed border-[--rule] rounded-2xl cursor-pointer hover:border-[--at-accent]/50 hover:bg-[--at-accent]/5 transition-all group">
                             {uploading ? (
-                              <Loader2 className="animate-spin h-6 w-6 text-secondary" />
+                              <Loader2 className="animate-spin h-6 w-6 text-[--at-accent]" />
                             ) : (
-                              <Plus className="h-7 w-7 text-white/20 group-hover:text-secondary group-hover:scale-110 transition-transform" />
+                              <Plus className="h-7 w-7 text-[--ink3] group-hover:text-[--at-accent] group-hover:scale-110 transition-transform" />
                             )}
-                            <span className="text-[8px] mt-2 text-white/20 group-hover:text-secondary font-arcade uppercase tracking-tighter">
+                            <span className="text-[8px] mt-2 text-[--ink3] group-hover:text-[--at-accent] font-arcade uppercase tracking-tighter">
                               Upload
                             </span>
                             <Input
@@ -1345,7 +1345,7 @@ export default function TradingDashboard() {
                     <div className="flex items-end lg:col-start-4">
                       <Button
                         type="submit"
-                        className="w-full bg-primary hover:bg-primary/80 glow-primary font-arcade text-[11px] h-14 rounded-2xl shadow-xl shadow-primary/10 transition-all active:scale-[0.98]"
+                        className="w-full bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[11px] h-14 rounded-2xl transition-all active:scale-[0.98]"
                         disabled={uploading}
                       >
                         Save Trade
@@ -1358,15 +1358,15 @@ export default function TradingDashboard() {
 
             <section className="space-y-6">
               <div className="flex items-center gap-3 mb-2 px-2">
-                <History className="h-5 w-5 text-accent" />
+                <History className="h-5 w-5 text-[--at-accent]" />
                 <h2 className={sectionTitleStyle}>Recent Trades</h2>
               </div>
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl overflow-hidden">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl overflow-hidden">
                 <CardContent className="p-0">
                   <div className="relative overflow-x-auto">
                     <table className="w-full text-left text-[12px] font-cyber">
                       <thead>
-                        <tr className="border-b border-white/10 bg-white/[0.04] text-secondary font-bold font-arcade text-[9px] tracking-[0.2em] shadow-[0_4px_10px_-4px_rgba(0,255,255,0.1)]">
+                        <tr className="border-b border-[--rule] bg-[--at-surface] text-[--at-pos] font-bold font-arcade text-[9px] tracking-[0.2em]">
                           <th className="py-6 px-6">Date</th>
                           <th className="py-6 px-6">Hour</th>
                           <th className="py-6 px-6">Asset</th>
@@ -1384,7 +1384,7 @@ export default function TradingDashboard() {
                             <tr>
                               <td
                                 colSpan={9}
-                                className="py-20 text-center text-white/20 font-arcade text-[10px] tracking-widest uppercase"
+                                className="py-20 text-center text-[--ink3] font-arcade text-[10px] tracking-widest uppercase"
                               >
                                 No trades found
                               </td>
@@ -1401,28 +1401,28 @@ export default function TradingDashboard() {
                                   initial={{ opacity: 0, x: -10 }}
                                   animate={{ opacity: 1, x: 0 }}
                                   transition={{ delay: i * 0.05 }}
-                                  className="border-b border-white/5 hover:bg-white/[0.03] transition-all group cursor-pointer relative"
+                                  className="border-b border-[--rule] hover:bg-[--at-accent]/5 transition-all group cursor-pointer relative"
                                   onClick={() => setSelectedTrade(trade)}
                                 >
-                                  <td className="py-6 px-6 text-white font-mono tracking-tighter">
+                                  <td className="py-6 px-6 text-[--ink] font-mono tracking-tighter">
                                     {new Date(trade.date).toLocaleDateString()}
                                   </td>
-                                  <td className="py-6 px-6 text-white/60 font-mono tracking-tighter">
+                                  <td className="py-6 px-6 text-[--ink2] font-mono tracking-tighter">
                                     {formatTradeTime(trade.date)}
                                   </td>
-                                  <td className="py-6 px-6 text-white font-bold">
+                                  <td className="py-6 px-6 text-[--ink] font-bold">
                                     {trade.actif}
                                   </td>
-                                  <td className="py-6 px-6 text-white/70">
+                                  <td className="py-6 px-6 text-[--ink2]">
                                     {trade.timeframe}
                                   </td>
                                   <td
-                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-secondary" : "text-primary"}`}
+                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                                   >
                                     {trade.type === "long" ? "Long" : "Short"}
                                   </td>
                                   <td
-                                    className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-secondary" : "text-primary"}`}
+                                    className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                                   >
                                     {Number(trade.profit) >= 0 ? "+" : "-"}$
                                     {Math.abs(
@@ -1430,7 +1430,7 @@ export default function TradingDashboard() {
                                     ).toLocaleString()}
                                   </td>
                                   <td
-                                    className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? "text-secondary" : "text-primary"}`}
+                                    className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                                   >
                                     {formatR(
                                       getR(
@@ -1446,7 +1446,7 @@ export default function TradingDashboard() {
                                           <img
                                             key={i}
                                             src={url}
-                                            className="w-8 h-8 object-cover rounded-lg border border-white/20 shadow-lg transition-transform hover:scale-110 hover:z-10"
+                                            className="w-8 h-8 object-cover rounded-lg border border-[--rule] transition-transform hover:scale-110 hover:z-10"
                                             alt="Trade Snapshot"
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -1466,7 +1466,7 @@ export default function TradingDashboard() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="text-white/30 hover:text-white hover:bg-white/10 rounded-lg"
+                                        className="text-[--ink3] hover:text-[--ink] hover:bg-[--at-accent]/10 rounded-lg"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setSelectedTrade(trade);
@@ -1482,7 +1482,7 @@ export default function TradingDashboard() {
                                         onClick={(e) =>
                                           deleteTrade(trade.id, e)
                                         }
-                                        className="text-white/20 hover:text-primary hover:bg-primary/10 rounded-lg"
+                                        className="text-[--ink3] hover:text-[--at-neg] hover:bg-[--at-accent]/10 rounded-lg"
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
@@ -1503,35 +1503,35 @@ export default function TradingDashboard() {
 
           <TabsContent value="analytics" className="space-y-10 mt-10">
             {/* Filters */}
-            <Card className="cyber-card bg-[#0d0e14]/40 border-white/5 rounded-2xl">
+            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <Filter className="h-4 w-4 text-accent" />
-                  <h3 className="font-arcade text-[9px] text-white/60 uppercase tracking-wider">
+                  <Filter className="h-4 w-4 text-[--at-accent]" />
+                  <h3 className="font-arcade text-[9px] text-[--ink2] uppercase tracking-wider">
                     Filters
                   </h3>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={resetFilters}
-                    className="ml-auto text-white/40 hover:text-white h-7 px-3 font-arcade text-[8px]"
+                    className="ml-auto text-[--ink3] hover:text-[--ink] h-7 px-3 font-arcade text-[8px]"
                   >
                     <RefreshCw className="h-3 w-3 mr-2" /> RESET
                   </Button>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
                       Strategy
                     </Label>
                     <Select
                       value={filterStrategy}
                       onValueChange={setFilterStrategy}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                         <SelectItem value="all">All Strategies</SelectItem>
                         {strategies.map((s) => (
                           <SelectItem key={s} value={s}>
@@ -1542,17 +1542,17 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
                       Account
                     </Label>
                     <Select
                       value={filterAccount}
                       onValueChange={setFilterAccount}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                         <SelectItem value="all">All Accounts</SelectItem>
                         {accounts.map((a) => (
                           <SelectItem key={a} value={a}>
@@ -1563,14 +1563,14 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
                       Type
                     </Label>
                     <Select value={filterType} onValueChange={setFilterType}>
-                      <SelectTrigger className="bg-white/5 border-white/10 h-9 rounded-xl text-sm">
+                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                         <SelectItem value="all">All Types</SelectItem>
                         <SelectItem value="long">Long</SelectItem>
                         <SelectItem value="short">Short</SelectItem>
@@ -1578,7 +1578,7 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2 md:col-span-2 lg:col-span-1">
-                    <Label className="font-arcade text-[8px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
                       Time Range
                     </Label>
                     <div className="grid grid-cols-4 gap-2">
@@ -1625,7 +1625,7 @@ export default function TradingDashboard() {
                   filterAccount !== "all" ||
                   filterType !== "all" ||
                   filterRange !== "all") && (
-                  <div className="mt-4 text-[9px] text-accent font-arcade uppercase">
+                  <div className="mt-4 text-[9px] text-[--at-accent] font-arcade uppercase">
                     Showing {filteredTrades.length} of {trades.length} trades
                   </div>
                 )}
@@ -1642,10 +1642,10 @@ export default function TradingDashboard() {
               >
                 <div className="mb-2 flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
-                    <Activity className="h-5 w-5 text-accent" />
+                    <Activity className="h-5 w-5 text-[--at-accent]" />
                     <div className="flex flex-col gap-0.5">
                       <h2 className={sectionTitleStyle}>Equity Curve</h2>
-                      <span className="font-cyber text-[11px] tracking-wide text-white/45">
+                      <span className="font-cyber text-[11px] tracking-wide text-[--ink3]">
                         Solde reel = capital initial + P/L cumule (trades filtres)
                       </span>
                     </div>
@@ -1653,7 +1653,7 @@ export default function TradingDashboard() {
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <Label
                       htmlFor="starting-balance"
-                      className="whitespace-nowrap font-arcade text-[8px] uppercase text-white/40"
+                      className="whitespace-nowrap font-arcade text-[8px] uppercase text-[--ink3]"
                     >
                       Capital initial ($)
                     </Label>
@@ -1662,7 +1662,7 @@ export default function TradingDashboard() {
                       type="number"
                       min={0}
                       step={100}
-                      className="h-9 w-[7.5rem] rounded-xl border-white/10 bg-white/5 text-sm"
+                      className="h-9 w-[7.5rem] rounded-xl border-[--rule] bg-[--at-bg] text-sm"
                       value={startingBalance}
                       onChange={(e) =>
                         setStartingBalance(Number(e.target.value) || 0)
@@ -1678,7 +1678,7 @@ export default function TradingDashboard() {
                     />
                   </div>
                 </div>
-                <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardContent className="p-8">
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={equityCurve}>
@@ -1692,44 +1692,44 @@ export default function TradingDashboard() {
                           >
                             <stop
                               offset="5%"
-                              stopColor="#00ffff"
+                              stopColor="#7d2b1d"
                               stopOpacity={0.3}
                             />
                             <stop
                               offset="95%"
-                              stopColor="#00ffff"
+                              stopColor="#7d2b1d"
                               stopOpacity={0}
                             />
                           </linearGradient>
                         </defs>
                         <CartesianGrid
                           strokeDasharray="3 3"
-                          stroke="rgba(255,255,255,0.05)"
+                          stroke="rgba(0,0,0,0.08)"
                         />
                         <XAxis
                           dataKey="date"
-                          stroke="rgba(255,255,255,0.3)"
+                          stroke="rgba(0,0,0,0.15)"
                           style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                          tick={{ fill: "#4a4540" }}
                         />
                         <YAxis
-                          stroke="rgba(255,255,255,0.3)"
+                          stroke="rgba(0,0,0,0.15)"
                           style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                          tick={{ fill: "#4a4540" }}
                           tickFormatter={(value) =>
                             `$${value.toLocaleString()}`
                           }
                         />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "rgba(13, 14, 20, 0.95)",
-                            border: "1px solid rgba(0, 255, 255, 0.2)",
+                            backgroundColor: "#fbf8f1",
+                            border: "1px solid #d9d3c4",
                             borderRadius: "12px",
                             fontSize: "12px",
                             fontFamily: "monospace",
-                            boxShadow: "0 0 20px rgba(0, 255, 255, 0.1)",
+                            boxShadow: "none",
                           }}
-                          labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
+                          labelStyle={{ color: "#7d2b1d", fontWeight: "bold" }}
                           formatter={(value: any) => [
                             `$${Number(value).toLocaleString()}`,
                             "Solde",
@@ -1738,7 +1738,7 @@ export default function TradingDashboard() {
                         <Area
                           type="stepAfter"
                           dataKey="balance"
-                          stroke="#00ffff"
+                          stroke="#7d2b1d"
                           strokeWidth={2}
                           fill="url(#colorBalance)"
                           animationDuration={2000}
@@ -1752,66 +1752,66 @@ export default function TradingDashboard() {
 
             {/* Performance Metrics */}
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="cyber-card bg-[#0d0e14]/60 border-primary/10 rounded-2xl shadow-xl hover:shadow-primary/5 transition-all">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                     Profit
                   </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-primary" />
+                  <TrendingUp className="h-4 w-4 text-[--at-neg]" />
                 </CardHeader>
                 <CardContent>
                   <div
-                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-secondary" : "text-primary"} drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]`}
+                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"} `}
                   >
                     {totalProfit >= 0 ? "+" : "-"}$
                     {Math.abs(totalProfit).toLocaleString()}
                   </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                     Net performance
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-xl hover:shadow-secondary/5 transition-all">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                     Win Rate
                   </CardTitle>
-                  <Target className="h-4 w-4 text-secondary" />
+                  <Target className="h-4 w-4 text-[--at-pos]" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-secondary font-cyber drop-shadow-[0_0_10px_rgba(0,255,136,0.2)]">
+                  <div className="text-3xl font-bold text-[--at-pos] font-cyber ">
                     {winRate}%
                   </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                     {filteredTrades.length} trades
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="cyber-card bg-[#0d0e14]/60 border-accent/10 rounded-2xl shadow-xl hover:shadow-accent/5 transition-all">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                     Profit Goal
                   </CardTitle>
-                  <Zap className="h-4 w-4 text-accent" />
+                  <Zap className="h-4 w-4 text-[--at-accent]" />
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-end justify-between">
                     <div
-                      className="text-3xl font-bold text-accent font-cyber cursor-pointer group flex items-center gap-2"
+                      className="text-3xl font-bold text-[--at-accent] font-cyber cursor-pointer group flex items-center gap-2"
                       onClick={() => setShowGoalInput(true)}
                     >
                       {goalProgress.toFixed(1)}%
                       <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <div className="text-[10px] text-white/40 font-mono">
+                    <div className="text-[10px] text-[--ink3] font-mono">
                       / ${profitGoal.toLocaleString()}
                     </div>
                   </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                  <div className="h-1.5 w-full bg-[--at-bg] rounded-full overflow-hidden border border-[--rule]">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary"
+                      className="h-full bg-[--at-accent]"
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.min(goalProgress, 100)}%` }}
                       transition={{ duration: 1, ease: "easeOut" }}
@@ -1820,9 +1820,9 @@ export default function TradingDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/10 rounded-2xl shadow-xl transition-all">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-white/40 uppercase tracking-widest">
+                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
                     <MetricHint label="R-multiple">
                       Idem que le ratio R : somme des (profit ÷ risque) sur
                       les trades correspondant aux filtres. Compare la
@@ -1830,15 +1830,15 @@ export default function TradingDashboard() {
                       dollars.
                     </MetricHint>
                   </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-secondary" />
+                  <TrendingUp className="h-4 w-4 text-[--at-pos]" />
                 </CardHeader>
                 <CardContent>
                   <div
-                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-secondary" : "text-primary"}`}
+                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                   >
                     {formatR(totalR)}
                   </div>
-                  <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase tracking-tighter">
+                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
                     Total R-multiple
                   </p>
                 </CardContent>
@@ -1848,13 +1848,13 @@ export default function TradingDashboard() {
             {/* Advanced Stats */}
             <section className="space-y-6">
               <div className="flex items-center gap-3 mb-2 px-2">
-                <Activity className="h-5 w-5 text-primary" />
+                <Activity className="h-5 w-5 text-[--at-neg]" />
                 <h2 className={sectionTitleStyle}>Advanced Analytics</h2>
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       <MetricHint label="Max drawdown">
                         Largest equity decline from a previous peak (starting
                         balance + cumulative P/L on filtered trades). Measures
@@ -1863,111 +1863,111 @@ export default function TradingDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-primary font-cyber">
+                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
                       -${maxDrawdown.toLocaleString()}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Largest capital decline
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Best Trade
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {bestTrade ? (
                       <>
-                        <div className="text-2xl font-bold text-secondary font-cyber">
+                        <div className="text-2xl font-bold text-[--at-pos] font-cyber">
                           +${Number(bestTrade.profit).toLocaleString()}
                         </div>
-                        <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                        <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                           {bestTrade.actif} •{" "}
                           {new Date(bestTrade.date).toLocaleDateString()}
                         </p>
                       </>
                     ) : (
-                      <div className="text-white/20 font-arcade text-[9px]">
+                      <div className="text-[--ink3] font-arcade text-[9px]">
                         No data
                       </div>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Worst Trade
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {worstTrade ? (
                       <>
-                        <div className="text-2xl font-bold text-primary font-cyber">
+                        <div className="text-2xl font-bold text-[--at-neg] font-cyber">
                           ${Number(worstTrade.profit).toLocaleString()}
                         </div>
-                        <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                        <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                           {worstTrade.actif} •{" "}
                           {new Date(worstTrade.date).toLocaleDateString()}
                         </p>
                       </>
                     ) : (
-                      <div className="text-white/20 font-arcade text-[9px]">
+                      <div className="text-[--ink3] font-arcade text-[9px]">
                         No data
                       </div>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Win Streak
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-secondary font-cyber">
+                    <div className="text-2xl font-bold text-[--at-pos] font-cyber">
                       {bestStreak}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Consecutive wins
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Loss Streak
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-primary font-cyber">
+                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
                       {Math.abs(worstStreak)}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Consecutive losses
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Current Streak
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div
-                      className={`text-2xl font-bold font-cyber ${currentStreak >= 0 ? "text-secondary" : "text-primary"}`}
+                      className={`text-2xl font-bold font-cyber ${currentStreak >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                     >
                       {currentStreak > 0 ? "+" : ""}
                       {currentStreak}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       {currentStreak > 0
                         ? "Winning"
                         : currentStreak < 0
@@ -1977,9 +1977,9 @@ export default function TradingDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       <MetricHint label="Sharpe ratio">
                         Here: average P/L divided by P/L standard deviation
                         (filtered series). Higher means better return relative
@@ -1989,73 +1989,73 @@ export default function TradingDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${sharpeRatio >= 1 ? 'text-secondary' : sharpeRatio >= 0 ? 'text-accent' : 'text-primary'}`}>
+                    <div className={`text-2xl font-bold font-cyber ${sharpeRatio >= 1 ? 'text-[--at-pos]' : sharpeRatio >= 0 ? 'text-[--at-accent]' : 'text-[--at-neg]'}`}>
                       {sharpeRatio.toFixed(2)}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">Risk-adjusted return</p>
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">Risk-adjusted return</p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Average Loss
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-primary font-cyber">
+                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
                       -${Math.abs(avgLoss).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Mean loser size
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Average RRR
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${averageRRR >= 1 ? "text-secondary" : "text-accent"}`}>
+                    <div className={`text-2xl font-bold font-cyber ${averageRRR >= 1 ? "text-[--at-pos]" : "text-[--at-accent]"}`}>
                       {averageRRR.toFixed(2)}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Avg win / avg loss
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Expectancy
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${expectancy >= 0 ? "text-secondary" : "text-primary"}`}>
+                    <div className={`text-2xl font-bold font-cyber ${expectancy >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
                       {expectancy >= 0 ? "+" : "-"}$
                       {Math.abs(expectancy).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Expected value per trade
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="cyber-card bg-[#0d0e14]/80 border-white/10 rounded-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-white/40 uppercase tracking-wider">
+                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
                       Profit Factor
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${profitFactor >= 1 ? "text-secondary" : "text-primary"}`}>
+                    <div className={`text-2xl font-bold font-cyber ${profitFactor >= 1 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
                       {profitFactor.toFixed(2)}
                     </div>
-                    <p className="text-[9px] text-white/30 mt-2 font-arcade uppercase">
+                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
                       Gross profit / gross loss
                     </p>
                   </CardContent>
@@ -2073,7 +2073,7 @@ export default function TradingDashboard() {
               >
                 <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-secondary" />
+                    <Calendar className="h-5 w-5 text-[--at-pos]" />
                     <h2 className={sectionTitleStyle}>Monthly Performance</h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2082,11 +2082,11 @@ export default function TradingDashboard() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setPerformanceYear((y) => y - 1)}
-                      className="h-8 w-8 rounded-lg border border-white/10"
+                      className="h-8 w-8 rounded-lg border border-[--rule]"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <div className="min-w-[90px] text-center text-[11px] font-arcade uppercase tracking-wider text-white/70">
+                    <div className="min-w-[90px] text-center text-[11px] font-arcade uppercase tracking-wider text-[--ink2]">
                       {performanceYear}
                     </div>
                     <Button
@@ -2094,13 +2094,13 @@ export default function TradingDashboard() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setPerformanceYear((y) => y + 1)}
-                      className="h-8 w-8 rounded-lg border border-white/10"
+                      className="h-8 w-8 rounded-lg border border-[--rule]"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <Card className="cyber-card bg-[#0d0e14]/60 border-secondary/10 rounded-2xl shadow-2xl">
+                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                   <CardContent className="p-8">
                     <ResponsiveContainer width="100%" height={340}>
                       <BarChart
@@ -2109,30 +2109,30 @@ export default function TradingDashboard() {
                       >
                         <CartesianGrid
                           strokeDasharray="3 3"
-                          stroke="rgba(255,255,255,0.05)"
+                          stroke="rgba(0,0,0,0.08)"
                         />
                         <XAxis
                           dataKey="monthLabel"
-                          stroke="rgba(255,255,255,0.3)"
+                          stroke="rgba(0,0,0,0.15)"
                           style={{ fontSize: "11px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                          tick={{ fill: "#4a4540" }}
                         />
                         <YAxis
-                          stroke="rgba(255,255,255,0.3)"
+                          stroke="rgba(0,0,0,0.15)"
                           style={{ fontSize: "11px", fontFamily: "monospace" }}
-                          tick={{ fill: "rgba(255,255,255,0.4)" }}
+                          tick={{ fill: "#4a4540" }}
                           tickFormatter={(value) =>
                             `$${value.toLocaleString()}`
                           }
                         />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "rgba(13, 14, 20, 0.95)",
-                            border: "1px solid rgba(0, 255, 255, 0.2)",
+                            backgroundColor: "#fbf8f1",
+                            border: "1px solid #d9d3c4",
                             borderRadius: "12px",
                             fontSize: "12px",
                             fontFamily: "monospace",
-                            boxShadow: "0 0 20px rgba(0, 255, 255, 0.1)",
+                            boxShadow: "none",
                           }}
                           formatter={(value: any, _name: any, item: any) => {
                             const payload = item?.payload;
@@ -2141,7 +2141,7 @@ export default function TradingDashboard() {
                               "Month result",
                             ];
                           }}
-                          labelStyle={{ color: "#00ffff", fontWeight: "bold" }}
+                          labelStyle={{ color: "#7d2b1d", fontWeight: "bold" }}
                         />
                         <Bar
                           dataKey="pnl"
@@ -2152,7 +2152,7 @@ export default function TradingDashboard() {
                           {monthlyPerformanceDetailedData.map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
-                              fill={entry.pnl >= 0 ? "#00ff88" : "#ff4d7a"}
+                              fill={entry.pnl >= 0 ? "#3a6e3f" : "#7d2b1d"}
                             />
                           ))}
                         </Bar>
@@ -2172,7 +2172,7 @@ export default function TradingDashboard() {
             >
               <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-accent" />
+                  <Calendar className="h-5 w-5 text-[--at-accent]" />
                   <h2 className={sectionTitleStyle}>Trading Calendar</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2189,11 +2189,11 @@ export default function TradingDashboard() {
                         ),
                       )
                     }
-                    className="h-8 w-8 rounded-lg border border-white/10"
+                    className="h-8 w-8 rounded-lg border border-[--rule]"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <div className="min-w-[150px] text-center text-[11px] font-arcade uppercase tracking-wider text-white/70">
+                  <div className="min-w-[150px] text-center text-[11px] font-arcade uppercase tracking-wider text-[--ink2]">
                     {monthStart.toLocaleDateString("en-US", {
                       month: "long",
                       year: "numeric",
@@ -2212,13 +2212,13 @@ export default function TradingDashboard() {
                         ),
                       )
                     }
-                    className="h-8 w-8 rounded-lg border border-white/10"
+                    className="h-8 w-8 rounded-lg border border-[--rule]"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <Card className="cyber-card bg-[#0d0e14]/60 border-white/5 rounded-2xl shadow-2xl">
+              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
                 <CardContent className="p-4 md:p-6">
                   <div className="overflow-x-auto">
                     <div className="min-w-[980px] space-y-2">
@@ -2226,12 +2226,12 @@ export default function TradingDashboard() {
                         {weekdayLabels.map((label) => (
                           <div
                             key={label}
-                            className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-white/45"
+                            className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-[--ink3]"
                           >
                             {label}
                           </div>
                         ))}
-                        <div className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-white/50">
+                        <div className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-[--ink3]">
                           Weekly Summary
                         </div>
                       </div>
@@ -2247,7 +2247,7 @@ export default function TradingDashboard() {
                             return (
                               <div
                                 key={`empty-${rowIndex}-${i}`}
-                                className="aspect-square rounded-lg border border-white/5 bg-white/[0.02]"
+                                className="aspect-square rounded-lg border border-[--rule] bg-[--at-surface]"
                               />
                             );
                           }
@@ -2256,31 +2256,31 @@ export default function TradingDashboard() {
                             : 0;
                           const colorClass =
                             day.count === 0
-                              ? "bg-white/[0.03]"
+                              ? "bg-[--at-surface]"
                               : day.profit >= 0
-                                ? "bg-emerald-500/55"
-                                : "bg-rose-500/60";
+                                ? "bg-[--at-pos]/40"
+                                : "bg-[--at-neg]/40";
                               return (
                                 <div
                                   key={day.key}
-                                  className={`relative aspect-square rounded-lg border border-white/15 ${colorClass} p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]`}
+                                  className={`relative aspect-square rounded-lg border border-[--rule] ${colorClass} p-1.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
                                   style={{
                                     opacity: day.count === 0 ? 0.35 : 0.62 + intensity * 0.3,
                                   }}
                                   title={`${new Date(day.key + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L: ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR: ${formatR(day.dayR)}`}
                                 >
-                                  <div className="absolute left-1.5 top-1 text-[10px] font-bold text-white/80">
+                                  <div className="absolute left-1.5 top-1 text-[10px] font-bold text-[--ink]">
                                     {day.dayNumber}
                                   </div>
                                   {day.count > 0 && (
-                                    <div className="absolute inset-x-1.5 top-[24%] bottom-1.5 rounded-md bg-black/60 p-1 text-center flex flex-col items-center justify-center gap-1">
-                                      <div className="text-[11px] font-bold text-white">
+                                    <div className="absolute inset-x-1.5 top-[24%] bottom-1.5 rounded-md bg-[--at-surface] p-1 text-center flex flex-col items-center justify-center gap-1">
+                                      <div className="text-[11px] font-bold text-[--ink]">
                                         {day.count} trade{day.count > 1 ? "s" : ""}
                                       </div>
-                                      <div className="text-[11px] font-mono text-white">
+                                      <div className="text-[11px] font-mono text-[--ink]">
                                         {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
                                       </div>
-                                      <div className="text-[11px] font-mono text-cyan-200">
+                                      <div className="text-[11px] font-mono text-[--at-accent]">
                                         {formatR(day.dayR)}
                                       </div>
                                     </div>
@@ -2288,15 +2288,15 @@ export default function TradingDashboard() {
                                 </div>
                               );
                             })}
-                            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                              <div className="text-[9px] font-arcade uppercase text-white/45">
+                            <div className="rounded-xl border border-[--rule] bg-[--at-surface] px-3 py-2">
+                              <div className="text-[9px] font-arcade uppercase text-[--ink3]">
                                 Week {week.week} • {week.rangeLabel}
                               </div>
-                              <div className="mt-1 text-[12px] text-white">
+                              <div className="mt-1 text-[12px] text-[--ink]">
                                 {week.pnl >= 0 ? "+" : "-"}${Math.abs(week.pnl).toLocaleString()}
                               </div>
-                              <div className="text-[11px] text-cyan-200">{formatR(week.r)}</div>
-                              <div className="text-[11px] text-white/60">
+                              <div className="text-[11px] text-[--at-accent]">{formatR(week.r)}</div>
+                              <div className="text-[11px] text-[--ink2]">
                                 {week.trades} trade{week.trades > 1 ? "s" : ""}
                               </div>
                             </div>
@@ -2313,14 +2313,14 @@ export default function TradingDashboard() {
       </div>
 
       <Dialog open={showGoalInput} onOpenChange={setShowGoalInput}>
-        <DialogContent className="max-w-md bg-[#0d0e14] border-white/10 text-white rounded-2xl">
+        <DialogContent className="max-w-md bg-[--at-surface] border-[--rule] text-[--ink] rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-arcade text-[11px] uppercase tracking-wider">
               Edit Profit Goal
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Label className="font-arcade text-[9px] text-white/40 uppercase">
+            <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
               Goal Amount ($)
             </Label>
             <Input
@@ -2329,7 +2329,7 @@ export default function TradingDashboard() {
               step="1"
               value={profitGoal}
               onChange={(e) => setProfitGoal(Number(e.target.value) || 0)}
-              className="bg-white/5 border-white/10 rounded-xl h-11"
+              className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
             />
           </div>
           <DialogFooter className="mt-4">
@@ -2342,7 +2342,7 @@ export default function TradingDashboard() {
             </Button>
             <Button
               onClick={saveGoal}
-              className="bg-accent hover:bg-accent/80 font-arcade text-[10px]"
+              className="bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px]"
             >
               Save
             </Button>
@@ -2352,7 +2352,7 @@ export default function TradingDashboard() {
 
       {/* PHOTO PREVIEW MODAL */}
       <Dialog open={!!previewPhoto} onOpenChange={() => setPreviewPhoto(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none shadow-none flex flex-col justify-center items-center">
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-[--at-bg]/95 border-none shadow-none flex flex-col justify-center items-center">
           <motion.div
             className="relative w-full h-full flex items-center justify-center p-8"
             initial={{ opacity: 0 }}
@@ -2365,7 +2365,7 @@ export default function TradingDashboard() {
                 animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 src={previewPhoto?.url}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-[0_0_100px_rgba(0,0,0,0.8)]"
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl"
               />
             </AnimatePresence>
 
@@ -2374,7 +2374,7 @@ export default function TradingDashboard() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute left-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-white/5 text-white hover:bg-white/20 rounded-2xl border border-white/10"
+                  className="absolute left-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/20 rounded-2xl border border-[--rule]"
                   onClick={prevPhoto}
                 >
                   <ChevronLeft className="h-10 w-10" />
@@ -2382,7 +2382,7 @@ export default function TradingDashboard() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute right-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-white/5 text-white hover:bg-white/20 rounded-2xl border border-white/10"
+                  className="absolute right-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/20 rounded-2xl border border-[--rule]"
                   onClick={nextPhoto}
                 >
                   <ChevronRight className="h-10 w-10" />
@@ -2390,17 +2390,17 @@ export default function TradingDashboard() {
               </>
             )}
 
-            <DialogClose className="absolute top-10 right-10 p-4 bg-white/5 text-white hover:bg-primary/80 hover:text-white rounded-2xl border border-white/10 transition-all active:scale-90">
+            <DialogClose className="absolute top-10 right-10 p-4 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/80 hover:text-[--ink] rounded-2xl border border-[--rule] transition-all active:scale-90">
               <X className="h-8 w-8" />
             </DialogClose>
           </motion.div>
           {previewPhoto && previewPhoto.photos.length > 1 && (
-            <div className="p-8 flex justify-center gap-4 bg-black/40 backdrop-blur-xl border-t border-white/5 w-full">
+            <div className="p-8 flex justify-center gap-4 bg-[--at-surface] border-t border-[--rule] w-full">
               {previewPhoto.photos.map((url, i) => (
                 <motion.div
                   key={i}
                   whileHover={{ scale: 1.1 }}
-                  className={`w-20 h-20 border-2 rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg ${i === previewPhoto.index ? "border-primary shadow-primary/20 scale-110" : "border-transparent opacity-40"}`}
+                  className={`w-20 h-20 border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${i === previewPhoto.index ? "border-[--at-accent] scale-110" : "border-transparent opacity-40"}`}
                   onClick={() =>
                     setPreviewPhoto({ ...previewPhoto, url, index: i })
                   }
@@ -2422,15 +2422,15 @@ export default function TradingDashboard() {
           setEditData(null);
         }}
       >
-        <DialogContent className="flex max-h-[min(90vh,56rem)] w-[min(95vw,42rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-3xl border-white/10 bg-[#0d0e14] p-0 text-white shadow-2xl cyber-card">
+        <DialogContent className="flex max-h-[min(90vh,56rem)] w-[min(95vw,42rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-3xl border-[--rule] bg-[--at-surface] p-0 text-[--ink] cyber-card">
           <div
-            className={`h-2 w-full shrink-0 bg-gradient-to-r ${isEditing ? "from-accent to-primary" : "from-primary via-accent to-secondary"} animate-gradient-x`}
+            className={`h-2 w-full shrink-0 bg-[--at-accent]`}
           />
 
           <DialogHeader className="shrink-0 px-8 pb-2 pt-8">
-            <DialogTitle className="flex items-start gap-4 text-left font-cyber text-white sm:items-center">
+            <DialogTitle className="flex items-start gap-4 text-left font-cyber text-[--ink] sm:items-center">
               <div
-                className={`shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 ${isEditing ? "text-accent" : "text-primary"}`}
+                className={`shrink-0 rounded-xl border border-[--rule] bg-[--at-bg] p-2.5 ${isEditing ? "text-[--at-accent]" : "text-[--at-neg]"}`}
               >
                 {isEditing ? (
                   <Edit2 className="h-5 w-5" />
@@ -2439,15 +2439,15 @@ export default function TradingDashboard() {
                 )}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="font-arcade text-[10px] uppercase tracking-[0.22em] text-white/45">
+                <span className="font-arcade text-[10px] uppercase tracking-[0.22em] text-[--ink3]">
                   {isEditing ? "Edit trade" : "Trade details"}
                 </span>
                 {selectedTrade && (
                   <>
-                    <span className="truncate text-lg font-semibold tracking-wide text-white">
+                    <span className="truncate text-lg font-semibold tracking-wide text-[--ink]">
                       {selectedTrade.actif}
                     </span>
-                    <span className="text-[11px] text-white/45">
+                    <span className="text-[11px] text-[--ink3]">
                       {new Date(selectedTrade.date).toLocaleDateString("fr-FR")}{" "}
                       · {formatTradeTime(selectedTrade.date)} ·{" "}
                       {selectedTrade.timeframe}
@@ -2464,7 +2464,7 @@ export default function TradingDashboard() {
               {isEditing ? (
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Date
                     </Label>
                     <Input
@@ -2479,11 +2479,11 @@ export default function TradingDashboard() {
                           ),
                         })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Entry Time
                     </Label>
                     <Input
@@ -2498,11 +2498,11 @@ export default function TradingDashboard() {
                           ),
                         })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Asset
                     </Label>
                     <Input
@@ -2510,11 +2510,11 @@ export default function TradingDashboard() {
                       onChange={(e) =>
                         setEditData({ ...editData, actif: e.target.value })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Timeframe
                     </Label>
                     <Select
@@ -2523,10 +2523,10 @@ export default function TradingDashboard() {
                         setEditData({ ...editData, timeframe: v })
                       }
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11">
+                      <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                         {timeframes.map((tf) => (
                           <SelectItem key={tf} value={tf}>
                             {tf}
@@ -2536,24 +2536,24 @@ export default function TradingDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Type
                     </Label>
                     <Select
                       value={editData?.type}
                       onValueChange={(v) => setEditData({ ...editData, type: v })}
                     >
-                      <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-11">
+                      <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#0d0e14] border-white/10 rounded-xl">
+                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
                         <SelectItem value="long">Long</SelectItem>
                         <SelectItem value="short">Short</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Profit / Loss ($)
                     </Label>
                     <Input
@@ -2568,11 +2568,11 @@ export default function TradingDashboard() {
                           });
                         }
                       }}
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Max Risk ($)
                     </Label>
                     <Input
@@ -2587,11 +2587,11 @@ export default function TradingDashboard() {
                           });
                         }
                       }}
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Account
                     </Label>
                     <Input
@@ -2599,11 +2599,11 @@ export default function TradingDashboard() {
                       onChange={(e) =>
                         setEditData({ ...editData, compte: e.target.value })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Strategy
                     </Label>
                     <Input
@@ -2611,11 +2611,11 @@ export default function TradingDashboard() {
                       onChange={(e) =>
                         setEditData({ ...editData, strategie: e.target.value })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl h-11"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Observations
                     </Label>
                     <Textarea
@@ -2626,18 +2626,18 @@ export default function TradingDashboard() {
                           observations: e.target.value,
                         })
                       }
-                      className="bg-white/5 border-white/10 rounded-xl min-h-[100px]"
+                      className="bg-[--at-bg] border-[--rule] rounded-xl min-h-[100px]"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-white/40 uppercase">
+                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
                       Photos (Max 3)
                     </Label>
                     <div className="flex flex-wrap gap-4 mt-2">
                       {editData.photos?.map((url: string, i: number) => (
                         <div
                           key={i}
-                          className="relative w-20 h-20 border border-white/10 rounded-xl overflow-hidden group"
+                          className="relative w-20 h-20 border border-[--rule] rounded-xl overflow-hidden group"
                         >
                           <img
                             src={url}
@@ -2653,18 +2653,18 @@ export default function TradingDashboard() {
                                 ),
                               })
                             }
-                            className="absolute inset-0 bg-primary/80 opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                            className="absolute inset-0 bg-[--at-accent]/80 opacity-0 group-hover:opacity-100 flex items-center justify-center"
                           >
                             <Trash2 size={16} />
                           </button>
                         </div>
                       ))}
                       {editData.photos?.length < 3 && (
-                        <Label className="flex items-center justify-center w-20 h-20 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-secondary transition-all">
+                        <Label className="flex items-center justify-center w-20 h-20 border-2 border-dashed border-[--rule] rounded-xl cursor-pointer hover:border-[--at-accent] transition-all">
                           {uploading ? (
                             <Loader2 className="animate-spin h-5 w-5" />
                           ) : (
-                            <Plus className="h-5 w-5 text-white/20" />
+                            <Plus className="h-5 w-5 text-[--ink3]" />
                           )}
                           <Input
                             type="file"
@@ -2682,7 +2682,7 @@ export default function TradingDashboard() {
                 <div className="space-y-8">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Calendar className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Date
@@ -2693,18 +2693,18 @@ export default function TradingDashboard() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Target className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Asset
                         </span>
                       </div>
-                      <p className="font-cyber text-sm font-bold text-secondary tracking-wide">
+                      <p className="font-cyber text-sm font-bold text-[--at-pos] tracking-wide">
                         {selectedTrade.actif}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Clock className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Time
@@ -2715,7 +2715,7 @@ export default function TradingDashboard() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Clock className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Timeframe
@@ -2726,7 +2726,7 @@ export default function TradingDashboard() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Layers className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Strategy
@@ -2737,7 +2737,7 @@ export default function TradingDashboard() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <Wallet className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Account
@@ -2748,7 +2748,7 @@ export default function TradingDashboard() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-white/30">
+                      <div className="flex items-center gap-2 text-[--ink3]">
                         <ShieldAlert className="h-3 w-3" />
                         <span className="font-arcade text-[8px] uppercase tracking-widest">
                           Profit / R
@@ -2756,13 +2756,13 @@ export default function TradingDashboard() {
                       </div>
                       <div className="flex flex-col">
                         <span
-                          className={`font-cyber text-lg font-bold ${Number(selectedTrade.profit) >= 0 ? "text-secondary" : "text-primary"}`}
+                          className={`font-cyber text-lg font-bold ${Number(selectedTrade.profit) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
                         >
                           {Number(selectedTrade.profit) >= 0 ? "+" : ""}$
                           {Number(selectedTrade.profit).toLocaleString()}
                         </span>
                         <span
-                          className={`text-[10px] font-bold ${getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "text-secondary/50" : "text-primary/50"}`}
+                          className={`text-[10px] font-bold ${getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "text-[--at-pos]/50" : "text-[--at-neg]/50"}`}
                         >
                           (
                           {formatR(
@@ -2778,11 +2778,11 @@ export default function TradingDashboard() {
                   </div>
 
                   {selectedTrade.observations && (
-                    <div className="space-y-3 p-6 bg-white/[0.03] rounded-2xl border border-white/5 shadow-inner">
-                      <div className="font-arcade text-[8px] text-white/20 tracking-[0.2em] uppercase">
+                    <div className="space-y-3 p-6 bg-[--at-surface] rounded-2xl border border-[--rule]">
+                      <div className="font-arcade text-[8px] text-[--ink3] tracking-[0.2em] uppercase">
                         Observations
                       </div>
-                      <p className="text-sm text-white/70 leading-relaxed font-cyber whitespace-pre-wrap">
+                      <p className="text-sm text-[--ink] leading-relaxed font-cyber whitespace-pre-wrap">
                         {selectedTrade.observations}
                       </p>
                     </div>
@@ -2790,7 +2790,7 @@ export default function TradingDashboard() {
 
                   {selectedTrade.photos?.length > 0 && (
                     <div className="space-y-4">
-                      <div className="font-arcade text-[8px] text-white/20 tracking-[0.2em] uppercase">
+                      <div className="font-arcade text-[8px] text-[--ink3] tracking-[0.2em] uppercase">
                         Photos
                       </div>
                       <div className="grid grid-cols-3 gap-4">
@@ -2799,7 +2799,7 @@ export default function TradingDashboard() {
                             key={i}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            className="relative aspect-video rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group shadow-lg"
+                            className="relative aspect-video rounded-xl overflow-hidden border border-[--rule] cursor-zoom-in group"
                             onClick={() =>
                               setPreviewPhoto({
                                 url,
@@ -2812,8 +2812,8 @@ export default function TradingDashboard() {
                               src={url}
                               className="w-full h-full object-cover"
                             />
-                            <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                              <Maximize2 className="text-white h-5 w-5" />
+                            <div className="absolute inset-0 bg-[--at-accent]/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                              <Maximize2 className="text-[--ink] h-5 w-5" />
                             </div>
                           </motion.div>
                         ))}
@@ -2824,12 +2824,12 @@ export default function TradingDashboard() {
               )}
               </div>
 
-              <DialogFooter className="shrink-0 flex-col gap-4 border-t border-white/5 bg-[#0d0e14] px-8 py-4 sm:flex-row">
+              <DialogFooter className="shrink-0 flex-col gap-4 border-t border-[--rule] bg-[--at-surface] px-8 py-4 sm:flex-row">
                 {isEditing ? (
                   <>
                     <Button
                       variant="ghost"
-                      className="flex-1 font-arcade text-[10px] h-12 rounded-xl text-white/40 hover:text-white"
+                      className="flex-1 font-arcade text-[10px] h-12 rounded-xl text-[--ink3] hover:text-[--ink]"
                       onClick={() => {
                         setIsEditing(false);
                         setEditData(null);
@@ -2838,7 +2838,7 @@ export default function TradingDashboard() {
                       CANCEL
                     </Button>
                     <Button
-                      className="flex-1 bg-accent hover:bg-accent/80 font-arcade text-[10px] h-12 rounded-xl shadow-lg shadow-accent/20 transition-all active:scale-[0.98]"
+                      className="flex-1 bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]"
                       onClick={handleUpdateTrade}
                     >
                       <Save className="mr-2 h-4 w-4" /> SAVE CHANGES
@@ -2848,13 +2848,13 @@ export default function TradingDashboard() {
                   <>
                     <Button
                       variant="outline"
-                      className="flex-1 border-primary/20 text-primary/70 hover:bg-primary/10 font-arcade text-[10px] h-12 rounded-xl"
+                      className="flex-1 border-[--at-accent]/20 text-[--at-neg]/70 hover:bg-[--at-accent]/10 font-arcade text-[10px] h-12 rounded-xl"
                       onClick={() => deleteTrade(selectedTrade.id)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> DELETE
                     </Button>
                     <Button
-                      className="flex-1 bg-accent hover:bg-accent/80 font-arcade text-[10px] h-12 rounded-xl shadow-lg shadow-accent/20"
+                      className="flex-1 bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl"
                       onClick={() => {
                         setIsEditing(true);
                         setEditData({ ...selectedTrade });

@@ -229,11 +229,11 @@ export default function Home() {
   }
 
   if (!user) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <p className="text-zinc-500 font-mono">Connecte-toi sur <Link href="/analytics" className="text-cyan-400 underline">/analytics</Link></p>
+    <div className="min-h-screen bg-[--at-bg] flex items-center justify-center">
+      <p className="text-[--ink3] font-mono">Connecte-toi sur <Link href="/analytics" className="text-[--at-accent] underline">/analytics</Link></p>
     </div>
   )
-  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
+  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
 
   const tradingProfit = stats?.totalProfit || 0
   const tradingCount = stats?.count || 0
@@ -287,7 +287,7 @@ export default function Home() {
 
   const patrimoineNet = ccaNet + fhfDistribuableNet + peaNet + cryptoPersoNet + cryptoSharedNet
 
-  const ALLOC_COLORS_5 = ["#f59e0b", "#e879f9", "#06b6d4", "#a78bfa", "#c084fc"]
+  const ALLOC_COLORS_5 = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55"]
   const allocationData = [
     { name: "CCA", value: ccaNet, color: ALLOC_COLORS_5[0] },
     { name: "FHF IBKR", value: fhfEquity, color: ALLOC_COLORS_5[1] },
@@ -298,48 +298,48 @@ export default function Home() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="border-b border-cyan-500/20 pb-4">
-        <div className="text-fuchsia-400 text-xs font-mono uppercase tracking-widest">Patrimoine consolidé</div>
+      <div className="border-b border-[--rule] pb-4">
+        <div className="text-[--at-accent] text-xs font-mono uppercase tracking-widest">Patrimoine consolidé</div>
         <h1 className="text-4xl font-mono font-bold tracking-wider mt-1">
-          <span className="text-cyan-400">F.H.F </span>
-          <span className="text-fuchsia-500">Patrimoine</span>
+          <span className="text-[--at-accent]">F.H.F </span>
+          <span className="text-[--at-accent]">Patrimoine</span>
         </h1>
       </div>
 
-      <div className="border border-fuchsia-500/30 bg-black/60 rounded p-6 shadow-[0_0_25px_rgba(217,70,239,0.1)]">
+      <div className="border border-[--rule] bg-[--at-surface] rounded p-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-400 mb-2 flex items-center">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-[--at-accent] mb-2 flex items-center">
               Patrimoine brut (EUR)
               <InfoTip text="Patrimoine brut = CCA + Equity FHF (NLV IBKR - CCA) + PEA + Crypto Perso + Crypto R+F. Avant impôts sur les plus-values." wide />
             </div>
-            <div className="text-4xl font-mono font-bold text-cyan-400">{fmtEur(patrimoineBrut)}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mt-3 flex items-center">
+            <div className="text-4xl font-mono font-bold text-[--at-accent]">{fmtEur(patrimoineBrut)}</div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mt-3 flex items-center">
               Net estimé (après impôts)
               <InfoTip text="Patrimoine net = CCA (100%) + FHF equity (×85% ×82.8%) + PEA (×70%) + Crypto (×68.6%). Estimation simplifiée si liquidation totale." wide />
             </div>
-            <div className="text-xl font-mono font-bold text-zinc-400">{fmtEur(patrimoineNet)}</div>
+            <div className="text-xl font-mono font-bold text-[--ink2]">{fmtEur(patrimoineNet)}</div>
           </div>
           {allocationData.length > 0 && (
             <div className="hidden md:block">
               <PieChart width={130} height={130}>
                 <Pie data={allocationData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                  outerRadius={55} innerRadius={25} strokeWidth={1} stroke="#09090b">
+                  outerRadius={55} innerRadius={25} strokeWidth={1} stroke="#fbf8f1">
                   {allocationData.map((d, i) => (
                     <Cell key={i} fill={d.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }}
-                  itemStyle={{ color: "#ffffff" }}
-                  labelStyle={{ color: "#a1a1aa" }}
+                  contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
+                  itemStyle={{ color: "#1a1814" }}
+                  labelStyle={{ color: "#4a4540" }}
                   formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
               </PieChart>
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-fuchsia-500/10">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-[--rule]">
           <MiniCard label="CCA" value={fmtEur(ccaNet)} taxLabel="100%" tip="Compte courant d'associé. Récupérable sans impôt." />
           <MiniCard label="FHF Equity" value={fmtEur(fhfEquity)} taxLabel="-IS 15% -PS 17.2%"
             netValue={fmtEur(fhfDistribuableNet)} tip="Equity = NLV IBKR - CCA. Net = equity × (1-15% IS) × (1-17.2% PS). Taux réduit PME simplifié." />
@@ -353,9 +353,9 @@ export default function Home() {
       </div>
 
       {chartData.length > 1 && (
-        <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
+        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">
+            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
               Évolution patrimoine
             </h2>
             <div className="flex gap-1">
@@ -363,8 +363,8 @@ export default function Home() {
                 <button key={d} onClick={() => setChartRange(d)}
                   className={`px-3 py-1 text-[10px] font-mono uppercase rounded transition ${
                     chartRange === d
-                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
-                      : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+                      ? "bg-[--at-accent]/10 text-[--at-accent] border border-[--at-accent]/40"
+                      : "text-[--ink3] hover:text-[--ink] border border-transparent"
                   }`}>
                   {d === 365 ? "1Y" : `${d}J`}
                 </button>
@@ -375,30 +375,30 @@ export default function Home() {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="gradIBKR" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#e879f9" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#e879f9" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#7d2b1d" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#7d2b1d" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradPEA" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#cfb88f" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#cfb88f" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradCrypto" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#3a6e3f" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3a6e3f" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
                 tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
               <Tooltip
-                contentStyle={{ background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }}
-                itemStyle={{ color: "#ffffff" }}
-                labelStyle={{ color: "#a1a1aa" }}
+                contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
+                itemStyle={{ color: "#1a1814" }}
+                labelStyle={{ color: "#4a4540" }}
                 formatter={(value: number, name: string) => [fmtEur(value), name]}
               />
-              <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#e879f9" fill="url(#gradIBKR)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#06b6d4" fill="url(#gradPEA)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#a78bfa" fill="url(#gradCrypto)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="url(#gradIBKR)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#cfb88f" fill="url(#gradPEA)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#3a6e3f" fill="url(#gradCrypto)" strokeWidth={1.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -436,22 +436,22 @@ export default function Home() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Market Events */}
-        <div className="border border-fuchsia-500/20 rounded bg-black/40">
-          <div className="border-b border-fuchsia-500/20 p-4 flex items-center gap-2">
-            <Zap size={14} className="text-fuchsia-400" />
-            <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400">
+        <div className="border border-[--rule] rounded bg-[--at-surface]">
+          <div className="border-b border-[--rule] p-4 flex items-center gap-2">
+            <Zap size={14} className="text-[--at-accent]" />
+            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
               Marché · High Impact · Aujourd'hui
             </h2>
           </div>
           <div className="p-3 space-y-1 max-h-[500px] overflow-y-auto">
-            {marketLoading && <p className="text-zinc-500 text-xs font-mono text-center py-4">Chargement...</p>}
+            {marketLoading && <p className="text-[--ink3] text-xs font-mono text-center py-4">Chargement...</p>}
             {!marketLoading && marketEvents.length === 0 && (
-              <p className="text-zinc-600 text-xs font-mono text-center py-4">Aucun événement high impact aujourd'hui</p>
+              <p className="text-[--ink3] text-xs font-mono text-center py-4">Aucun événement high impact aujourd'hui</p>
             )}
             {marketEvents.length > 0 && (
-              <div className="flex items-center gap-3 px-3 py-1 text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
+              <div className="flex items-center gap-3 px-3 py-1 text-[9px] font-mono text-[--ink3] uppercase tracking-wider">
                 <div className="text-base shrink-0 invisible">{"\u{1F3F3}\u{FE0F}"}</div>
-                <div className="text-zinc-500 w-16 shrink-0 text-right">Heure</div>
+                <div className="text-[--ink3] w-16 shrink-0 text-right">Heure</div>
                 <div className="flex-1 min-w-0">Événement</div>
                 <div className="w-12 text-center">Prévu</div>
                 <div className="w-12 text-center">Préc.</div>
@@ -461,13 +461,13 @@ export default function Home() {
             {marketEvents.map((ev, i) => {
               const past = isPast(ev)
               return (
-                <div key={i} className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-fuchsia-500/5"}`}>
+                <div key={i} className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-[--at-accent]/5"}`}>
                   <span className="text-base shrink-0">{FLAG[ev.country] || ev.country}</span>
-                  <span className="text-zinc-500 w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
-                  <span className="text-white flex-1 truncate min-w-0">{ev.title}</span>
-                  <span className="text-zinc-500 w-12 text-center shrink-0">{ev.forecast || "—"}</span>
-                  <span className="text-zinc-600 w-12 text-center shrink-0">{ev.previous || "—"}</span>
-                  <span className={`w-12 text-center shrink-0 ${ev.actual ? "text-cyan-400 font-bold" : "text-zinc-700"}`}>{ev.actual || "—"}</span>
+                  <span className="text-[--ink3] w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
+                  <span className="text-[--ink] flex-1 truncate min-w-0">{ev.title}</span>
+                  <span className="text-[--ink3] w-12 text-center shrink-0">{ev.forecast || "—"}</span>
+                  <span className="text-[--ink3] w-12 text-center shrink-0">{ev.previous || "—"}</span>
+                  <span className={`w-12 text-center shrink-0 ${ev.actual ? "text-[--at-accent] font-bold" : "text-[--ink3]"}`}>{ev.actual || "—"}</span>
                 </div>
               )
             })}
@@ -475,15 +475,15 @@ export default function Home() {
         </div>
 
         {/* Notes & Idées */}
-        <div className="border border-cyan-500/20 rounded bg-black/40">
-          <div className="border-b border-cyan-500/20 p-4 flex items-center justify-between">
+        <div className="border border-[--rule] rounded bg-[--at-surface]">
+          <div className="border-b border-[--rule] p-4 flex items-center justify-between">
             <button onClick={() => setNotesExpanded(!notesExpanded)}
-              className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition">
+              className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[--at-accent] hover:text-[--at-accent] transition">
               {notesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               Notes & Idées · {notes.length}
             </button>
             <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
               <Plus size={12} /> Nouvelle note
             </button>
           </div>
@@ -491,22 +491,22 @@ export default function Home() {
           {notesExpanded && (
             <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
               {showNoteForm && (
-                <div className="border border-fuchsia-500/30 rounded p-4 bg-black/60 space-y-3" onPaste={handleImagePaste}>
+                <div className="border border-[--rule] rounded p-4 bg-[--at-surface] space-y-3" onPaste={handleImagePaste}>
                   <input
                     type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
                     onPaste={handleImagePaste}
                     placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
-                    className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50"
+                    className="w-full bg-transparent border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/40"
                   />
                   <textarea
                     value={noteContent} onChange={e => setNoteContent(e.target.value)}
                     onPaste={handleImagePaste}
                     placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
                     rows={3}
-                    className="w-full bg-transparent border border-cyan-500/20 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 resize-none"
+                    className="w-full bg-transparent border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/40 resize-none"
                   />
                   <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded text-zinc-400 hover:text-zinc-300 hover:border-zinc-500 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-[--rule] rounded text-[--ink2] hover:text-[--ink] hover:border-[--at-accent]/40 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
                       <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
                       <input type="file" accept="image/*" className="hidden"
                         onChange={e => {
@@ -516,21 +516,21 @@ export default function Home() {
                     </label>
                     {noteImagePreview && (
                       <div className="relative">
-                        <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-cyan-500/20" />
+                        <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-[--rule]" />
                         <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
                           className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
-                          <X size={10} className="text-white" />
+                          <X size={10} className="text-[--ink]" />
                         </button>
                       </div>
                     )}
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={resetNoteForm}
-                      className="px-3 py-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[10px] uppercase tracking-wider transition">
+                      className="px-3 py-1.5 text-[--ink3] hover:text-[--ink] font-mono text-[10px] uppercase tracking-wider transition">
                       Annuler
                     </button>
                     <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
-                      className="px-4 py-1.5 bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
+                      className="px-4 py-1.5 bg-[--at-accent]/20 border border-[--at-accent]/40 text-[--at-accent] hover:bg-[--at-accent]/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
                       {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
                     </button>
                   </div>
@@ -538,42 +538,42 @@ export default function Home() {
               )}
 
               {notes.length === 0 && !showNoteForm && (
-                <p className="text-zinc-600 text-xs font-mono text-center py-6">
+                <p className="text-[--ink3] text-xs font-mono text-center py-6">
                   Aucune note. Clique "Nouvelle note" pour commencer.
                 </p>
               )}
               {notes.map(note => (
                 <div key={note.id}
-                  className={`border ${note.is_pinned ? "border-fuchsia-500/30 bg-fuchsia-500/5" : "border-cyan-500/10 bg-black/20"} rounded p-3 group`}>
+                  className={`border ${note.is_pinned ? "border-[--at-accent]/30 bg-[--at-accent]/5" : "border-[--rule] bg-[--at-surface]"} rounded p-3 group`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        {note.is_pinned && <Pin size={11} className="text-fuchsia-400 shrink-0" />}
-                        <h3 className="text-sm font-mono font-bold text-white truncate">{note.title}</h3>
+                        {note.is_pinned && <Pin size={11} className="text-[--at-accent] shrink-0" />}
+                        <h3 className="text-sm font-mono font-bold text-[--ink] truncate">{note.title}</h3>
                       </div>
                       {note.content && (
-                        <p className="text-xs font-mono text-zinc-400 mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
+                        <p className="text-xs font-mono text-[--ink2] mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
                       <button onClick={() => togglePin(note)} title={note.is_pinned ? "Désépingler" : "Épingler"}
-                        className={`p-1.5 rounded hover:bg-zinc-800 ${note.is_pinned ? "text-fuchsia-400" : "text-zinc-600"}`}>
+                        className={`p-1.5 rounded hover:bg-[--at-surface] ${note.is_pinned ? "text-[--at-accent]" : "text-[--ink3]"}`}>
                         <Pin size={12} />
                       </button>
-                      <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-cyan-400">
+                      <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-[--at-surface] text-[--ink3] hover:text-[--at-accent]">
                         <Edit3 size={12} />
                       </button>
-                      <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400">
+                      <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-[--at-surface] text-[--ink3] hover:text-[--at-neg]">
                         <Trash2 size={12} />
                       </button>
                     </div>
                   </div>
                   {note.image_url && (
                     <img src={note.image_url} alt="chart"
-                      className="mt-2 rounded border border-cyan-500/10 max-h-48 w-full object-contain cursor-pointer hover:border-cyan-500/30 transition"
+                      className="mt-2 rounded border border-[--rule] max-h-48 w-full object-contain cursor-pointer hover:border-[--at-accent]/30 transition"
                       onClick={() => window.open(note.image_url, '_blank')} />
                   )}
-                  <div className="text-[9px] font-mono text-zinc-600 mt-2">
+                  <div className="text-[9px] font-mono text-[--ink3] mt-2">
                     {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
@@ -588,37 +588,37 @@ export default function Home() {
 
 function MiniCard({ label, value, taxLabel, netValue, tip }: { label: string; value: string; taxLabel: string; netValue?: string; tip: string }) {
   return (
-    <div className="border border-zinc-800 rounded p-3 bg-black/40">
-      <div className="text-[9px] font-mono uppercase tracking-widest text-zinc-600 flex items-center">
+    <div className="border border-[--rule] rounded p-3 bg-[--at-surface]">
+      <div className="text-[9px] font-mono uppercase tracking-widest text-[--ink3] flex items-center">
         {label}<InfoTip text={tip} />
       </div>
-      <div className="text-sm font-mono font-bold text-white mt-1">{value}</div>
-      <div className="text-[9px] font-mono text-zinc-600 mt-0.5">{taxLabel}</div>
-      {netValue && <div className="text-[10px] font-mono text-zinc-500 mt-0.5">Net: {netValue}</div>}
+      <div className="text-sm font-mono font-bold text-[--ink] mt-1">{value}</div>
+      <div className="text-[9px] font-mono text-[--ink3] mt-0.5">{taxLabel}</div>
+      {netValue && <div className="text-[10px] font-mono text-[--ink3] mt-0.5">Net: {netValue}</div>}
     </div>
   )
 }
 
 function SubCard({ icon: Icon, title, subtitle, mainValue, mainLabel, subValue, stats, link, accent }: any) {
-  const border = accent === "cyan" ? "border-cyan-500/30 hover:border-cyan-500/60" : accent === "fuchsia" ? "border-fuchsia-500/30 hover:border-fuchsia-500/60" : "border-zinc-700/30 hover:border-zinc-500/60"
-  const titleColor = accent === "cyan" ? "text-cyan-400" : accent === "fuchsia" ? "text-fuchsia-400" : "text-zinc-500"
+  const border = accent === "cyan" ? "border-[--rule] hover:border-[--at-accent]/40" : accent === "fuchsia" ? "border-[--at-accent]/30 hover:border-[--at-accent]/60" : "border-[--rule] hover:border-[--at-accent]/40"
+  const titleColor = accent === "cyan" ? "text-[--at-accent]" : accent === "fuchsia" ? "text-[--at-accent]" : "text-[--ink3]"
   return (
-    <Link href={link} className={`block border ${border} bg-black/40 rounded p-4 transition cursor-pointer group`}>
+    <Link href={link} className={`block border ${border} bg-[--at-surface] rounded p-4 transition cursor-pointer group`}>
       <div className="flex items-center justify-between mb-3">
         <div className={`flex items-center gap-2 ${titleColor} text-xs font-mono uppercase tracking-wider`}>
           <Icon size={14} />{title}
         </div>
-        <ArrowRight size={14} className="text-zinc-600 group-hover:text-zinc-400 transition" />
+        <ArrowRight size={14} className="text-[--ink3] group-hover:text-[--ink2] transition" />
       </div>
-      <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider mb-3">{subtitle}</div>
-      <div className="text-3xl font-mono font-bold text-white">{mainValue}</div>
-      {subValue && <div className="text-xs font-mono text-zinc-500 mt-0.5">{subValue}</div>}
-      <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mt-1">{mainLabel}</div>
-      <div className="border-t border-zinc-800 mt-4 pt-3 flex justify-between text-xs font-mono">
+      <div className="text-[10px] font-mono text-[--ink3] uppercase tracking-wider mb-3">{subtitle}</div>
+      <div className="text-3xl font-mono font-bold text-[--ink]">{mainValue}</div>
+      {subValue && <div className="text-xs font-mono text-[--ink3] mt-0.5">{subValue}</div>}
+      <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mt-1">{mainLabel}</div>
+      <div className="border-t border-[--rule] mt-4 pt-3 flex justify-between text-xs font-mono">
         {stats.map((s: any, i: number) => (
           <div key={i}>
-            <div className="text-zinc-600 uppercase text-[9px] tracking-wider">{s.label}</div>
-            <div className={`mt-0.5 ${s.color === "green" ? "text-green-400" : s.color === "red" ? "text-red-400" : "text-zinc-300"}`}>{s.value}</div>
+            <div className="text-[--ink3] uppercase text-[9px] tracking-wider">{s.label}</div>
+            <div className={`mt-0.5 ${s.color === "green" ? "text-[--at-pos]" : s.color === "red" ? "text-[--at-neg]" : "text-[--ink]"}`}>{s.value}</div>
           </div>
         ))}
       </div>

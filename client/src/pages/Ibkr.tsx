@@ -5,7 +5,7 @@ import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
-const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
+const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 
 const IBKR_SECTOR: Record<string, string> = {
   "AI": "Tech / IA",
@@ -84,8 +84,8 @@ export default function Ibkr() {
 
   useEffect(() => { loadData() }, [])
 
-  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
-  if (error && !data) return <div className="p-8 text-red-400 font-mono text-sm">Erreur : {error}</div>
+  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
+  if (error && !data) return <div className="p-8 text-[--at-neg] font-mono text-sm">Erreur : {error}</div>
   if (!data) return null
 
   const positions = (data?.positions || []).filter((p: any) => {
@@ -116,67 +116,67 @@ export default function Ibkr() {
   const totalPerf = capital ? nlv - capital : 0
   const totalPerfPct = capital ? (totalPerf / capital) * 100 : 0
 
-  const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+  const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
         <div>
-          <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
+          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
             <Briefcase size={14} /> {account?.label}
           </div>
           <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-cyan-400">Portefeuille </span>
-            <span className="text-fuchsia-500">FHF</span>
+            <span className="text-[--at-accent]">Portefeuille </span>
+            <span className="text-[--at-accent]">FHF</span>
           </h1>
-          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider mt-1">
+          <p className="text-[10px] text-[--ink3] font-mono uppercase tracking-wider mt-1">
             {account?.ibkr_account_number} · Base {account?.currency_base}
             {data.ibkrSync?.last_synced_at && <> · Sync {new Date(data.ibkrSync.last_synced_at).toLocaleString("fr-FR")}</>}
           </p>
         </div>
         <button onClick={sync} disabled={syncing}
-          className="px-4 py-2 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
+          className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
           <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
           {syncing ? "Sync..." : "Sync IBKR"}
         </button>
       </div>
 
       {syncError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded p-3 flex items-center justify-between">
-          <span className="text-red-400 text-xs font-mono">Sync échouée : {syncError}</span>
-          <button onClick={() => setSyncError(null)} className="text-red-400 hover:text-red-300 text-xs font-mono">✕</button>
+        <div className="bg-[--at-neg]/10 border border-[--at-neg]/30 rounded p-3 flex items-center justify-between">
+          <span className="text-[--at-neg] text-xs font-mono">Sync échouée : {syncError}</span>
+          <button onClick={() => setSyncError(null)} className="text-[--at-neg] hover:text-[--at-neg] text-xs font-mono">✕</button>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">NLV TOTALE<InfoTip text="Net Liquidation Value = Cash + Valeur marchande des positions. Sync IBKR Flex Query quotidienne 22h UTC." /></div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(nlv)}</div>
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">NLV TOTALE<InfoTip text="Net Liquidation Value = Cash + Valeur marchande des positions. Sync IBKR Flex Query quotidienne 22h UTC." /></div>
+          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(nlv)}</div>
           <div className="text-xs font-mono mt-1">
-            <span className="text-cyan-400">Positions {fmtEur(positionsBase)}</span>
-            <span className="text-zinc-600 mx-1">·</span>
-            <span className="text-fuchsia-400">Cash {fmtEur(cashBase)}</span>
+            <span className="text-[--at-accent]">Positions {fmtEur(positionsBase)}</span>
+            <span className="text-[--ink3] mx-1">·</span>
+            <span className="text-[--at-accent]">Cash {fmtEur(cashBase)}</span>
           </div>
         </div>
-        <div className={`border ${totalPerf >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">PERF TOTALE<InfoTip text="(NLV actuelle − Capital investi) / Capital investi × 100. Inclut P&L réalisé + latent + dividendes − commissions." /></div>
-          <div className={`text-2xl font-mono font-bold ${totalPerf >= 0 ? "text-green-400" : "text-red-400"}`}>
+        <div className={`border ${totalPerf >= 0 ? "border-[--at-pos]/30" : "border-[--at-neg]/30"} bg-[--at-surface] rounded p-4`}>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">PERF TOTALE<InfoTip text="(NLV actuelle − Capital investi) / Capital investi × 100. Inclut P&L réalisé + latent + dividendes − commissions." /></div>
+          <div className={`text-2xl font-mono font-bold ${totalPerf >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
             {totalPerf >= 0 ? "+" : ""}{fmtEur(totalPerf)}
           </div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+          <div className="text-[10px] font-mono text-[--ink3] mt-1">
             {totalPerfPct >= 0 ? "+" : ""}{totalPerfPct.toFixed(2)}%
           </div>
         </div>
-        <div className={`border ${unrealizedPnl >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">P&L LATENT</div>
-          <div className={`text-2xl font-mono font-bold ${unrealizedPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+        <div className={`border ${unrealizedPnl >= 0 ? "border-[--at-pos]/30" : "border-[--at-neg]/30"} bg-[--at-surface] rounded p-4`}>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2">P&L LATENT</div>
+          <div className={`text-2xl font-mono font-bold ${unrealizedPnl >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
             {unrealizedPnl >= 0 ? "+" : ""}{fmtEur(unrealizedPnl)}
           </div>
         </div>
-        <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">CASH NET</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(cashBase)}</div>
-          <div className="text-[10px] font-mono text-zinc-500 mt-1">
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2">CASH NET</div>
+          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(cashBase)}</div>
+          <div className="text-[10px] font-mono text-[--ink3] mt-1">
             {cashBalances.map((c: any) => `${Number(c.amount).toFixed(0)} ${c.currency}`).join(" · ")}
           </div>
         </div>
@@ -221,72 +221,72 @@ export default function Ibkr() {
           { name: "Cash", value: cashBase },
         ].filter(d => d.value > 0)
         const cashVsTotal = cashVsPos.reduce((s, d) => s + d.value, 0)
-        const CASH_COLORS = ["#06b6d4", "#e879f9"]
+        const CASH_COLORS = ["#7d2b1d", "#cfb88f"]
 
         if (allocationData.length === 0) return null
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Allocation</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Allocation</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {mainSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-white ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-[--ink2]">{d.name}</span>
+                    <span className="text-[--ink] ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Par secteur</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Par secteur</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {sectorSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
-                    <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-white ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-[--ink2]">{d.name}</span>
+                    <span className="text-[--ink] ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-cyan-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400 mb-2">Cash vs Positions</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Cash vs Positions</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {cashVsPos.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
-                    <span className={i === 0 ? "text-cyan-400 font-bold" : "text-fuchsia-400 font-bold"}>{d.name}</span>
-                    <span className="text-zinc-400 ml-auto">{fmtEur(d.value)}</span>
+                    <span className={i === 0 ? "text-[--at-accent] font-bold" : "text-[--at-accent] font-bold"}>{d.name}</span>
+                    <span className="text-[--ink2] ml-auto">{fmtEur(d.value)}</span>
                   </div>
                 ))}
               </div>
@@ -295,18 +295,18 @@ export default function Ibkr() {
         )
       })()}
 
-      <div className="border border-cyan-500/20 rounded bg-black/40">
-        <div className="border-b border-cyan-500/20 p-3">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-cyan-400">
+      <div className="border border-[--rule] rounded bg-[--at-surface]">
+        <div className="border-b border-[--rule] p-3">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
             Positions ouvertes · {positions.length}
           </h2>
         </div>
         {positions.length === 0 ? (
-          <div className="p-6 text-center text-zinc-500 text-xs font-mono">Aucune position ouverte · Données du dernier sync disponibles</div>
+          <div className="p-6 text-center text-[--ink3] text-xs font-mono">Aucune position ouverte · Données du dernier sync disponibles</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs font-mono">
-              <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="text-left p-3">Ticker</th>
                   <th className="text-left p-3">Nom</th>
@@ -329,18 +329,18 @@ export default function Ibkr() {
                   const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
                   const sym = p.currency === "USD" ? "$" : "€"
                   return (
-                    <tr key={p.id} className="border-t border-cyan-500/10 hover:bg-cyan-500/5 cursor-pointer transition"
+                    <tr key={p.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 cursor-pointer transition"
                       onClick={() => setSelectedPosition(p)}>
-                      <td className="p-3 text-fuchsia-400 font-bold">{p.ticker}</td>
-                      <td className="p-3 text-zinc-400 truncate max-w-[200px]">{p.name}</td>
-                      <td className="p-3 text-right text-zinc-300">{qty}</td>
-                      <td className="p-3 text-right text-zinc-500">{pru.toFixed(2)} {sym}</td>
-                      <td className="p-3 text-right text-cyan-300">{price.toFixed(2)} {sym}</td>
-                      <td className="p-3 text-right text-zinc-300">{value.toFixed(2)} {sym}</td>
-                      <td className={`p-3 text-right ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      <td className="p-3 text-[--at-accent] font-bold">{p.ticker}</td>
+                      <td className="p-3 text-[--ink2] truncate max-w-[200px]">{p.name}</td>
+                      <td className="p-3 text-right text-[--ink]">{qty}</td>
+                      <td className="p-3 text-right text-[--ink3]">{pru.toFixed(2)} {sym}</td>
+                      <td className="p-3 text-right text-[--at-accent]">{price.toFixed(2)} {sym}</td>
+                      <td className="p-3 text-right text-[--ink]">{value.toFixed(2)} {sym}</td>
+                      <td className={`p-3 text-right ${pnl >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
                         {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
                       </td>
-                      <td className={`p-3 text-right ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      <td className={`p-3 text-right ${pnlPct >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
                         {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
                       </td>
                     </tr>

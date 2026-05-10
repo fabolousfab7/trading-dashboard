@@ -17,11 +17,11 @@ export default function Layout({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  if (loading) return <div className="min-h-screen bg-black" />
+  if (loading) return <div className="min-h-screen bg-[--at-bg]" />
   if (!user) return <>{children}</>
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div className="min-h-screen bg-[--at-bg] text-[--ink] flex">
       <Sidebar />
       <main className="flex-1 overflow-x-hidden">{children}</main>
     </div>

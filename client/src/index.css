@@ -4,26 +4,37 @@
 
 @layer base {
   :root {
-    --background: 230 25% 4%;
-    --foreground: 0 0% 100%;
-    --card: 230 25% 6%;
-    --card-foreground: 0 0% 100%;
-    --popover: 230 25% 6%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 320 100% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 190 100% 50%;
-    --secondary-foreground: 230 25% 5%;
-    --muted: 230 25% 12%;
-    --muted-foreground: 230 10% 70%;
-    --accent: 280 100% 60%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 230 25% 12%;
-    --input: 230 25% 12%;
-    --ring: 320 100% 60%;
-    --radius: 0.75rem;
+    --background: 38 30% 93%;
+    --foreground: 30 15% 10%;
+    --card: 38 25% 91%;
+    --card-foreground: 30 15% 10%;
+    --popover: 38 25% 91%;
+    --popover-foreground: 30 15% 10%;
+    --primary: 8 60% 30%;
+    --primary-foreground: 38 30% 93%;
+    --secondary: 38 35% 65%;
+    --secondary-foreground: 30 15% 10%;
+    --muted: 38 20% 85%;
+    --muted-foreground: 30 10% 45%;
+    --accent: 8 60% 30%;
+    --accent-foreground: 38 30% 93%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 38 30% 93%;
+    --border: 35 20% 80%;
+    --input: 35 20% 80%;
+    --ring: 8 60% 30%;
+    --radius: 0.5rem;
+
+    --ink: #1a1814;
+    --ink2: #4a4540;
+    --ink3: #8a8478;
+    --rule: #d9d3c4;
+    --at-bg: #fbf8f1;
+    --at-surface: #f5f0e6;
+    --at-accent: #7d2b1d;
+    --at-pos: #3a6e3f;
+    --at-neg: #7d2b1d;
+    --at-gold: #cfb88f;
   }
 }
 
@@ -32,70 +43,40 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30;
-    background-image: 
-      radial-gradient(circle at 50% 0%, rgba(255, 0, 128, 0.08) 0%, transparent 60%),
-      radial-gradient(circle at 100% 100%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
-    background-attachment: fixed;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
   }
 }
 
 @layer components {
-  .cyber-card {
-    @apply relative bg-card/60 backdrop-blur-xl border border-white/5 overflow-visible transition-all duration-300 shadow-2xl;
-  }
-  
-  .cyber-card::after {
-    content: "";
-    @apply absolute inset-0 opacity-0 pointer-events-none transition-opacity duration-500;
-    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  .font-serif {
+    font-family: 'Source Serif 4', serif;
   }
 
-  .cyber-card:hover::after {
-    @apply opacity-100;
-  }
-
-  .glow-primary {
-    @apply shadow-[0_0_20px_rgba(255,0,128,0.3)] hover:shadow-[0_0_35px_rgba(255,0,128,0.5)] transition-all;
-  }
-
-  .glow-secondary {
-    @apply shadow-[0_0_20px_rgba(0,255,255,0.3)] hover:shadow-[0_0_35px_rgba(0,255,255,0.5)] transition-all;
-  }
-
-  .glow-primary-text {
-    @apply drop-shadow-[0_0_5px_rgba(255,0,128,0.5)];
-  }
-
-  .glow-secondary-text {
-    @apply drop-shadow-[0_0_5px_rgba(0,255,255,0.5)];
-  }
-
-  .glow-white-text {
-    @apply drop-shadow-[0_0_5px_rgba(255,255,255,0.3)];
+  .font-mono {
+    font-family: 'Geist Mono', monospace;
   }
 
   .font-arcade {
-    font-family: 'Press Start 2P', cursive;
-    @apply tracking-widest leading-relaxed;
+    font-family: 'Source Serif 4', serif;
+    @apply tracking-wide leading-relaxed;
   }
 
   .font-cyber {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 
-  .animate-gradient-x {
-    background-size: 200% 200%;
-    animation: gradient-x 15s ease infinite;
+  .cyber-card {
+    @apply relative bg-[--at-surface] border border-[--rule] overflow-visible transition-all duration-300;
   }
-}
 
-@keyframes gradient-x {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  .glow-primary, .glow-secondary {
+    @apply transition-all;
+  }
+
+  .glow-primary-text, .glow-secondary-text, .glow-white-text {
+    /* no glow in Atelier */
+  }
 }
 
 /* Custom Scrollbar */
@@ -105,9 +86,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-background;
+  background: var(--at-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  @apply rounded-full;
+  background: var(--rule);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink3);
 }

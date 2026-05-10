@@ -5,7 +5,7 @@ import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
-const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
+const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 
 const CRYPTO_SECTOR: Record<string, string> = {
   "BTC": "Store of Value",
@@ -103,8 +103,8 @@ export default function CryptoShared() {
     finally { setRefreshing(false) }
   }
 
-  if (loading) return <div className="p-8 text-zinc-400 font-mono text-sm">Chargement...</div>
-  if (!account) return <div className="p-8 text-zinc-500 font-mono">Aucun compte Crypto</div>
+  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
+  if (!account) return <div className="p-8 text-[--ink3] font-mono">Aucun compte Crypto</div>
 
   const positions = (data?.positions || []).filter((p: any) => {
     const qty = Number(p.quantity)
@@ -117,44 +117,44 @@ export default function CryptoShared() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between border-b border-fuchsia-500/20 pb-4">
+      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
         <div>
-          <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
+          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
             <Bitcoin size={14} /> Crypto R+F
           </div>
           <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-fuchsia-500">Crypto </span>
-            <span className="text-cyan-400">R+F</span>
+            <span className="text-[--at-accent]">Crypto </span>
+            <span className="text-[--at-accent]">R+F</span>
           </h1>
         </div>
         <button onClick={refreshPrices} disabled={refreshing}
-          className="px-4 py-2 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
+          className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
           <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           {refreshing ? "Sync..." : "Refresh cours"}
         </button>
       </div>
 
-      {error && <div className="border border-red-500/30 bg-red-500/10 text-red-400 p-3 rounded font-mono text-xs">{error}</div>}
+      {error && <div className="border border-[--at-neg]/30 bg-[--at-neg]/10 text-[--at-neg] p-3 rounded font-mono text-xs">{error}</div>}
 
-      <div className="border border-fuchsia-500/30 bg-black/40 rounded p-4">
+      <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
         <div className="flex gap-8">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 flex items-center">
               Valeur totale portefeuille
               <InfoTip text="Valeur totale du portefeuille partagé Raph+Fab (quantités réelles × cours). La part Fabien (50%) est affichée en dessous." />
             </div>
-            <div className="text-3xl font-mono font-bold text-white">{fmtUsd(totalStats.valueUsd)}</div>
-            <div className="text-sm font-mono text-zinc-400 mt-1">Part Fabien (50%) : {fmtUsd(partStats.valueUsd)} / {fmtEur(partStats.value)}</div>
+            <div className="text-3xl font-mono font-bold text-[--ink]">{fmtUsd(totalStats.valueUsd)}</div>
+            <div className="text-sm font-mono text-[--ink2] mt-1">Part Fabien (50%) : {fmtUsd(partStats.valueUsd)} / {fmtEur(partStats.value)}</div>
           </div>
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">Valeur EUR</div>
-            <div className="text-3xl font-mono font-bold text-white">{fmtEur(totalStats.value)}</div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 flex items-center">Valeur EUR</div>
+            <div className="text-3xl font-mono font-bold text-[--ink]">{fmtEur(totalStats.value)}</div>
           </div>
         </div>
       </div>
 
       {(() => {
-        const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+        const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
         const merged: Record<string, number> = {}
         for (const p of sharedPositions) {
           const ticker = p.ticker.replace(/_R$/, "")
@@ -200,72 +200,72 @@ export default function CryptoShared() {
           { name: "Positions", value: posUsd },
           { name: "Cash USDT", value: cashUsd },
         ].filter(d => d.value > 0)
-        const CASH_COLORS = ["#06b6d4", "#e879f9"]
+        const CASH_COLORS = ["#7d2b1d", "#cfb88f"]
 
         if (allocationData.length === 0) return null
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Allocation</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Allocation</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {mainSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-white ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-[--ink2]">{d.name}</span>
+                    <span className="text-[--ink] ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Par secteur</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Par secteur</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {sectorSlices.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
-                    <span className="text-zinc-400">{d.name}</span>
-                    <span className="text-white ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                    <span className="text-[--ink2]">{d.name}</span>
+                    <span className="text-[--ink] ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Cash vs Positions</h2>
+            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Cash vs Positions</h2>
               <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
                   <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
                     {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1">
                 {cashVsPos.map((d: any, i: number) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
-                    <span className={i === 0 ? "text-cyan-400 font-bold" : "text-fuchsia-400 font-bold"}>{d.name}</span>
-                    <span className="text-zinc-400 ml-auto">{fmtUsd(d.value)}</span>
+                    <span className={i === 0 ? "text-[--at-accent] font-bold" : "text-[--at-accent] font-bold"}>{d.name}</span>
+                    <span className="text-[--ink2] ml-auto">{fmtUsd(d.value)}</span>
                   </div>
                 ))}
               </div>
@@ -275,31 +275,31 @@ export default function CryptoShared() {
       })()}
 
       {sharedPositions.length === 0 ? (
-        <div className="text-zinc-500 font-mono text-sm text-center py-8">Aucune position partagée</div>
+        <div className="text-[--ink3] font-mono text-sm text-center py-8">Aucune position partagée</div>
       ) : (
-        <div className="border border-fuchsia-500/30 rounded bg-black/40">
-          <div className="border-b border-fuchsia-500/30 p-4 flex items-center justify-between">
+        <div className="border border-[--rule] rounded bg-[--at-surface]">
+          <div className="border-b border-[--rule] p-4 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-fuchsia-400 flex items-center">
+              <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-[--at-accent] flex items-center">
                 Raph + Fab
                 <InfoTip text="Portefeuille partagé Raph+Fab. Valeurs réelles affichées (quantités et cours non pondérés). La part Fabien (50%) est calculée uniquement sur la page Home." />
               </h2>
-              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Valeurs réelles du portefeuille commun</p>
+              <p className="text-[10px] text-[--ink3] font-mono mt-0.5">Valeurs réelles du portefeuille commun</p>
             </div>
             <div className="flex gap-6 text-right">
               <div>
-                <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur USD</div>
-                <div className="text-base font-mono font-bold text-cyan-300">{fmtUsd(totalStats.valueUsd)}</div>
+                <div className="text-[10px] text-[--ink3] font-mono uppercase">Valeur USD</div>
+                <div className="text-base font-mono font-bold text-[--at-accent]">{fmtUsd(totalStats.valueUsd)}</div>
               </div>
               <div>
-                <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur EUR</div>
-                <div className="text-base font-mono font-bold text-zinc-400">{fmtEur(totalStats.value)}</div>
+                <div className="text-[10px] text-[--ink3] font-mono uppercase">Valeur EUR</div>
+                <div className="text-base font-mono font-bold text-[--ink2]">{fmtEur(totalStats.value)}</div>
               </div>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs font-mono">
-              <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
+              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="text-left p-3">Coin</th>
                   <th className="text-right p-3">Qté</th>
@@ -315,15 +315,15 @@ export default function CryptoShared() {
                   const priceUsd = Number(p.market_price_usd) || 0
                   const valueUsd = qty * priceUsd
                   return (
-                    <tr key={p.id} className="border-t border-fuchsia-500/10 hover:bg-fuchsia-500/5 cursor-pointer transition"
+                    <tr key={p.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 cursor-pointer transition"
                       onClick={() => setSelectedPosition(p)}>
                       <td className="p-3">
-                        <div className="text-fuchsia-400 font-bold">{p.ticker.replace(/_R$/, "")}</div>
-                        <div className="text-zinc-500 text-[10px] truncate max-w-[200px]">{(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim()}</div>
+                        <div className="text-[--at-accent] font-bold">{p.ticker.replace(/_R$/, "")}</div>
+                        <div className="text-[--ink3] text-[10px] truncate max-w-[200px]">{(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim()}</div>
                       </td>
-                      <td className="p-3 text-right text-zinc-300">{qty.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
-                      <td className="p-3 text-right text-cyan-300">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : fmtUsd(priceUsd)}</td>
-                      <td className="p-3 text-right text-zinc-300">{fmtUsd(valueUsd)}</td>
+                      <td className="p-3 text-right text-[--ink]">{qty.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
+                      <td className="p-3 text-right text-[--at-accent]">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : fmtUsd(priceUsd)}</td>
+                      <td className="p-3 text-right text-[--ink]">{fmtUsd(valueUsd)}</td>
                     </tr>
                   )
                 })}
