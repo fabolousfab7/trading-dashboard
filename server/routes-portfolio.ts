@@ -10,6 +10,7 @@ import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
 import { fetchYahooPrice } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
+import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -422,6 +423,22 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         const accountResult: any = { account: account.label, broker: account.broker, actions: [] }
 
         try {
+          // Kraken sync
+          if (account.broker === "Kraken") {
+            const { data: kCfgRows } = await serviceClient
+              .from("kraken_config").select("*").eq("account_id", account.id)
+            const kCfg = kCfgRows?.[0]
+            if (kCfg?.api_key && kCfg?.api_secret) {
+              try {
+                const krakenCfg: KrakenConfig = { apiKey: kCfg.api_key, apiSecret: kCfg.api_secret }
+                const result = await syncKrakenAccount(serviceClient, account, krakenCfg)
+                accountResult.actions.push(`kraken_sync_ok: ${result.positions} positions`)
+              } catch (e: any) {
+                accountResult.actions.push(`kraken_sync_fail: ${e.message}`)
+              }
+            }
+          }
+
           const config = account.ibkr_config?.[0] || account.ibkr_config
           if (account.broker === "IBKR" && config?.flex_token && config?.query_id) {
             try {

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter"
-import { Home, BarChart3, Briefcase, Wallet, Bitcoin, Users, Receipt, TrendingUp } from "lucide-react"
+import { Home, BarChart3, Briefcase, Wallet, Bitcoin, Users, Receipt, TrendingUp, Coins } from "lucide-react"
 
 const SECTIONS = [
   {
@@ -13,6 +13,7 @@ const SECTIONS = [
     items: [
       { path: "/fhf", label: "Pilotage", icon: TrendingUp },
       { path: "/ibkr", label: "IBKR", icon: Briefcase },
+      { path: "/kraken", label: "Kraken", icon: Coins },
       { path: "/compta", label: "Compta", icon: Receipt },
     ]
   },
