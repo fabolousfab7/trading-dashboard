@@ -708,38 +708,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         category: i.category
       }))
 
-      const { data: allTrades } = await userClient
-        .from("trades").select("profit, compte, date")
-
-      const fhfComptes = ["IBKR", "Kraken", "FTMO"]
-      const fhfTrades = (allTrades || []).filter(t => {
-        const tradeYear = new Date(t.date).getFullYear().toString()
-        return tradeYear === year && fhfComptes.some(c => t.compte?.toUpperCase().includes(c))
-      })
-
-      const pnl_realise_ibkr = fhfTrades
-        .filter(t => t.compte?.toUpperCase().includes("IBKR"))
-        .reduce((s, t) => s + Number(t.profit), 0)
-      const pnl_realise_kraken = fhfTrades
-        .filter(t => t.compte?.toUpperCase().includes("KRAKEN"))
-        .reduce((s, t) => s + Number(t.profit), 0)
-      const pnl_realise_ftmo = fhfTrades
-        .filter(t => t.compte?.toUpperCase().includes("FTMO"))
-        .reduce((s, t) => s + Number(t.profit), 0)
-      const pnl_realise_total = pnl_realise_ibkr + pnl_realise_kraken + pnl_realise_ftmo
-
-      const { data: accounts } = await userClient
-        .from("accounts").select("id, broker")
-      const ibkrAccount = (accounts || []).find(a => a.broker === "IBKR")
-      let pnl_latent_ibkr = 0
-      let ibkr_positions: any[] = []
-      if (ibkrAccount) {
-        const { data: positions } = await userClient
-          .from("positions").select("*").eq("account_id", ibkrAccount.id)
-        ibkr_positions = (positions || []).filter(p => Number(p.quantity) !== 0)
-        pnl_latent_ibkr = ibkr_positions.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0)
-      }
-
+      // Capital investi (needed before IBKR P&L calc)
       const { data: capitalIbkr } = await userClient
         .from("fhf_invoices").select("direction, amount_ttc")
         .eq("category", "512100").eq("status", "validated")
@@ -756,6 +725,55 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       const capital_kraken = calcCapital(capitalKraken || [])
       const capital_total = capital_ibkr + capital_kraken
 
+      // IBKR — investissement, P&L basé sur le compte
+      const { data: accounts } = await userClient
+        .from("accounts").select("id, broker, currency_base")
+      const ibkrAccount = (accounts || []).find(a => a.broker === "IBKR")
+
+      let pnl_latent_ibkr = 0
+      let pnl_realise_ibkr = 0
+      let ibkr_nlv = 0
+      let ibkr_positions_value = 0
+      let ibkr_cash = 0
+      let ibkr_positions: any[] = []
+
+      if (ibkrAccount) {
+        const { data: positions } = await userClient
+          .from("positions").select("*").eq("account_id", ibkrAccount.id)
+        ibkr_positions = (positions || []).filter(p => Number(p.quantity) !== 0)
+
+        pnl_latent_ibkr = ibkr_positions.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0)
+
+        ibkr_positions_value = ibkr_positions.reduce((s, p) => {
+          const qty = Number(p.quantity)
+          const price = Number(p.market_price)
+          const fx = Number(p.fx_rate_to_base || 1)
+          return s + (qty * price * fx)
+        }, 0)
+
+        const { data: cashBalances } = await userClient
+          .from("cash_balances").select("amount, fx_rate_to_base").eq("account_id", ibkrAccount.id)
+        ibkr_cash = (cashBalances || []).reduce((s, c) => {
+          return s + Number(c.amount) * Number(c.fx_rate_to_base || 1)
+        }, 0)
+
+        ibkr_nlv = ibkr_cash + ibkr_positions_value
+        pnl_realise_ibkr = ibkr_cash - capital_ibkr
+      }
+
+      // Kraken — trading actif, P&L depuis le journal
+      const { data: allTrades } = await userClient
+        .from("trades").select("profit, compte, date")
+
+      const krakenTrades = (allTrades || []).filter(t => {
+        const tradeYear = new Date(t.date).getFullYear().toString()
+        return tradeYear === year && t.compte?.toUpperCase().includes("KRAKEN")
+      })
+      const pnl_realise_kraken = krakenTrades.reduce((s, t) => s + Number(t.profit), 0)
+
+      // Total P&L trading
+      const total_produits_trading = pnl_realise_ibkr + pnl_latent_ibkr + pnl_realise_kraken
+
       const { data: ccaInvoices } = await userClient
         .from("fhf_invoices").select("direction, amount_ttc, category, notes")
         .or("category.eq.455000,notes.ilike.%455000%")
@@ -769,8 +787,6 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         }
       }
 
-      const total_produits_trading = pnl_realise_total + pnl_latent_ibkr
-      const total_produits = total_produits_trading + revenus_compta
       const resultat_avant_is = total_produits_trading + revenus_compta - charges_ht_ytd
 
       let is_amount = 0
@@ -784,30 +800,29 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
       res.json({
         year,
+        ibkr_nlv,
+        ibkr_cash,
+        ibkr_positions_value,
+        pnl_realise_ibkr,
+        pnl_latent_ibkr,
+        nb_positions_ibkr: ibkr_positions.length,
+        capital_ibkr,
+        pnl_realise_kraken,
+        nb_trades_kraken: krakenTrades.length,
+        capital_kraken,
         revenus_compta,
         revenus_detail,
-        pnl_realise_ibkr,
-        pnl_realise_kraken,
-        pnl_realise_ftmo,
-        pnl_realise_total,
-        pnl_latent_ibkr,
-        total_produits_trading,
-        total_produits,
         charges_ht_ytd,
         charges_by_category,
+        total_produits_trading,
+        capital_total,
         resultat_avant_is,
         is_amount,
         resultat_net,
         taux_effectif_is,
-        capital_ibkr,
-        capital_kraken,
-        capital_total,
-        cca_balance,
-        nb_trades_ibkr: fhfTrades.filter(t => t.compte?.toUpperCase().includes("IBKR")).length,
-        nb_trades_kraken: fhfTrades.filter(t => t.compte?.toUpperCase().includes("KRAKEN")).length,
-        nb_positions_ibkr: ibkr_positions.length,
         is_tranche_reduite: resultat_avant_is > 0 ? Math.min(resultat_avant_is, 42500) * 0.15 : 0,
         is_tranche_normale: resultat_avant_is > 42500 ? (resultat_avant_is - 42500) * 0.25 : 0,
+        cca_balance,
       })
     } catch (err: any) {
       res.status(500).json({ error: err.message })

@@ -29,30 +29,29 @@ async function authFetch(url: string) {
 
 interface SimData {
   year: string
+  ibkr_nlv: number
+  ibkr_cash: number
+  ibkr_positions_value: number
+  pnl_realise_ibkr: number
+  pnl_latent_ibkr: number
+  nb_positions_ibkr: number
+  capital_ibkr: number
+  pnl_realise_kraken: number
+  nb_trades_kraken: number
+  capital_kraken: number
   revenus_compta: number
   revenus_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
-  pnl_realise_ibkr: number
-  pnl_realise_kraken: number
-  pnl_realise_ftmo: number
-  pnl_realise_total: number
-  pnl_latent_ibkr: number
-  total_produits_trading: number
-  total_produits: number
   charges_ht_ytd: number
   charges_by_category: { category: string; total_ht: number }[]
+  total_produits_trading: number
+  capital_total: number
   resultat_avant_is: number
   is_amount: number
   resultat_net: number
   taux_effectif_is: number
-  capital_ibkr: number
-  capital_kraken: number
-  capital_total: number
-  cca_balance: number
-  nb_trades_ibkr: number
-  nb_trades_kraken: number
-  nb_positions_ibkr: number
   is_tranche_reduite: number
   is_tranche_normale: number
+  cca_balance: number
 }
 
 export default function Fhf() {
@@ -115,10 +114,9 @@ export default function Fhf() {
   const taux_global_bareme = resultat_distribue > 0 ? (total_taxes_bareme / resultat_distribue) * 100 : 0
 
   const produitsData = [
-    { name: "P&L IBKR", value: Math.abs(data.pnl_realise_ibkr) },
-    { name: "P&L Kraken", value: Math.abs(data.pnl_realise_kraken) },
-    { name: "P&L FTMO", value: Math.abs(data.pnl_realise_ftmo) },
+    { name: "Réalisé IBKR", value: Math.abs(data.pnl_realise_ibkr) },
     { name: "Latent IBKR", value: Math.abs(data.pnl_latent_ibkr) },
+    { name: "P&L Kraken", value: Math.abs(data.pnl_realise_kraken) },
   ].filter(d => d.value > 0)
 
   const chargesData = data.charges_by_category.map(c => ({
@@ -171,7 +169,7 @@ export default function Fhf() {
         />
       </div>
       <p className="text-[10px] text-zinc-600 -mt-4">
-        Résultat = P&L réalisé + P&L latent − Charges HT{includeRevenus ? " + Autres revenus" : ""}
+        P&L IBKR (réalisé + latent) + P&L Kraken − Charges{includeRevenus ? " + Revenus opéra." : ""}
       </p>
 
       {/* Produits + Charges */}
@@ -179,25 +177,47 @@ export default function Fhf() {
         {/* Produits */}
         <div className="border border-cyan-500/20 rounded-lg p-4 bg-zinc-900/50">
           <h2 className="text-sm font-bold text-cyan-400 mb-3">P&L Trading FHF</h2>
-          <div className="space-y-2 text-xs">
-            <Row label={`P&L réalisé IBKR (${data.nb_trades_ibkr} trades)`} value={data.pnl_realise_ibkr} />
-            <Row label={`P&L réalisé Kraken (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} />
-            <Row label={`P&L réalisé FTMO`} value={data.pnl_realise_ftmo} />
+
+          {/* IBKR — Investissement */}
+          <div className="space-y-1.5 text-xs mb-3">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">IBKR — Investissement</div>
+            <div className="flex justify-between text-zinc-400">
+              <span>NLV IBKR</span>
+              <span>{EUR.format(data.ibkr_nlv)} <span className="text-[9px] text-zinc-600">(cash {EUR.format(data.ibkr_cash)} + pos. {EUR.format(data.ibkr_positions_value)})</span></span>
+            </div>
+            <div className="flex justify-between text-zinc-400">
+              <span>Capital investi</span>
+              <span>{EUR.format(data.capital_ibkr)}</span>
+            </div>
+            <Row label="P&L réalisé" value={data.pnl_realise_ibkr} />
             <div className="group relative">
-              <Row label={`P&L latent IBKR (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="latent — mark-to-market 31/12" />
+              <Row label={`P&L latent (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="latent — mark-to-market 31/12" />
               <div className="hidden group-hover:block absolute left-0 top-full z-10 mt-1 p-2 bg-zinc-800 border border-zinc-600 rounded text-[9px] text-zinc-400 max-w-xs">
                 Plus-values latentes sur positions ouvertes — intégrées au résultat fiscal au 31/12, art. 38-6 CGI
               </div>
             </div>
-            <div className="border-t border-cyan-500/10 pt-2 font-bold text-cyan-300">
-              Sous-total P&L Trading : {EUR.format(data.total_produits_trading)}
-            </div>
           </div>
 
-          {/* Autres revenus opérationnels */}
+          {/* Kraken — Trading Actif */}
+          <div className="space-y-1.5 text-xs mb-3 border-t border-zinc-800 pt-3">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Kraken — Trading Actif</div>
+            <Row label={`P&L réalisé (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} />
+            <div className="flex justify-between text-zinc-400">
+              <span>Capital investi</span>
+              <span>{EUR.format(data.capital_kraken)}</span>
+            </div>
+            <p className="text-[9px] text-zinc-600">P&L Kraken = trades saisis manuellement dans Trading Actif</p>
+          </div>
+
+          {/* Sous-total */}
+          <div className="border-t border-cyan-500/10 pt-2 text-xs font-bold text-cyan-300">
+            Sous-total P&L Trading : {EUR.format(data.total_produits_trading)}
+          </div>
+
+          {/* FTMO & autres revenus */}
           <div className="mt-4 border-t border-zinc-800 pt-3">
             <button onClick={() => setShowRevenus(!showRevenus)} className="text-xs text-zinc-400 hover:text-cyan-400 transition-colors">
-              Autres revenus opérationnels → {EUR.format(data.revenus_compta)} {showRevenus ? "▾" : "▸"}
+              FTMO & autres revenus → {EUR.format(data.revenus_compta)} {showRevenus ? "▾" : "▸"}
             </button>
             {showRevenus && (
               <div className="mt-2 space-y-2">
@@ -222,6 +242,11 @@ export default function Fhf() {
                 </label>
               </div>
             )}
+          </div>
+
+          {/* Formule */}
+          <div className="mt-3 text-[9px] text-zinc-600 border-t border-zinc-800 pt-2">
+            P&L Trading = réalisé IBKR + latent IBKR + réalisé Kraken{includeRevenus ? " + Revenus opéra." : ""}
           </div>
 
           {produitsData.length > 0 && (
@@ -375,7 +400,19 @@ export default function Fhf() {
       </div>
 
       {/* Indicateurs complémentaires */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-5 gap-4">
+        <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">NLV IBKR</div>
+          <div className="text-lg font-bold text-cyan-400">{EUR.format(data.ibkr_nlv)}</div>
+          <div className="text-[10px] text-zinc-600 mt-1">Valeur totale compte</div>
+        </div>
+        <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">ROI IBKR</div>
+          <div className={`text-lg font-bold ${data.capital_ibkr > 0 && (data.ibkr_nlv - data.capital_ibkr) >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {data.capital_ibkr > 0 ? ((data.ibkr_nlv - data.capital_ibkr) / data.capital_ibkr * 100).toFixed(1) : "0.0"}%
+          </div>
+          <div className="text-[10px] text-zinc-600 mt-1">(NLV − capital) / capital</div>
+        </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">ROI Global</div>
           <div className={`text-lg font-bold ${roi >= 0 ? "text-green-400" : "text-red-400"}`}>
@@ -391,9 +428,9 @@ export default function Fhf() {
           </div>
         </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Break-even mensuel</div>
-          <div className="text-lg font-bold text-cyan-400">{EUR.format(chargesMensuelles)}<span className="text-xs text-zinc-500">/mois</span></div>
-          <div className="text-[10px] text-zinc-600 mt-1">P&L minimum pour couvrir les charges</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Break-even</div>
+          <div className="text-lg font-bold text-cyan-400">{EUR.format(chargesMensuelles)}<span className="text-xs text-zinc-500">/m</span></div>
+          <div className="text-[10px] text-zinc-600 mt-1">P&L min. mensuel</div>
         </div>
       </div>
     </div>
