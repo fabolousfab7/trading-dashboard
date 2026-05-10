@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Bitcoin, RefreshCw } from "lucide-react"
+import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -138,11 +139,11 @@ export default function Crypto() {
       <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
         <div className="flex gap-8">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">Valeur USD</div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">Valeur USD<InfoTip text="Somme des positions crypto valorisées en USD (CoinGecko) puis converties en EUR. Cours rafraîchis quotidiennement à 22h UTC." /></div>
             <div className="text-3xl font-mono font-bold text-white">{fmtUsd(totalUsd)}</div>
           </div>
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">Valeur EUR</div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">Valeur EUR</div>
             <div className="text-3xl font-mono font-bold text-white">{fmtEur(totalEur)}</div>
           </div>
         </div>
@@ -275,7 +276,8 @@ export default function Crypto() {
       <PortfolioSection title="Portefeuille Perso" subtitle="Détenu à 100%"
         positions={persoPositions} stats={persoStats} accent="cyan" onPositionClick={setSelectedPosition} />
       <PortfolioSection title="Raph + Fab" subtitle="Détenu à 50% (part Fabien)"
-        positions={sharedPositions} stats={sharedStats} accent="fuchsia" onPositionClick={setSelectedPosition} />
+        positions={sharedPositions} stats={sharedStats} accent="fuchsia" onPositionClick={setSelectedPosition}
+        ownershipTip="Pourcentage de détention. Raph+Fab = 50%. La valeur affichée = quantité × cours × ownership%. Source : champ ownership_pct du compte." />
 
       {selectedPosition && (
         <PositionNoteModal
@@ -291,7 +293,7 @@ export default function Crypto() {
   )
 }
 
-function PortfolioSection({ title, subtitle, positions, stats, accent, onPositionClick }: any) {
+function PortfolioSection({ title, subtitle, positions, stats, accent, onPositionClick, ownershipTip }: any) {
   const titleColor = accent === "cyan" ? "text-cyan-400" : "text-fuchsia-400"
   const borderColor = accent === "cyan" ? "border-cyan-500/30" : "border-fuchsia-500/30"
   if (positions.length === 0) return null
@@ -299,7 +301,7 @@ function PortfolioSection({ title, subtitle, positions, stats, accent, onPositio
     <div className={`border ${borderColor} rounded bg-black/40`}>
       <div className={`border-b ${borderColor} p-4 flex items-center justify-between`}>
         <div>
-          <h2 className={`text-sm font-mono font-bold uppercase tracking-widest ${titleColor}`}>{title}</h2>
+          <h2 className={`text-sm font-mono font-bold uppercase tracking-widest ${titleColor} flex items-center`}>{title}{ownershipTip && <InfoTip text={ownershipTip} />}</h2>
           <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{subtitle}</p>
         </div>
         <div className="flex gap-6 text-right">

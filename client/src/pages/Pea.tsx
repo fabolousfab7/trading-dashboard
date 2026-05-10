@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Wallet, RefreshCw, Plus, Trash2 } from "lucide-react"
+import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -215,7 +216,7 @@ export default function Pea() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">VALEUR TOTALE</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">VALEUR TOTALE<InfoTip text="Somme de (quantité × cours) pour toutes les positions PEA. Cours rafraîchis quotidiennement via Stooq (fallback Yahoo Finance)." /></div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(totalValue)}</div>
           <div className="text-xs font-mono mt-1">
             <span className="text-cyan-400">Titres {fmtEur(positionsValue)}</span>
@@ -233,7 +234,7 @@ export default function Pea() {
           const perfPct = cap ? (perf / cap) * 100 : 0
           return (
             <div className={`border ${perf >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">PERF TOTALE</div>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">PERF TOTALE<InfoTip text="(Valeur totale − Capital investi) / Capital investi × 100. Le PEA est exonéré d'IR après 5 ans (seuls les PS 17,6% restent)." /></div>
               <div className={`text-2xl font-mono font-bold ${perf >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {perf >= 0 ? "+" : ""}{fmtEur(perf)}
               </div>

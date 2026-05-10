@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+import InfoTip from "@/components/InfoTip"
 
 const PCG_LABELS: Record<string, string> = {
   "618100": "Logiciels & data",
@@ -41,7 +42,10 @@ interface SimData {
   capital_kraken: number
   revenus_compta: number
   revenus_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
+  charges_brutes: number
   charges_ht_ytd: number
+  avoirs_total: number
+  avoirs_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
   charges_by_category: { category: string; total_ht: number }[]
   total_produits_trading: number
   capital_total: number
@@ -124,7 +128,8 @@ export default function Fhf() {
     value: c.total_ht,
   }))
 
-  const chargesMensuelles = data.charges_ht_ytd / new Date().getMonth() || data.charges_ht_ytd
+  const currentMonth = new Date().getMonth() || 1
+  const chargesMensuelles = data.charges_ht_ytd / currentMonth
   const roi = data.capital_total > 0 ? (resultat_avant_is_local / data.capital_total) * 100 : 0
 
   const isBarWidth = resultat_avant_is_local > 0
@@ -150,26 +155,30 @@ export default function Fhf() {
           label="Résultat avant IS"
           value={EUR.format(resultat_avant_is_local)}
           color={resultat_avant_is_local >= 0 ? "text-green-400" : "text-red-400"}
-          subtitle="P&L réalisé + latent − Charges HT"
+          subtitle="P&L réalisé + latent − Charges nettes"
+          tooltip="Résultat = P&L réalisé IBKR (cash − capital investi) + P&L latent IBKR (positions ouvertes) + P&L Kraken (journal) − Charges HT nettes (après avoirs). C'est le bénéfice (ou déficit) fiscal de FHF pour l'année."
         />
         <KpiCard
           label="IS estimé"
           value={`${EUR.format(is_local)} (${taux_effectif_local.toFixed(1)}%)`}
           color="text-orange-400"
+          tooltip="Impôt sur les Sociétés. Taux réduit PME : 15% sur les premiers 42 500€ de bénéfice, 25% au-delà. FHF qualifie (CA < 10M€, capital détenu 100% par personne physique). Si déficit : IS = 0€, le déficit est reportable sans limite."
         />
         <KpiCard
           label="Résultat net"
           value={EUR.format(resultat_net_local)}
           color={resultat_net_local >= 0 ? "text-green-400" : "text-red-400"}
+          tooltip="Résultat après IS = Résultat avant IS − IS. C'est le montant maximum distribuable en dividendes (ou le déficit restant)."
         />
         <KpiCard
           label="Capital investi"
           value={EUR.format(data.capital_total)}
           color="text-cyan-400"
+          tooltip={`Total des virements vers les brokers : IBKR (512100) = ${EUR.format(data.capital_ibkr)} + Kraken (512200) = ${EUR.format(data.capital_kraken)}. Source : factures compta validées.`}
         />
       </div>
       <p className="text-[10px] text-zinc-600 -mt-4">
-        P&L IBKR (réalisé + latent) + P&L Kraken − Charges{includeRevenus ? " + Revenus opéra." : ""}
+        P&L IBKR (réalisé + latent) + P&L Kraken − Charges nettes{includeRevenus ? " + Revenus opéra." : ""}
       </p>
 
       {/* Produits + Charges */}
@@ -182,28 +191,23 @@ export default function Fhf() {
           <div className="space-y-1.5 text-xs mb-3">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider">IBKR — Investissement</div>
             <div className="flex justify-between text-zinc-400">
-              <span>NLV IBKR</span>
+              <span className="flex items-center">NLV IBKR<InfoTip text="Net Liquidation Value = Cash disponible + Valeur marchande des positions. Source : tables cash_balances + positions (Flex Query IBKR sync quotidien 22h UTC)." /></span>
               <span>{EUR.format(data.ibkr_nlv)} <span className="text-[9px] text-zinc-600">(cash {EUR.format(data.ibkr_cash)} + pos. {EUR.format(data.ibkr_positions_value)})</span></span>
             </div>
             <div className="flex justify-between text-zinc-400">
-              <span>Capital investi</span>
+              <span className="flex items-center">Capital investi<InfoTip text="Somme nette des virements FHF → IBKR (catégorie 512100 dans compta). Dépôts − Retraits. Source : factures compta validées." /></span>
               <span>{EUR.format(data.capital_ibkr)}</span>
             </div>
-            <Row label="P&L réalisé" value={data.pnl_realise_ibkr} />
-            <div className="group relative">
-              <Row label={`P&L latent (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="latent — mark-to-market 31/12" />
-              <div className="hidden group-hover:block absolute left-0 top-full z-10 mt-1 p-2 bg-zinc-800 border border-zinc-600 rounded text-[9px] text-zinc-400 max-w-xs">
-                Plus-values latentes sur positions ouvertes — intégrées au résultat fiscal au 31/12, art. 38-6 CGI
-              </div>
-            </div>
+            <Row label="P&L réalisé" value={data.pnl_realise_ibkr} tooltip="Cash IBKR − Capital investi = gains réalisés sur les trades fermés (dividendes, ventes, etc.). Toutes commissions et frais inclus." />
+            <Row label={`P&L latent (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="mark-to-market 31/12" tooltip="Somme des plus-values/moins-values latentes sur les positions ouvertes (champ unrealized_pnl). Intégrées au résultat fiscal au 31/12 pour l'IS (art. 38-6 CGI, instruments financiers). Source : positions IBKR." />
           </div>
 
           {/* Kraken — Trading Actif */}
           <div className="space-y-1.5 text-xs mb-3 border-t border-zinc-800 pt-3">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Kraken — Trading Actif</div>
-            <Row label={`P&L réalisé (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} />
+            <Row label={`P&L réalisé (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} tooltip="Somme des profits des trades Kraken saisis manuellement dans la page Trading Actif. Source : table trades, filtre compte = Kraken." />
             <div className="flex justify-between text-zinc-400">
-              <span>Capital investi</span>
+              <span className="flex items-center">Capital investi<InfoTip text="Somme nette des virements FHF → Kraken (catégorie 512200 dans compta). Source : factures compta validées." /></span>
               <span>{EUR.format(data.capital_kraken)}</span>
             </div>
             <p className="text-[9px] text-zinc-600">P&L Kraken = trades saisis manuellement dans Trading Actif</p>
@@ -244,11 +248,6 @@ export default function Fhf() {
             )}
           </div>
 
-          {/* Formule */}
-          <div className="mt-3 text-[9px] text-zinc-600 border-t border-zinc-800 pt-2">
-            P&L Trading = réalisé IBKR + latent IBKR + réalisé Kraken{includeRevenus ? " + Revenus opéra." : ""}
-          </div>
-
           {produitsData.length > 0 && (
             <div className="mt-4 h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -273,8 +272,26 @@ export default function Fhf() {
                 <span>{EUR.format(c.total_ht)}</span>
               </div>
             ))}
-            <div className="border-t border-fuchsia-500/10 pt-2 font-bold text-fuchsia-300">
-              Total charges : {EUR.format(data.charges_ht_ytd)}
+            {data.avoirs_total > 0 && (
+              <div className="space-y-1 mt-2 border-t border-zinc-800 pt-2">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider flex items-center">
+                  Avoirs & remboursements
+                  <InfoTip text="Remboursements et avoirs fournisseurs (notes de crédit). Viennent en déduction des charges brutes. Source : factures direction=revenue avec catégorie ≠ 708000." />
+                </div>
+                {data.avoirs_detail.map((a, i) => (
+                  <div key={i} className="flex justify-between text-green-400">
+                    <span>{a.party_name}</span>
+                    <span>− {EUR.format(a.amount_ht)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-fuchsia-500/10 pt-2 font-bold text-fuchsia-300 flex items-center justify-between">
+              <span className="flex items-center">
+                Total charges net
+                <InfoTip text={`Charges brutes ${EUR.format(data.charges_brutes)} − Avoirs ${EUR.format(data.avoirs_total)} = ${EUR.format(data.charges_ht_ytd)}. Source : factures compta (hors 455000/512100/512200/101000).`} />
+              </span>
+              <span>{EUR.format(data.charges_ht_ytd)}</span>
             </div>
           </div>
           {chargesData.length > 0 && (
@@ -294,7 +311,10 @@ export default function Fhf() {
 
       {/* Simulation IS */}
       <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-        <h2 className="text-sm font-bold text-zinc-300 mb-4">Simulation IS</h2>
+        <h2 className="text-sm font-bold text-zinc-300 mb-4 flex items-center">
+          Simulation IS
+          <InfoTip text="Simulation de l'Impôt sur les Sociétés pour FHF (SASU). Taux réduit PME (art. 219-I-b CGI) : 15% ≤ 42 500€, 25% au-delà. Conditions : CA HT < 10M€, capital entièrement libéré, détenu ≥ 75% par des personnes physiques." wide />
+        </h2>
         {resultat_avant_is_local > 0 ? (
           <>
             <div className="relative h-8 rounded overflow-hidden bg-zinc-800 mb-3">
@@ -317,7 +337,10 @@ export default function Fhf() {
         ) : (
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded border border-red-500/30">DÉFICIT REPORTABLE</span>
-            <span className="text-[10px] text-zinc-500">Reportable sur les exercices suivants, pas de limite de durée</span>
+            <span className="text-[10px] text-zinc-500 flex items-center">
+              Reportable sur les exercices suivants, pas de limite de durée
+              <InfoTip text="Le déficit fiscal est reportable en avant sans limitation de durée (art. 209-I CGI). Il viendra en déduction des bénéfices futurs, dans la limite de 1M€ + 50% du bénéfice au-delà." />
+            </span>
           </div>
         )}
       </div>
@@ -344,10 +367,12 @@ export default function Fhf() {
             onClick={() => setTaxMode("flat")}
             className={`text-xs px-3 py-1 rounded border transition-all ${taxMode === "flat" ? "border-cyan-500 text-cyan-400 bg-cyan-500/10" : "border-zinc-700 text-zinc-500"}`}
           >Flat tax 30%</button>
+          {taxMode === "flat" && <InfoTip text="Prélèvement Forfaitaire Unique (PFU) : 12,8% d'IR + 17,2% de prélèvements sociaux = 30% du dividende brut. Option par défaut, pas besoin de la cocher sur la déclaration." />}
           <button
             onClick={() => setTaxMode("bareme")}
             className={`text-xs px-3 py-1 rounded border transition-all ${taxMode === "bareme" ? "border-fuchsia-500 text-fuchsia-400 bg-fuchsia-500/10" : "border-zinc-700 text-zinc-500"}`}
           >Barème TMI 0%</button>
+          {taxMode === "bareme" && <InfoTip text="Option barème progressif de l'IR (case 2OP). Avec TMI 0% (marié, 2 enfants, revenus < seuil), seuls les PS 17,2% s'appliquent. Avantage : économie de 12,8% d'IR. À cocher sur la déclaration de revenus." />}
         </div>
         {resultat_net_local > 0 ? (
           <div className="overflow-x-auto">
@@ -386,7 +411,10 @@ export default function Fhf() {
                   <td className="text-right">{EUR.format(total_taxes_bareme)}</td>
                 </tr>
                 <tr>
-                  <td className="py-1.5">Taux global d'imposition</td>
+                  <td className="py-1.5 flex items-center">
+                    Taux global d'imposition
+                    <InfoTip text="(IS payé + IR + PS sur dividendes) / Résultat brut avant IS × 100. C'est le % total de taxes entre le bénéfice FHF et ce qui arrive dans ta poche." wide />
+                  </td>
                   <td className="text-right">{taux_global_flat.toFixed(1)}%</td>
                   <td className="text-right">{taux_global_bareme.toFixed(1)}%</td>
                 </tr>
@@ -396,39 +424,52 @@ export default function Fhf() {
         ) : (
           <p className="text-xs text-zinc-500">Pas de distribution possible sur un déficit.</p>
         )}
-        <p className="text-[10px] text-zinc-600 mt-3">Capitaliser = réinvestir dans FHF sans frottement fiscal supplémentaire</p>
+        <p className="text-[10px] text-zinc-600 mt-3 flex items-center">
+          Capitaliser = réinvestir dans FHF sans frottement fiscal supplémentaire
+          <InfoTip text="Tant que l'argent reste dans FHF, seul l'IS est payé. Pas de flat tax ni PS. Tu peux réinvestir 100% du résultat net en trading ou participations. La flat tax ne s'applique qu'au moment de la distribution effective des dividendes." wide />
+        </p>
       </div>
 
       {/* Indicateurs complémentaires */}
       <div className="grid grid-cols-5 gap-4">
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">NLV IBKR</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+            NLV IBKR<InfoTip text="Net Liquidation Value = Cash + Positions. Synchro IBKR Flex Query quotidienne à 22h UTC. Source : cash_balances + positions." />
+          </div>
           <div className="text-lg font-bold text-cyan-400">{EUR.format(data.ibkr_nlv)}</div>
           <div className="text-[10px] text-zinc-600 mt-1">Valeur totale compte</div>
         </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">ROI IBKR</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+            ROI IBKR<InfoTip text="Return On Investment = (NLV − Capital investi) / Capital investi × 100. Inclut P&L réalisé + latent. Source : NLV IBKR / factures 512100." />
+          </div>
           <div className={`text-lg font-bold ${data.capital_ibkr > 0 && (data.ibkr_nlv - data.capital_ibkr) >= 0 ? "text-green-400" : "text-red-400"}`}>
             {data.capital_ibkr > 0 ? ((data.ibkr_nlv - data.capital_ibkr) / data.capital_ibkr * 100).toFixed(1) : "0.0"}%
           </div>
           <div className="text-[10px] text-zinc-600 mt-1">(NLV − capital) / capital</div>
         </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">ROI Global</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+            ROI Global<InfoTip text="Résultat avant IS / Capital total investi (IBKR + Kraken) × 100. Mesure la performance globale de FHF sur l'année." />
+          </div>
           <div className={`text-lg font-bold ${roi >= 0 ? "text-green-400" : "text-red-400"}`}>
             {roi.toFixed(1)}%
           </div>
           <div className="text-[10px] text-zinc-600 mt-1">Résultat / Capital investi</div>
         </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Solde CCA</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+            Solde CCA<InfoTip text="Compte Courant Associé (455000). Solde des apports et remboursements entre Fabien et FHF. Positif = FHF te doit de l'argent. Source : factures catégorie 455000 dans compta." />
+          </div>
           <div className="text-lg font-bold text-fuchsia-400">{EUR.format(Math.abs(data.cca_balance))}</div>
           <div className="text-[10px] text-zinc-600 mt-1">
             {data.cca_balance >= 0 ? "FHF doit à Fabien" : "Fabien doit à FHF"}
           </div>
         </div>
         <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Break-even</div>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+            Break-even<InfoTip text="Charges HT totales / nombre de mois écoulés = charge mensuelle moyenne. C'est le P&L trading minimum nécessaire chaque mois pour couvrir les frais et ne pas être en déficit." />
+          </div>
           <div className="text-lg font-bold text-cyan-400">{EUR.format(chargesMensuelles)}<span className="text-xs text-zinc-500">/m</span></div>
           <div className="text-[10px] text-zinc-600 mt-1">P&L min. mensuel</div>
         </div>
@@ -437,20 +478,26 @@ export default function Fhf() {
   )
 }
 
-function KpiCard({ label, value, color, subtitle }: { label: string; value: string; color: string; subtitle?: string }) {
+function KpiCard({ label, value, color, subtitle, tooltip }: { label: string; value: string; color: string; subtitle?: string; tooltip?: string }) {
   return (
     <div className="border border-zinc-700 rounded-lg p-3 bg-zinc-900/50">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+        {label}
+        {tooltip && <InfoTip text={tooltip} wide />}
+      </div>
       <div className={`text-sm font-bold ${color}`}>{value}</div>
       {subtitle && <div className="text-[9px] text-zinc-600 mt-1">{subtitle}</div>}
     </div>
   )
 }
 
-function Row({ label, value, italic, note }: { label: string; value: number; italic?: boolean; note?: string }) {
+function Row({ label, value, italic, note, tooltip }: { label: string; value: number; italic?: boolean; note?: string; tooltip?: string }) {
   return (
     <div className="flex justify-between text-zinc-300">
-      <span>{label}</span>
+      <span className="flex items-center">
+        {label}
+        {tooltip && <InfoTip text={tooltip} />}
+      </span>
       <span className={italic ? "italic text-zinc-400" : ""}>
         {EUR.format(value)}
         {note && <span className="text-[9px] text-zinc-600 ml-1">({note})</span>}

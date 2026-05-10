@@ -683,7 +683,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         .gte("invoice_date", startDate).lte("invoice_date", endDate)
 
       const chargeItems = (expenseInvoices || []).filter(i => !NON_CHARGE.includes(i.category))
-      const charges_ht_ytd = chargeItems.reduce((s, i) => s + Number(i.amount_ht), 0)
+      const charges_brutes = chargeItems.reduce((s, i) => s + Number(i.amount_ht), 0)
 
       const catMap: Record<string, number> = {}
       for (const i of chargeItems) {
@@ -700,8 +700,14 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         .gte("invoice_date", startDate).lte("invoice_date", endDate)
 
       const revenueItems = (revenueInvoices || []).filter(i => !NON_CHARGE.includes(i.category))
-      const revenus_compta = revenueItems.reduce((s, i) => s + Number(i.amount_ht), 0)
-      const revenus_detail = revenueItems.map(i => ({
+      const vraisRevenus = revenueItems.filter(i => i.category === "708000")
+      const avoirs = revenueItems.filter(i => i.category !== "708000")
+
+      const revenus_compta = vraisRevenus.reduce((s, i) => s + Number(i.amount_ht), 0)
+      const avoirs_total = avoirs.reduce((s, i) => s + Number(i.amount_ht), 0)
+      const charges_ht_ytd = charges_brutes - avoirs_total
+
+      const revenus_detail = vraisRevenus.map(i => ({
         party_name: i.party_name,
         amount_ht: Number(i.amount_ht),
         date: i.invoice_date,
@@ -812,7 +818,15 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         capital_kraken,
         revenus_compta,
         revenus_detail,
+        charges_brutes,
         charges_ht_ytd,
+        avoirs_total,
+        avoirs_detail: avoirs.map(i => ({
+          party_name: i.party_name,
+          amount_ht: Number(i.amount_ht),
+          date: i.invoice_date,
+          category: i.category
+        })),
         charges_by_category,
         total_produits_trading,
         capital_total,

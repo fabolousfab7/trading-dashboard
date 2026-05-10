@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
 import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin, Plus, Pin, Trash2, Edit3, Image, X, ChevronDown, ChevronUp, Zap } from "lucide-react"
+import InfoTip from "@/components/InfoTip"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -293,7 +294,7 @@ export default function Home() {
       <div className="border border-fuchsia-500/30 bg-black/60 rounded p-6 shadow-[0_0_25px_rgba(217,70,239,0.1)]">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Patrimoine total (EUR)</div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-400 mb-2 flex items-center">Patrimoine total (EUR)<InfoTip text="Patrimoine total = NLV IBKR + Valeur PEA + Valeur Crypto. Chaque source est rafraîchie quotidiennement (cron 22h UTC)." /></div>
             <div className="text-5xl font-mono font-bold text-cyan-400">{fmtEur(patrimoineTotal)}</div>
             <div className="text-xs font-mono text-zinc-500 mt-2">
               IBKR · {fmtEur(ibkrNlv)} <span className="text-zinc-700">·</span> PEA · {fmtEur(peaValue)} <span className="text-zinc-700">·</span> Crypto · {fmtEur(cryptoValue)}

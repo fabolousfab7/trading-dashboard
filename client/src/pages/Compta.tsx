@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus, Briefcase, Bitcoin } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import InfoTip from "@/components/InfoTip"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 
 const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
@@ -446,11 +447,11 @@ export default function Compta() {
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">CHARGES HT YTD</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">CHARGES HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." /></div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
         </div>
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">TVA DÉDUCTIBLE YTD</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">TVA DÉDUCTIBLE YTD<InfoTip text="TVA payée sur les achats pro (logiciels, abonnements, matériel). Récupérable via la déclaration CA3 mensuelle. Source : factures avec vat_deductible = true." /></div>
           <div className="text-2xl font-mono font-bold text-cyan-400">
             {fmtEur((vatSummary?.months || []).reduce((s: number, m: any) => s + m.tva_deductible_fr + m.tva_autoliquidee_intracom, 0))}
           </div>
@@ -463,7 +464,7 @@ export default function Compta() {
           <div className="text-[10px] font-mono text-zinc-500 mt-1">rapprochées</div>
         </div>
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">COMPTE COURANT ASSOCIE</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">COMPTE COURANT ASSOCIE<InfoTip text="Compte Courant Associé 455000. Positif = FHF doit à Fabien. Calculé depuis les factures catégorie 455000." /></div>
           <div className={`text-2xl font-mono font-bold ${(stats?.cca_balance || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
             {fmtEur(Math.abs(stats?.cca_balance || 0))}
           </div>

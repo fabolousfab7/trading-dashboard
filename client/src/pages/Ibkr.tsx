@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Briefcase, RefreshCw } from "lucide-react"
+import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -149,7 +150,7 @@ export default function Ibkr() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-cyan-500/30 bg-black/40 rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">NLV TOTALE</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">NLV TOTALE<InfoTip text="Net Liquidation Value = Cash + Valeur marchande des positions. Sync IBKR Flex Query quotidienne 22h UTC." /></div>
           <div className="text-2xl font-mono font-bold text-cyan-400">{fmtEur(nlv)}</div>
           <div className="text-xs font-mono mt-1">
             <span className="text-cyan-400">Positions {fmtEur(positionsBase)}</span>
@@ -158,7 +159,7 @@ export default function Ibkr() {
           </div>
         </div>
         <div className={`border ${totalPerf >= 0 ? "border-green-500/30" : "border-red-500/30"} bg-black/40 rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">PERF TOTALE</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2 flex items-center">PERF TOTALE<InfoTip text="(NLV actuelle − Capital investi) / Capital investi × 100. Inclut P&L réalisé + latent + dividendes − commissions." /></div>
           <div className={`text-2xl font-mono font-bold ${totalPerf >= 0 ? "text-green-400" : "text-red-400"}`}>
             {totalPerf >= 0 ? "+" : ""}{fmtEur(totalPerf)}
           </div>
