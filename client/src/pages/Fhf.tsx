@@ -36,6 +36,7 @@ interface SimData {
   pnl_realise_ftmo: number
   pnl_realise_total: number
   pnl_latent_ibkr: number
+  total_produits_trading: number
   total_produits: number
   charges_ht_ytd: number
   charges_by_category: { category: string; total_ht: number }[]
@@ -60,6 +61,7 @@ export default function Fhf() {
   const [distributionPct, setDistributionPct] = useState(100)
   const [taxMode, setTaxMode] = useState<"flat" | "bareme">("bareme")
   const [showRevenus, setShowRevenus] = useState(false)
+  const [includeRevenus, setIncludeRevenus] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -91,17 +93,25 @@ export default function Fhf() {
     )
   }
 
-  const dividende_brut = data.resultat_net > 0 ? data.resultat_net * (distributionPct / 100) : 0
+  const resultat_avant_is_local = data.total_produits_trading + (includeRevenus ? data.revenus_compta : 0) - data.charges_ht_ytd
+  let is_local = 0
+  if (resultat_avant_is_local > 0) {
+    is_local = Math.min(resultat_avant_is_local, 42500) * 0.15 + Math.max(0, resultat_avant_is_local - 42500) * 0.25
+  }
+  const resultat_net_local = resultat_avant_is_local - is_local
+  const taux_effectif_local = resultat_avant_is_local > 0 ? (is_local / resultat_avant_is_local) * 100 : 0
+
+  const dividende_brut = resultat_net_local > 0 ? resultat_net_local * (distributionPct / 100) : 0
   const ir_flat = dividende_brut * 0.128
   const ps_flat = dividende_brut * 0.172
   const net_flat = dividende_brut - ir_flat - ps_flat
   const ir_bareme = 0
   const ps_bareme = dividende_brut * 0.172
   const net_bareme = dividende_brut - ps_bareme
-  const resultat_distribue = data.resultat_avant_is * (distributionPct / 100)
-  const total_taxes_flat = data.is_amount * (distributionPct / 100) + ir_flat + ps_flat
+  const resultat_distribue = resultat_avant_is_local * (distributionPct / 100)
+  const total_taxes_flat = is_local * (distributionPct / 100) + ir_flat + ps_flat
   const taux_global_flat = resultat_distribue > 0 ? (total_taxes_flat / resultat_distribue) * 100 : 0
-  const total_taxes_bareme = data.is_amount * (distributionPct / 100) + ir_bareme + ps_bareme
+  const total_taxes_bareme = is_local * (distributionPct / 100) + ir_bareme + ps_bareme
   const taux_global_bareme = resultat_distribue > 0 ? (total_taxes_bareme / resultat_distribue) * 100 : 0
 
   const produitsData = [
@@ -109,7 +119,6 @@ export default function Fhf() {
     { name: "P&L Kraken", value: Math.abs(data.pnl_realise_kraken) },
     { name: "P&L FTMO", value: Math.abs(data.pnl_realise_ftmo) },
     { name: "Latent IBKR", value: Math.abs(data.pnl_latent_ibkr) },
-    { name: "Revenus compta", value: Math.abs(data.revenus_compta) },
   ].filter(d => d.value > 0)
 
   const chargesData = data.charges_by_category.map(c => ({
@@ -118,10 +127,10 @@ export default function Fhf() {
   }))
 
   const chargesMensuelles = data.charges_ht_ytd / new Date().getMonth() || data.charges_ht_ytd
-  const roi = data.capital_total > 0 ? (data.resultat_avant_is / data.capital_total) * 100 : 0
+  const roi = data.capital_total > 0 ? (resultat_avant_is_local / data.capital_total) * 100 : 0
 
-  const isBarWidth = data.resultat_avant_is > 0
-    ? Math.min((data.resultat_avant_is / 85000) * 100, 100)
+  const isBarWidth = resultat_avant_is_local > 0
+    ? Math.min((resultat_avant_is_local / 85000) * 100, 100)
     : 0
   const trancheReduiteWidth = Math.min((42500 / 85000) * 100, 50)
 
@@ -141,18 +150,19 @@ export default function Fhf() {
       <div className="grid grid-cols-4 gap-4">
         <KpiCard
           label="Résultat avant IS"
-          value={EUR.format(data.resultat_avant_is)}
-          color={data.resultat_avant_is >= 0 ? "text-green-400" : "text-red-400"}
+          value={EUR.format(resultat_avant_is_local)}
+          color={resultat_avant_is_local >= 0 ? "text-green-400" : "text-red-400"}
+          subtitle="P&L réalisé + latent − Charges HT"
         />
         <KpiCard
           label="IS estimé"
-          value={`${EUR.format(data.is_amount)} (${data.taux_effectif_is.toFixed(1)}%)`}
+          value={`${EUR.format(is_local)} (${taux_effectif_local.toFixed(1)}%)`}
           color="text-orange-400"
         />
         <KpiCard
           label="Résultat net"
-          value={EUR.format(data.resultat_net)}
-          color={data.resultat_net >= 0 ? "text-green-400" : "text-red-400"}
+          value={EUR.format(resultat_net_local)}
+          color={resultat_net_local >= 0 ? "text-green-400" : "text-red-400"}
         />
         <KpiCard
           label="Capital investi"
@@ -160,32 +170,60 @@ export default function Fhf() {
           color="text-cyan-400"
         />
       </div>
+      <p className="text-[10px] text-zinc-600 -mt-4">
+        Résultat = P&L réalisé + P&L latent − Charges HT{includeRevenus ? " + Autres revenus" : ""}
+      </p>
 
       {/* Produits + Charges */}
       <div className="grid grid-cols-2 gap-4">
         {/* Produits */}
         <div className="border border-cyan-500/20 rounded-lg p-4 bg-zinc-900/50">
-          <h2 className="text-sm font-bold text-cyan-400 mb-3">Produits FHF</h2>
+          <h2 className="text-sm font-bold text-cyan-400 mb-3">P&L Trading FHF</h2>
           <div className="space-y-2 text-xs">
             <Row label={`P&L réalisé IBKR (${data.nb_trades_ibkr} trades)`} value={data.pnl_realise_ibkr} />
             <Row label={`P&L réalisé Kraken (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} />
-            <Row label={`P&L latent IBKR (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="latent — mark-to-market" />
-            <div>
-              <button onClick={() => setShowRevenus(!showRevenus)} className="text-zinc-400 hover:text-cyan-400 transition-colors">
-                Revenus compta → {EUR.format(data.revenus_compta)} {showRevenus ? "▾" : "▸"}
-              </button>
-              {showRevenus && data.revenus_detail.length > 0 && (
-                <div className="pl-4 mt-1 space-y-0.5 text-[10px] text-zinc-500">
-                  {data.revenus_detail.map((r, i) => (
-                    <div key={i}>{r.party_name} — {EUR.format(r.amount_ht)} ({r.date})</div>
-                  ))}
-                </div>
-              )}
+            <Row label={`P&L réalisé FTMO`} value={data.pnl_realise_ftmo} />
+            <div className="group relative">
+              <Row label={`P&L latent IBKR (${data.nb_positions_ibkr} pos.)`} value={data.pnl_latent_ibkr} italic note="latent — mark-to-market 31/12" />
+              <div className="hidden group-hover:block absolute left-0 top-full z-10 mt-1 p-2 bg-zinc-800 border border-zinc-600 rounded text-[9px] text-zinc-400 max-w-xs">
+                Plus-values latentes sur positions ouvertes — intégrées au résultat fiscal au 31/12, art. 38-6 CGI
+              </div>
             </div>
             <div className="border-t border-cyan-500/10 pt-2 font-bold text-cyan-300">
-              Total produits : {EUR.format(data.total_produits)}
+              Sous-total P&L Trading : {EUR.format(data.total_produits_trading)}
             </div>
           </div>
+
+          {/* Autres revenus opérationnels */}
+          <div className="mt-4 border-t border-zinc-800 pt-3">
+            <button onClick={() => setShowRevenus(!showRevenus)} className="text-xs text-zinc-400 hover:text-cyan-400 transition-colors">
+              Autres revenus opérationnels → {EUR.format(data.revenus_compta)} {showRevenus ? "▾" : "▸"}
+            </button>
+            {showRevenus && (
+              <div className="mt-2 space-y-2">
+                {data.revenus_detail.length > 0 && (
+                  <div className="pl-2 space-y-0.5 text-[10px] text-zinc-500">
+                    {data.revenus_detail.map((r, i) => (
+                      <div key={i}>{r.party_name} — {EUR.format(r.amount_ht)} ({r.date})</div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-start gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/20">
+                  <span className="text-amber-400 text-[10px] leading-tight">⚠️ Attention doublon : si ces revenus sont déjà dans le journal de trades (P&L réalisé ci-dessus), ne les comptez pas deux fois.</span>
+                </div>
+                <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeRevenus}
+                    onChange={e => setIncludeRevenus(e.target.checked)}
+                    className="accent-cyan-500"
+                  />
+                  Inclure dans le résultat
+                </label>
+              </div>
+            )}
+          </div>
+
           {produitsData.length > 0 && (
             <div className="mt-4 h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -232,7 +270,7 @@ export default function Fhf() {
       {/* Simulation IS */}
       <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50">
         <h2 className="text-sm font-bold text-zinc-300 mb-4">Simulation IS</h2>
-        {data.resultat_avant_is > 0 ? (
+        {resultat_avant_is_local > 0 ? (
           <>
             <div className="relative h-8 rounded overflow-hidden bg-zinc-800 mb-3">
               <div className="absolute inset-y-0 left-0 bg-green-500/30 border-r border-green-500/50" style={{ width: `${trancheReduiteWidth}%` }} />
@@ -244,11 +282,11 @@ export default function Fhf() {
               </div>
             </div>
             <div className="text-xs text-zinc-400 space-y-1">
-              <div>{EUR.format(Math.min(data.resultat_avant_is, 42500))} × 15% = {EUR.format(data.is_tranche_reduite)}</div>
-              {data.resultat_avant_is > 42500 && (
-                <div>{EUR.format(data.resultat_avant_is - 42500)} × 25% = {EUR.format(data.is_tranche_normale)}</div>
+              <div>{EUR.format(Math.min(resultat_avant_is_local, 42500))} × 15% = {EUR.format(Math.min(resultat_avant_is_local, 42500) * 0.15)}</div>
+              {resultat_avant_is_local > 42500 && (
+                <div>{EUR.format(resultat_avant_is_local - 42500)} × 25% = {EUR.format((resultat_avant_is_local - 42500) * 0.25)}</div>
               )}
-              <div className="font-bold text-zinc-200">Total IS = {EUR.format(data.is_amount)}</div>
+              <div className="font-bold text-zinc-200">Total IS = {EUR.format(is_local)}</div>
             </div>
           </>
         ) : (
@@ -271,7 +309,7 @@ export default function Fhf() {
             step={5}
             value={distributionPct}
             onChange={e => setDistributionPct(Number(e.target.value))}
-            disabled={data.resultat_net <= 0}
+            disabled={resultat_net_local <= 0}
             className="flex-1 h-1.5 rounded-full appearance-none bg-zinc-700 accent-fuchsia-500 disabled:opacity-30"
           />
           <span className="text-xs text-fuchsia-400 w-10 text-right">{distributionPct}%</span>
@@ -286,7 +324,7 @@ export default function Fhf() {
             className={`text-xs px-3 py-1 rounded border transition-all ${taxMode === "bareme" ? "border-fuchsia-500 text-fuchsia-400 bg-fuchsia-500/10" : "border-zinc-700 text-zinc-500"}`}
           >Barème TMI 0%</button>
         </div>
-        {data.resultat_net > 0 ? (
+        {resultat_net_local > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -362,11 +400,12 @@ export default function Fhf() {
   )
 }
 
-function KpiCard({ label, value, color }: { label: string; value: string; color: string }) {
+function KpiCard({ label, value, color, subtitle }: { label: string; value: string; color: string; subtitle?: string }) {
   return (
     <div className="border border-zinc-700 rounded-lg p-3 bg-zinc-900/50">
       <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{label}</div>
       <div className={`text-sm font-bold ${color}`}>{value}</div>
+      {subtitle && <div className="text-[9px] text-zinc-600 mt-1">{subtitle}</div>}
     </div>
   )
 }

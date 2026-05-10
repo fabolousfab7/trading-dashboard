@@ -699,8 +699,9 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         .eq("direction", "revenue")
         .gte("invoice_date", startDate).lte("invoice_date", endDate)
 
-      const revenus_compta = (revenueInvoices || []).reduce((s, i) => s + Number(i.amount_ht), 0)
-      const revenus_detail = (revenueInvoices || []).map(i => ({
+      const revenueItems = (revenueInvoices || []).filter(i => !NON_CHARGE.includes(i.category))
+      const revenus_compta = revenueItems.reduce((s, i) => s + Number(i.amount_ht), 0)
+      const revenus_detail = revenueItems.map(i => ({
         party_name: i.party_name,
         amount_ht: Number(i.amount_ht),
         date: i.invoice_date,
@@ -768,8 +769,9 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         }
       }
 
-      const total_produits = revenus_compta + pnl_realise_total + pnl_latent_ibkr
-      const resultat_avant_is = total_produits - charges_ht_ytd
+      const total_produits_trading = pnl_realise_total + pnl_latent_ibkr
+      const total_produits = total_produits_trading + revenus_compta
+      const resultat_avant_is = total_produits_trading + revenus_compta - charges_ht_ytd
 
       let is_amount = 0
       if (resultat_avant_is > 0) {
@@ -789,6 +791,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         pnl_realise_ftmo,
         pnl_realise_total,
         pnl_latent_ibkr,
+        total_produits_trading,
         total_produits,
         charges_ht_ytd,
         charges_by_category,
