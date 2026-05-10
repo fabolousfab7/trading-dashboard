@@ -61,7 +61,6 @@ export async function syncKrakenAccount(
   client: any,
   account: any,
   config: KrakenConfig,
-  userId?: string,
 ) {
   const krakenCfg = config
 
@@ -118,7 +117,6 @@ export async function syncKrakenAccount(
       coingecko_id: b.coingeckoId,
       unrealized_pnl: String((priceUsd - Number(existing?.data?.avg_cost || priceUsd)) * b.qty),
     }
-    if (userId) posData.user_id = userId
 
     if (existing?.data) {
       await client.from("positions").update(posData).eq("id", existing.data.id)
@@ -130,14 +128,12 @@ export async function syncKrakenAccount(
   await client.from("cash_balances").delete().eq("account_id", account.id)
   for (const fb of fiatBalances) {
     const fxRate = fb.currency === "EUR" ? 1 : (fb.currency === "USD" ? 0.92 : 1)
-    const cashData: any = {
+    await client.from("cash_balances").insert({
       account_id: account.id,
       currency: fb.currency,
       amount: String(fb.amount),
       fx_rate_to_base: String(fxRate),
-    }
-    if (userId) cashData.user_id = userId
-    await client.from("cash_balances").insert(cashData)
+    })
   }
 
   await client

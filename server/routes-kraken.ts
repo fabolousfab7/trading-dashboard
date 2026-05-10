@@ -92,7 +92,7 @@ export function registerKrakenRoutes(app: Express, supabase: SupabaseClient) {
       }
 
       const krakenCfg: KrakenConfig = { apiKey: config.api_key, apiSecret: config.api_secret }
-      const result = await syncKrakenAccount(userClient, account, krakenCfg, (req as any).userId)
+      const result = await syncKrakenAccount(userClient, account, krakenCfg)
 
       res.json({
         ok: true,
