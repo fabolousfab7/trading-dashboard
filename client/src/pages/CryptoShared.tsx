@@ -3,6 +3,32 @@ import { supabase } from "@/lib/supabase"
 import { Bitcoin, RefreshCw } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+
+const COLORS = ["#06b6d4", "#e879f9", "#a78bfa", "#34d399", "#fbbf24", "#f87171", "#60a5fa", "#c084fc", "#fb923c", "#4ade80"]
+
+const CRYPTO_SECTOR: Record<string, string> = {
+  "BTC": "Store of Value",
+  "ETH": "L1 / Smart Contracts",
+  "HYPE": "DeFi / DEX",
+  "AAVE": "DeFi",
+  "EIGEN": "DeFi / Restaking",
+  "ZRO": "Infra / Bridge",
+  "BP": "DEX / Infra",
+  "PUMP": "DeFi / Memecoin",
+  "DIME": "DEX / Perp",
+  "SUPRA": "L1",
+  "XPL": "L1",
+  "ILV": "Gaming",
+  "GUN": "Gaming",
+  "TSLAX": "Tokenized / RWA",
+  "WLFI": "Tokenized / RWA",
+  "USDT": "Stablecoin",
+  "USDC": "Stablecoin",
+  "USDT0": "Stablecoin",
+  "DAI": "Stablecoin",
+  "USDe": "Stablecoin",
+}
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -126,6 +152,127 @@ export default function CryptoShared() {
           </div>
         </div>
       </div>
+
+      {(() => {
+        const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
+        const merged: Record<string, number> = {}
+        for (const p of sharedPositions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
+          merged[ticker] = (merged[ticker] || 0) + value
+        }
+        const allocationData = Object.entries(merged)
+          .map(([name, value]) => ({ name, value }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+
+        const allocTotal = allocationData.reduce((s, d) => s + d.value, 0)
+        const threshold = allocTotal * 0.02
+        const mainSlices = allocationData.filter(d => d.value >= threshold)
+        const othersValue = allocationData.filter(d => d.value < threshold).reduce((s, d) => s + d.value, 0)
+        if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
+
+        const sectorMap: Record<string, number> = {}
+        for (const p of sharedPositions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const sector = CRYPTO_SECTOR[ticker] || "Autres"
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
+          sectorMap[sector] = (sectorMap[sector] || 0) + value
+        }
+        const sectorData = Object.entries(sectorMap)
+          .map(([name, value]) => ({ name, value }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+        const sectorTotal = sectorData.reduce((s, d) => s + d.value, 0)
+        const sectorThreshold = sectorTotal * 0.02
+        const sectorSlices = sectorData.filter(d => d.value >= sectorThreshold)
+        const sectorOthers = sectorData.filter(d => d.value < sectorThreshold).reduce((s, d) => s + d.value, 0)
+        if (sectorOthers > 0) sectorSlices.push({ name: "Autres", value: sectorOthers })
+
+        let cashUsd = 0, posUsd = 0
+        for (const p of sharedPositions) {
+          const ticker = p.ticker.replace(/_R$/, "")
+          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
+          if (ticker.startsWith("USDT")) cashUsd += value
+          else posUsd += value
+        }
+        const cashVsPos = [
+          { name: "Positions", value: posUsd },
+          { name: "Cash USDT", value: cashUsd },
+        ].filter(d => d.value > 0)
+        const CASH_COLORS = ["#06b6d4", "#e879f9"]
+
+        if (allocationData.length === 0) return null
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Allocation</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {mainSlices.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-zinc-400">{d.name}</span>
+                    <span className="text-white ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Par secteur</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {sectorSlices.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
+                    <span className="text-zinc-400">{d.name}</span>
+                    <span className="text-white ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-fuchsia-500/20 rounded bg-black/40 p-4">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-fuchsia-400 mb-2">Cash vs Positions</h2>
+              <ResponsiveContainer width="100%" height={170}>
+                <PieChart>
+                  <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#09090b">
+                    {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-col gap-1">
+                {cashVsPos.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
+                    <span className={i === 0 ? "text-cyan-400 font-bold" : "text-fuchsia-400 font-bold"}>{d.name}</span>
+                    <span className="text-zinc-400 ml-auto">{fmtUsd(d.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {sharedPositions.length === 0 ? (
         <div className="text-zinc-500 font-mono text-sm text-center py-8">Aucune position partagée</div>
