@@ -21,7 +21,13 @@ function fmtUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n)
 }
 
-function calcStats(pos: any[]) {
+function calcStatsTotal(pos: any[]) {
+  const value = pos.reduce((s, p) => s + Number(p.quantity) * Number(p.market_price), 0)
+  const valueUsd = pos.reduce((s, p) => s + Number(p.quantity) * (Number(p.market_price_usd) || 0), 0)
+  return { value, valueUsd }
+}
+
+function calcStatsPart(pos: any[]) {
   const value = pos.reduce((s, p) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
@@ -80,7 +86,8 @@ export default function CryptoShared() {
     return qty !== 0 && price !== 0
   })
   const sharedPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
-  const sharedStats = calcStats(sharedPositions)
+  const totalStats = calcStatsTotal(sharedPositions)
+  const partStats = calcStatsPart(sharedPositions)
 
   return (
     <div className="p-6 space-y-6">
@@ -107,14 +114,15 @@ export default function CryptoShared() {
         <div className="flex gap-8">
           <div>
             <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">
-              Valeur totale (part Fabien)
-              <InfoTip text="Valeur du portefeuille partagé Raph+Fab, part Fabien uniquement. Chaque position est pondérée par ownership_pct (ex: 50%)." />
+              Valeur totale portefeuille
+              <InfoTip text="Valeur totale du portefeuille partagé Raph+Fab (quantités réelles × cours). La part Fabien (50%) est affichée en dessous." />
             </div>
-            <div className="text-3xl font-mono font-bold text-white">{fmtUsd(sharedStats.valueUsd)}</div>
+            <div className="text-3xl font-mono font-bold text-white">{fmtUsd(totalStats.valueUsd)}</div>
+            <div className="text-sm font-mono text-zinc-400 mt-1">Part Fabien (50%) : {fmtUsd(partStats.valueUsd)} / {fmtEur(partStats.value)}</div>
           </div>
           <div>
             <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center">Valeur EUR</div>
-            <div className="text-3xl font-mono font-bold text-white">{fmtEur(sharedStats.value)}</div>
+            <div className="text-3xl font-mono font-bold text-white">{fmtEur(totalStats.value)}</div>
           </div>
         </div>
       </div>
@@ -127,18 +135,18 @@ export default function CryptoShared() {
             <div>
               <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-fuchsia-400 flex items-center">
                 Raph + Fab
-                <InfoTip text="Pourcentage de détention. Raph+Fab = 50%. La valeur affichée = quantité × cours × ownership%. Source : champ ownership_pct du compte." />
+                <InfoTip text="Portefeuille partagé Raph+Fab. Valeurs réelles affichées (quantités et cours non pondérés). La part Fabien (50%) est calculée uniquement sur la page Home." />
               </h2>
-              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Part Fabien uniquement</p>
+              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Valeurs réelles du portefeuille commun</p>
             </div>
             <div className="flex gap-6 text-right">
               <div>
                 <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur USD</div>
-                <div className="text-base font-mono font-bold text-cyan-300">{fmtUsd(sharedStats.valueUsd)}</div>
+                <div className="text-base font-mono font-bold text-cyan-300">{fmtUsd(totalStats.valueUsd)}</div>
               </div>
               <div>
                 <div className="text-[10px] text-zinc-600 font-mono uppercase">Valeur EUR</div>
-                <div className="text-base font-mono font-bold text-zinc-400">{fmtEur(sharedStats.value)}</div>
+                <div className="text-base font-mono font-bold text-zinc-400">{fmtEur(totalStats.value)}</div>
               </div>
             </div>
           </div>
@@ -147,18 +155,16 @@ export default function CryptoShared() {
               <thead className="bg-black/60 text-zinc-500 uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="text-left p-3">Coin</th>
-                  <th className="text-right p-3">Qté (part)</th>
+                  <th className="text-right p-3">Qté</th>
                   <th className="text-right p-3">Cours ($)</th>
                   <th className="text-right p-3">Valeur ($)</th>
                 </tr>
               </thead>
               <tbody>
                 {[...sharedPositions].sort((a: any, b: any) => {
-                  const ownA = (Number(a.ownership_pct) || 100) / 100, ownB = (Number(b.ownership_pct) || 100) / 100
-                  return (Number(b.quantity) * ownB * (Number(b.market_price_usd) || 0)) - (Number(a.quantity) * ownA * (Number(a.market_price_usd) || 0))
+                  return (Number(b.quantity) * (Number(b.market_price_usd) || 0)) - (Number(a.quantity) * (Number(a.market_price_usd) || 0))
                 }).map((p: any) => {
-                  const own = (Number(p.ownership_pct) || 100) / 100
-                  const qty = Number(p.quantity) * own
+                  const qty = Number(p.quantity)
                   const priceUsd = Number(p.market_price_usd) || 0
                   const valueUsd = qty * priceUsd
                   return (
