@@ -764,7 +764,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         }, 0)
 
         ibkr_nlv = ibkr_cash + ibkr_positions_value
-        pnl_realise_ibkr = ibkr_cash - capital_ibkr
+        pnl_realise_ibkr = ibkr_nlv - capital_ibkr - pnl_latent_ibkr
       }
 
       // Kraken — trading actif, P&L depuis le journal
