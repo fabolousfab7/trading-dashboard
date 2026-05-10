@@ -22,8 +22,6 @@ function fmtUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
 }
 
-const ALLOC_COLORS = ["#e879f9", "#06b6d4", "#a78bfa"]
-
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
@@ -43,6 +41,7 @@ export default function Home() {
   const [noteImagePreview, setNoteImagePreview] = useState<string | null>(null)
   const [noteSaving, setNoteSaving] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(true)
+  const [fhfSim, setFhfSim] = useState<any>(null)
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
 
@@ -79,6 +78,10 @@ export default function Home() {
       .then(({ events }) => setMarketEvents(events || []))
       .catch(() => {})
       .finally(() => setMarketLoading(false))
+    authFetch("/api/fhf/simulation")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setFhfSim(d))
+      .catch(() => {})
   }, [user])
 
   useEffect(() => {
@@ -259,26 +262,46 @@ export default function Home() {
   const peaPerfPct = peaCapital ? ((peaValue - peaCapital) / peaCapital) * 100 : 0
 
   const cryptoPositions = crypto?.positions || []
-  const cryptoValue = cryptoPositions.reduce((s: number, p: any) => {
+  const cryptoPerso = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
+  const cryptoShared = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
+
+  const cryptoPersoValue = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
+  const cryptoPersoValueUsd = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * (Number(p.market_price_usd) || 0), 0)
+  const cryptoPersoCost = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
+  const cryptoPersoPerfPct = cryptoPersoCost ? ((cryptoPersoValue - cryptoPersoCost) / cryptoPersoCost) * 100 : 0
+
+  const cryptoSharedValue = cryptoShared.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
   }, 0)
-  const cryptoValueUsd = cryptoPositions.reduce((s: number, p: any) => {
-    const own = (Number(p.ownership_pct) || 100) / 100
-    return s + Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
-  }, 0)
-  const cryptoCost = cryptoPositions.reduce((s: number, p: any) => {
+  const cryptoSharedCost = cryptoShared.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.avg_cost) * own
   }, 0)
-  const cryptoPerfPct = cryptoCost ? ((cryptoValue - cryptoCost) / cryptoCost) * 100 : 0
 
-  const patrimoineTotal = ibkrNlv + peaValue + cryptoValue
+  const ccaBalance = fhfSim?.cca_balance || 0
+  const fhfEquity = ibkrNlv - ccaBalance
 
+  const patrimoineBrut = ccaBalance + fhfEquity + peaValue + cryptoPersoValue + cryptoSharedValue
+
+  const peaPV = Math.max(0, peaValue - peaCapital)
+  const peaNet = peaValue - peaPV * 0.30
+  const cryptoPersoNet = cryptoPersoValue - Math.max(0, cryptoPersoValue - cryptoPersoCost) * 0.314
+  const cryptoSharedNet = cryptoSharedValue - Math.max(0, cryptoSharedValue - cryptoSharedCost) * 0.314
+  const fhfIS = fhfSim?.is_amount || 0
+  const fhfResultatNet = fhfSim?.resultat_net || 0
+  const fhfCapital = fhfSim?.capital_total || 0
+  const fhfEquityNet = fhfCapital + fhfResultatNet * (1 - 0.172)
+
+  const patrimoineNet = ccaBalance + fhfEquityNet + peaNet + cryptoPersoNet + cryptoSharedNet
+
+  const ALLOC_COLORS_5 = ["#f59e0b", "#e879f9", "#06b6d4", "#a78bfa", "#c084fc"]
   const allocationData = [
-    { name: "FHF IBKR", value: ibkrNlv, color: "#e879f9" },
-    { name: "PEA", value: peaValue, color: "#06b6d4" },
-    { name: "Crypto", value: cryptoValue, color: "#a78bfa" },
+    { name: "CCA", value: ccaBalance, color: ALLOC_COLORS_5[0] },
+    { name: "FHF IBKR", value: fhfEquity, color: ALLOC_COLORS_5[1] },
+    { name: "PEA", value: peaValue, color: ALLOC_COLORS_5[2] },
+    { name: "Crypto Perso", value: cryptoPersoValue, color: ALLOC_COLORS_5[3] },
+    { name: "Crypto R+F", value: cryptoSharedValue, color: ALLOC_COLORS_5[4] },
   ].filter(d => d.value > 0)
 
   return (
@@ -294,11 +317,16 @@ export default function Home() {
       <div className="border border-fuchsia-500/30 bg-black/60 rounded p-6 shadow-[0_0_25px_rgba(217,70,239,0.1)]">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-400 mb-2 flex items-center">Patrimoine total (EUR)<InfoTip text="Patrimoine total = NLV IBKR + Valeur PEA + Valeur Crypto. Chaque source est rafraîchie quotidiennement (cron 22h UTC)." /></div>
-            <div className="text-5xl font-mono font-bold text-cyan-400">{fmtEur(patrimoineTotal)}</div>
-            <div className="text-xs font-mono text-zinc-500 mt-2">
-              IBKR · {fmtEur(ibkrNlv)} <span className="text-zinc-700">·</span> PEA · {fmtEur(peaValue)} <span className="text-zinc-700">·</span> Crypto · {fmtEur(cryptoValue)}
+            <div className="text-[10px] font-mono uppercase tracking-widest text-fuchsia-400 mb-2 flex items-center">
+              Patrimoine brut (EUR)
+              <InfoTip text="Patrimoine brut = CCA + Equity FHF (NLV IBKR - CCA) + PEA + Crypto Perso + Crypto R+F. Avant impôts sur les plus-values." wide />
             </div>
+            <div className="text-4xl font-mono font-bold text-cyan-400">{fmtEur(patrimoineBrut)}</div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mt-3 flex items-center">
+              Net estimé (après impôts)
+              <InfoTip text="Patrimoine net = CCA (100%) + FHF equity (capital récupéré + résultat net × 82.8%) + PEA (-30% PV) + Crypto (-31.4% PV). Estimation si liquidation totale." wide />
+            </div>
+            <div className="text-xl font-mono font-bold text-zinc-400">{fmtEur(patrimoineNet)}</div>
           </div>
           {allocationData.length > 0 && (
             <div className="hidden md:block">
@@ -318,6 +346,17 @@ export default function Home() {
               </PieChart>
             </div>
           )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-fuchsia-500/10">
+          <MiniCard label="CCA" value={fmtEur(ccaBalance)} taxLabel="100%" tip="Compte courant d'associé. Récupérable sans impôt." />
+          <MiniCard label="FHF Equity" value={fmtEur(fhfEquity)} taxLabel={`-IS -17.2%`}
+            netValue={fmtEur(fhfEquityNet)} tip="Equity = NLV IBKR - CCA. Net = capital récupéré + résultat net × (1 - 17.2% PS)." />
+          <MiniCard label="PEA" value={fmtEur(peaValue)} taxLabel="-30% PV"
+            netValue={fmtEur(peaNet)} tip={`PV latente = ${fmtEur(peaPV)}. Flat tax 30% sur PV si retrait avant 5 ans.`} />
+          <MiniCard label="Crypto Perso" value={fmtEur(cryptoPersoValue)} taxLabel="-31.4% PV"
+            netValue={fmtEur(cryptoPersoNet)} tip={`PV latente = ${fmtEur(Math.max(0, cryptoPersoValue - cryptoPersoCost))}. Flat tax 30% + PS sur PV.`} />
+          <MiniCard label="Crypto R+F" value={fmtEur(cryptoSharedValue)} taxLabel="-31.4% PV"
+            netValue={fmtEur(cryptoSharedNet)} tip="Part Fabien uniquement (ownership%). Même fiscalité crypto." />
         </div>
       </div>
 
@@ -392,15 +431,15 @@ export default function Home() {
             { label: "Positions", value: String(peaPositions.length) },
           ]}
           link="/pea" accent="zinc" />
-        <SubCard icon={Bitcoin} title="Crypto LT" subtitle="Long terme"
-          mainValue={cryptoPositions.length > 0 ? fmtEur(cryptoValue) : "—"}
-          mainLabel={cryptoPositions.length > 0 ? "Valeur" : "Pas connecté"}
-          subValue={cryptoPositions.length > 0 && cryptoValueUsd > 0 ? fmtUsd(cryptoValueUsd) : undefined}
-          stats={cryptoPositions.length > 0 ? [
-            { label: "Perf", value: `${cryptoPerfPct >= 0 ? "+" : ""}${cryptoPerfPct.toFixed(1)}%`, color: cryptoPerfPct >= 0 ? "green" : "red" },
-            { label: "Positions", value: String(cryptoPositions.length) },
+        <SubCard icon={Bitcoin} title="Crypto Perso" subtitle="100% détenu"
+          mainValue={cryptoPerso.length > 0 ? fmtEur(cryptoPersoValue) : "—"}
+          mainLabel={cryptoPerso.length > 0 ? "Valeur" : "Pas connecté"}
+          subValue={cryptoPerso.length > 0 && cryptoPersoValueUsd > 0 ? fmtUsd(cryptoPersoValueUsd) : undefined}
+          stats={cryptoPerso.length > 0 ? [
+            { label: "Perf", value: `${cryptoPersoPerfPct >= 0 ? "+" : ""}${cryptoPersoPerfPct.toFixed(1)}%`, color: cryptoPersoPerfPct >= 0 ? "green" : "red" },
+            { label: "Positions", value: String(cryptoPerso.length) },
           ] : [{ label: "Statut", value: "À configurer" }]}
-          link="/crypto" accent={cryptoPositions.length > 0 ? "fuchsia" : "zinc"} />
+          link="/crypto" accent={cryptoPerso.length > 0 ? "fuchsia" : "zinc"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -551,6 +590,19 @@ export default function Home() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function MiniCard({ label, value, taxLabel, netValue, tip }: { label: string; value: string; taxLabel: string; netValue?: string; tip: string }) {
+  return (
+    <div className="border border-zinc-800 rounded p-3 bg-black/40">
+      <div className="text-[9px] font-mono uppercase tracking-widest text-zinc-600 flex items-center">
+        {label}<InfoTip text={tip} />
+      </div>
+      <div className="text-sm font-mono font-bold text-white mt-1">{value}</div>
+      <div className="text-[9px] font-mono text-zinc-600 mt-0.5">{taxLabel}</div>
+      {netValue && <div className="text-[10px] font-mono text-zinc-500 mt-0.5">Net: {netValue}</div>}
     </div>
   )
 }

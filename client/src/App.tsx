@@ -9,6 +9,7 @@ import Analytics from "@/pages/Analytics";
 import Ibkr from "@/pages/Ibkr";
 import Pea from "@/pages/Pea";
 import Crypto from "@/pages/Crypto";
+import CryptoShared from "@/pages/CryptoShared";
 import Compta from "@/pages/Compta";
 import Fhf from "@/pages/Fhf";
 import NotFound from "@/pages/not-found";
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/fhf" component={Fhf} />
         <Route path="/ibkr" component={Ibkr} />
         <Route path="/crypto" component={Crypto} />
+        <Route path="/crypto-shared" component={CryptoShared} />
         <Route path="/pea" component={Pea} />
         <Route path="/compta" component={Compta} />
         <Route component={NotFound} />

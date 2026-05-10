@@ -106,12 +106,10 @@ export default function Crypto() {
     return qty !== 0 && price !== 0
   })
   const persoPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
-  const sharedPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
 
   const persoStats = calcStats(persoPositions)
-  const sharedStats = calcStats(sharedPositions)
-  const totalUsd = persoStats.valueUsd + sharedStats.valueUsd
-  const totalEur = persoStats.value + sharedStats.value
+  const totalUsd = persoStats.valueUsd
+  const totalEur = persoStats.value
 
   const tooltipStyle = { background: "#1a1a2e", border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: "#ffffff" }
 
@@ -120,11 +118,11 @@ export default function Crypto() {
       <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
         <div>
           <div className="flex items-center gap-2 text-fuchsia-400 text-xs font-mono uppercase tracking-widest">
-            <Bitcoin size={14} /> Crypto LT
+            <Bitcoin size={14} /> Crypto Perso
           </div>
           <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
             <span className="text-cyan-400">Crypto </span>
-            <span className="text-fuchsia-500">Long Terme</span>
+            <span className="text-fuchsia-500">Perso</span>
           </h1>
         </div>
         <button onClick={refreshPrices} disabled={refreshing}
@@ -151,7 +149,7 @@ export default function Crypto() {
 
       {(() => {
         const merged: Record<string, number> = {}
-        for (const p of positions) {
+        for (const p of persoPositions) {
           const ticker = p.ticker.replace(/_R$/, "")
           const own = (Number(p.ownership_pct) || 100) / 100
           const value = Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
@@ -169,7 +167,7 @@ export default function Crypto() {
         if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
 
         const sectorMap: Record<string, number> = {}
-        for (const p of positions) {
+        for (const p of persoPositions) {
           const ticker = p.ticker.replace(/_R$/, "")
           const sector = CRYPTO_SECTOR[ticker] || "Autres"
           const own = (Number(p.ownership_pct) || 100) / 100
@@ -187,7 +185,7 @@ export default function Crypto() {
         if (sectorOthers > 0) sectorSlices.push({ name: "Autres", value: sectorOthers })
 
         let cashUsd = 0, posUsd = 0
-        for (const p of positions) {
+        for (const p of persoPositions) {
           const ticker = p.ticker.replace(/_R$/, "")
           const own = (Number(p.ownership_pct) || 100) / 100
           const value = Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
@@ -275,9 +273,6 @@ export default function Crypto() {
 
       <PortfolioSection title="Portefeuille Perso" subtitle="Détenu à 100%"
         positions={persoPositions} stats={persoStats} accent="cyan" onPositionClick={setSelectedPosition} />
-      <PortfolioSection title="Raph + Fab" subtitle="Détenu à 50% (part Fabien)"
-        positions={sharedPositions} stats={sharedStats} accent="fuchsia" onPositionClick={setSelectedPosition}
-        ownershipTip="Pourcentage de détention. Raph+Fab = 50%. La valeur affichée = quantité × cours × ownership%. Source : champ ownership_pct du compte." />
 
       {selectedPosition && (
         <PositionNoteModal
