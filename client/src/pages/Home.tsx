@@ -18,10 +18,6 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
-function fmtPct(n: number) {
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
-}
-
 const RANGES = [
   { label: "1S", days: 7 },
   { label: "1M", days: 30 },
@@ -279,10 +275,7 @@ export default function Home() {
   const krakenNlv = krakenPositionsValue + krakenCashValue
 
   // FHF consolidated (IBKR + Kraken)
-  const fhfCapitalTotal = (fhfSim?.capital_ibkr || 0) + (fhfSim?.capital_kraken || 0)
   const fhfNlvTotal = ibkrNlv + krakenNlv
-  const fhfPnl = fhfNlvTotal - fhfCapitalTotal
-  const fhfRoi = fhfCapitalTotal > 0 ? (fhfPnl / fhfCapitalTotal) * 100 : 0
 
   // PEA
   const peaPositions = pea?.positions || []
@@ -290,8 +283,6 @@ export default function Home() {
   const peaCashTotal = (pea?.cashBalances || []).reduce((s: number, c: any) => s + Number(c.amount), 0)
   const peaValue = peaPositionsValue + peaCashTotal
   const peaInvested = peaPositions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
-  const peaPnl = peaPositionsValue - peaInvested
-  const peaRoi = peaInvested > 0 ? (peaPnl / peaInvested) * 100 : 0
 
   // Crypto Perso (ownership 100%)
   const cryptoPositions = crypto?.positions || []
@@ -299,22 +290,12 @@ export default function Home() {
   const cryptoShared = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
 
   const cryptoPersoValue = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
-  const cryptoPersoCost = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
-  const cryptoPersoPnl = cryptoPersoValue - cryptoPersoCost
-  const cryptoPersoRoi = cryptoPersoCost > 0 ? (cryptoPersoPnl / cryptoPersoCost) * 100 : 0
 
   // Crypto R+F (shared, ownership < 100%)
-  const cryptoSharedValueTotal = cryptoShared.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
-  const cryptoSharedCostTotal = cryptoShared.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
   const cryptoSharedValue = cryptoShared.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
   }, 0)
-  const cryptoSharedPnlFab = cryptoSharedValue - cryptoShared.reduce((s: number, p: any) => {
-    const own = (Number(p.ownership_pct) || 100) / 100
-    return s + Number(p.quantity) * Number(p.avg_cost) * own
-  }, 0)
-  const cryptoSharedRoi = cryptoSharedCostTotal > 0 ? ((cryptoSharedValueTotal - cryptoSharedCostTotal) / cryptoSharedCostTotal) * 100 : 0
 
   // Patrimoine (sans CCA)
   const patrimoineBrut = fhfNlvTotal + peaValue + cryptoPersoValue + cryptoSharedValue
@@ -344,6 +325,34 @@ export default function Home() {
   const chartFirst = chartData.length > 0 ? chartData[0].total : 0
   const chartLast = chartData.length > 0 ? chartData[chartData.length - 1].total : 0
   const chartVarAbs = chartLast - chartFirst
+
+  // % evolution on selected timeframe (from snapshots)
+  function calcPctChange(broker: string): number | null {
+    const accountSnaps = snapshots.filter(s => {
+      const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
+      return acc?.broker === broker
+    })
+    if (accountSnaps.length < 2) return null
+    const sorted = [...accountSnaps].sort((a: any, b: any) =>
+      new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
+    )
+    const oldest = Number(sorted[0].nlv_base) || 0
+    const newest = Number(sorted[sorted.length - 1].nlv_base) || 0
+    if (oldest === 0) return null
+    return ((newest - oldest) / oldest) * 100
+  }
+
+  const fhfPctChange = (() => {
+    const ibkrPct = calcPctChange("IBKR")
+    const krakenPct = calcPctChange("Kraken")
+    if (ibkrPct !== null && krakenPct !== null) {
+      const ibkrWeight = ibkrNlv / (ibkrNlv + krakenNlv || 1)
+      return ibkrPct * ibkrWeight + krakenPct * (1 - ibkrWeight)
+    }
+    return ibkrPct ?? krakenPct
+  })()
+  const cryptoPctChange = calcPctChange("Crypto")
+  const peaPctChange = calcPctChange("Boursorama")
 
   // Masthead
   const now = new Date()
@@ -465,75 +474,42 @@ export default function Home() {
       </div>
 
       {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+        <PerfCard label="FHF" sub="Société"
+          lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }]}
+          total={ibkrNlv + krakenNlv} pctChange={fhfPctChange} href="/fhf" />
+        <PerfCard label="Crypto"
+          lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
+          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoPctChange} href="/crypto" />
 
-        {/* FHF */}
-        <Link href="/fhf" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">FHF</div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">IBKR + Kraken</div>
-          <div className="mt-3 space-y-1.5">
-            <PerfRow label="Investi" value={fmtEur(fhfCapitalTotal)} />
-            <PerfRow label="Valeur" value={fmtEur(fhfNlvTotal)} bold />
-            <PerfRow label="P&L" value={`${fhfPnl >= 0 ? "+" : ""}${fmtEur(fhfPnl)}`} color={fhfPnl >= 0} bold />
-          </div>
-          <RoiBar value={fhfRoi} />
-        </Link>
-
-        {/* Crypto Perso */}
-        <Link href="/crypto" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Crypto Perso</div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">100% détenu</div>
-          <div className="mt-3 space-y-1.5">
-            <PerfRow label="Investi" value={fmtEur(cryptoPersoCost)} />
-            <PerfRow label="Valeur" value={fmtEur(cryptoPersoValue)} bold />
-            <PerfRow label="P&L" value={`${cryptoPersoPnl >= 0 ? "+" : ""}${fmtEur(cryptoPersoPnl)}`} color={cryptoPersoPnl >= 0} bold />
-          </div>
-          <RoiBar value={cryptoPersoRoi} />
-        </Link>
-
-        {/* Crypto R+F */}
-        <Link href="/crypto-shared" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Crypto R+F</div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Part Fabien &middot; 50%</div>
-          <div className="mt-3 space-y-1.5">
-            <PerfRow label="Total" value={fmtEur(cryptoSharedValueTotal)} />
-            <PerfRow label="Part Fab." value={fmtEur(cryptoSharedValue)} bold />
-            <PerfRow label="P&L" value={`${cryptoSharedPnlFab >= 0 ? "+" : ""}${fmtEur(cryptoSharedPnlFab)}`} color={cryptoSharedPnlFab >= 0} bold />
-          </div>
-          <RoiBar value={cryptoSharedRoi} />
-        </Link>
-
-        {/* Trading Actif */}
-        <Link href="/analytics" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+        {/* Trading Actif — card spéciale */}
+        <Link href="/analytics" className="block" style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
           <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Trading Actif</div>
           <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Journal tous comptes</div>
           <div className="mt-3 space-y-1.5">
-            <PerfRow label="P&L" value={`${tradingProfit >= 0 ? "+" : ""}${fmtEur(tradingProfit)}`} color={tradingProfit >= 0} bold />
-            <PerfRow label="Trades" value={String(tradingCount)} />
-            <PerfRow label="Win rate" value={`${tradingWinRate.toFixed(0)}%`} />
-          </div>
-          <div className="mt-3">
-            <div style={{ fontFamily: "var(--font-mono)" }} className={`text-sm font-bold tabular-nums ${tradingWinRate >= 50 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
-              {tradingWinRate.toFixed(0)}% WR
+            <div className="flex justify-between text-xs">
+              <span className="text-[--ink3]">P&L</span>
+              <span style={{ fontFamily: "var(--font-mono)" }} className={`tabular-nums font-semibold ${tradingProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+                {fmtEur(tradingProfit)}
+              </span>
             </div>
-            <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${tradingWinRate >= 50 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
-                style={{ width: `${Math.min(100, tradingWinRate)}%` }} />
+            <div className="flex justify-between text-xs">
+              <span className="text-[--ink3]">Trades</span>
+              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{tradingCount}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-[--ink3]">Win rate</span>
+              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{tradingWinRate.toFixed(0)}%</span>
             </div>
           </div>
+          <div className="mt-3 text-[--ink3] text-sm" style={{ fontFamily: "var(--font-mono)" }}>—</div>
         </Link>
 
-        {/* PEA */}
-        <Link href="/pea" style={{ textDecoration: "none", padding: "16px 22px", transition: "background .15s" }} className="hover:bg-[--at-surface]">
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">PEA Perso</div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Boursobank</div>
-          <div className="mt-3 space-y-1.5">
-            <PerfRow label="Versé" value={fmtEur(peaInvested)} />
-            <PerfRow label="Valeur" value={fmtEur(peaValue)} bold />
-            <PerfRow label="P&L" value={`${peaPnl >= 0 ? "+" : ""}${fmtEur(peaPnl)}`} color={peaPnl >= 0} bold />
-          </div>
-          <RoiBar value={peaRoi} />
-        </Link>
+        <PerfCard label="PEA Perso" sub="Boursobank"
+          lines={[{ name: "Valeur", value: peaValue }]}
+          total={peaValue} pctChange={peaPctChange} href="/pea" />
       </div>
 
       {/* ── 4. BOTTOM — Agenda + Notes ──────────────────────── */}
@@ -669,28 +645,44 @@ export default function Home() {
   )
 }
 
-function PerfRow({ label, value, bold, color }: { label: string; value: string; bold?: boolean; color?: boolean }) {
-  const colorClass = color === undefined ? "text-[--ink]" : color ? "text-[--at-pos]" : "text-[--at-neg]"
+function PerfCard({ label, sub, lines, total, pctChange, href }: {
+  label: string; sub?: string; lines: { name: string; value: number }[]; total: number; pctChange: number | null; href: string
+}) {
   return (
-    <div className="flex justify-between text-xs">
-      <span className="text-[--ink3]">{label}</span>
-      <span style={{ fontFamily: "var(--font-mono)" }} className={`tabular-nums ${bold ? "font-bold" : ""} ${colorClass}`}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-function RoiBar({ value }: { value: number }) {
-  return (
-    <div className="mt-3">
-      <div style={{ fontFamily: "var(--font-mono)" }} className={`text-sm font-bold tabular-nums ${value >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
-        {fmtPct(value)}
+    <Link href={href} className="block" style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+      <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">{label}</div>
+      {sub && <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">{sub}</div>}
+      <div className="mt-3 space-y-1.5">
+        {lines.map((l, i) => (
+          <div key={i} className="flex justify-between text-xs">
+            <span className="text-[--ink3]">{l.name}</span>
+            <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{fmtEur(l.value)}</span>
+          </div>
+        ))}
+        {lines.length > 1 && (
+          <>
+            <div className="border-t border-dotted border-[--rule]" />
+            <div className="flex justify-between text-xs font-semibold">
+              <span className="text-[--ink2]">Total</span>
+              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{fmtEur(total)}</span>
+            </div>
+          </>
+        )}
       </div>
-      <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${value >= 0 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
-          style={{ width: `${Math.min(100, Math.abs(value))}%` }} />
+      <div className="mt-3">
+        <div style={{ fontFamily: "var(--font-mono)" }}
+          className={`text-sm font-bold tabular-nums ${pctChange === null ? "text-[--ink3]" : pctChange >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+          {pctChange === null ? "—" : `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%`}
+        </div>
+        {pctChange !== null && (
+          <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${pctChange >= 0 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
+              style={{ width: `${Math.min(100, Math.abs(pctChange) * 2)}%` }} />
+          </div>
+        )}
       </div>
-    </div>
+    </Link>
   )
 }
