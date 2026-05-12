@@ -276,12 +276,21 @@ export default function Home() {
   }, 0)
   const ccaNet = fhfSim?.cca_balance || 0
   const fhfEquity = Math.max(0, ibkrNlv - ccaNet)
-  const fhfNetApresIs = fhfEquity * (1 - 0.15)
-  const fhfDistribuableNet = fhfNetApresIs * (1 - 0.172)
+
+  const ibkrCost = positions.reduce((s: number, p: any) => {
+    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    return s + Number(p.quantity) * Number(p.avg_cost) * fx
+  }, 0)
+  const ibkrPv = Math.max(0, fhfEquity - ibkrCost)
+  const fhfNetApresIs = fhfEquity - ibkrPv * 0.15
+  const fhfDistribuableNet = fhfNetApresIs - ibkrPv * 0.85 * 0.172
+
+  const peaCost = peaPositions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
+  const peaPv = Math.max(0, peaValue - peaCost)
+  const peaNet = peaValue - peaPv * 0.30
 
   const patrimoineBrut = ccaNet + fhfEquity + peaValue + cryptoPersoValue + cryptoSharedValue
 
-  const peaNet = peaValue * (1 - 0.30)
   const cryptoPersoNet = cryptoPersoValue * (1 - 0.314)
   const cryptoSharedNet = cryptoSharedValue * (1 - 0.314)
 
@@ -316,7 +325,7 @@ export default function Home() {
             <div className="text-4xl font-mono font-bold text-[--at-accent]">{fmtEur(patrimoineBrut)}</div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mt-3 flex items-center">
               Net estimé (après impôts)
-              <InfoTip text="Patrimoine net = CCA (100%) + FHF equity (×85% ×82.8%) + PEA (×70%) + Crypto (×68.6%). Estimation simplifiée si liquidation totale." wide />
+              <InfoTip text="Patrimoine net = CCA (100%) + FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout). Estimation si liquidation totale." wide />
             </div>
             <div className="text-xl font-mono font-bold text-[--ink2]">{fmtEur(patrimoineNet)}</div>
           </div>
@@ -341,10 +350,10 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-[--rule]">
           <MiniCard label="CCA" value={fmtEur(ccaNet)} taxLabel="100%" tip="Compte courant d'associé. Récupérable sans impôt." />
-          <MiniCard label="FHF Equity" value={fmtEur(fhfEquity)} taxLabel="-IS 15% -PS 17.2%"
-            netValue={fmtEur(fhfDistribuableNet)} tip="Equity = NLV IBKR - CCA. Net = equity × (1-15% IS) × (1-17.2% PS). Taux réduit PME simplifié." />
-          <MiniCard label="PEA" value={fmtEur(peaValue)} taxLabel="-30%"
-            netValue={fmtEur(peaNet)} tip="Flat tax 30% sur la valeur totale (PEA < 5 ans d'antériorité)." />
+          <MiniCard label="FHF Equity" value={fmtEur(fhfEquity)} taxLabel={ibkrPv > 0 ? `-IS 15% -PS 17.2% sur PV ${fmtEur(ibkrPv)}` : "Pas d'impôt (MV)"}
+            netValue={fmtEur(fhfDistribuableNet)} tip="Equity = NLV IBKR - CCA. IS 15% puis PS 17.2% sur la plus-value uniquement. Taux réduit PME." />
+          <MiniCard label="PEA" value={fmtEur(peaValue)} taxLabel={peaPv > 0 ? `-30% sur PV ${fmtEur(peaPv)}` : "Pas d'impôt (MV)"}
+            netValue={fmtEur(peaNet)} tip="Flat tax 30% sur la plus-value uniquement. Si en moins-value, pas d'impôt." />
           <MiniCard label="Crypto Perso" value={fmtEur(cryptoPersoValue)} taxLabel="-31.4%"
             netValue={fmtEur(cryptoPersoNet)} tip="Flat tax 31.4% sur la valeur totale." />
           <MiniCard label="Crypto R+F" value={fmtEur(cryptoSharedValue)} taxLabel="-31.4%"

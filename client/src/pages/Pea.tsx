@@ -171,7 +171,7 @@ export default function Pea() {
           <button onClick={refreshPrices} disabled={refreshing || positions.length === 0}
             className="px-3 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "Refresh..." : "Rafraîchir les prix"}
+            {refreshing ? "Refresh..." : "Rafraîchir"}
           </button>
         </div>
       </div>
