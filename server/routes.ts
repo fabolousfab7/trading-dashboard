@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { supabase } from "./supabase.js";
+import { supabase, userScopedClient } from "./supabase.js";
 import { api } from "../shared/routes.js";
 import { registerPortfolioRoutes } from "./routes-portfolio.js";
 import { registerComptaRoutes } from "./routes-compta.js";
@@ -77,14 +77,11 @@ export async function registerRoutes(
     if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) return res.status(401).json({ message: "Unauthorized" });
+    const userClient = userScopedClient(token);
 
-    let query = supabase
+    let query = userClient
       .from('trades')
-      .select('profit, risk')
-      .eq('user_id', user.id);
+      .select('profit, risk');
 
     const exclude = (req.query.exclude as string || "").split(",").map(s => s.trim()).filter(Boolean);
     for (const ex of exclude) {
