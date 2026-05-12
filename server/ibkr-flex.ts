@@ -84,7 +84,7 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function sendRequest(token: string, queryId: string, maxAttempts = 3, delayMs = 2000): Promise<string> {
+async function sendRequest(token: string, queryId: string, maxAttempts = 5, delayMs = 30000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -112,7 +112,7 @@ async function sendRequest(token: string, queryId: string, maxAttempts = 3, dela
     const errorMessage = root.ErrorMessage || "Unknown error"
 
     if (String(errorCode) === "1001" && attempt < maxAttempts) {
-      console.log(`[ibkr-flex] SendRequest attempt ${attempt}/${maxAttempts} got 1001, retrying in ${delayMs / 1000}s...`)
+      console.log(`[ibkr-flex] SendRequest attempt ${attempt}/${maxAttempts} failed with 1001 (${errorMessage}). Retrying in ${delayMs / 1000}s...`)
       await sleep(delayMs)
       continue
     }
@@ -178,20 +178,26 @@ export function parseFlexReport(xml: string): FlexStatementData {
   const stmt = statements[0]
 
   const openPositionsNode = stmt.OpenPositions
-  const openPositions: FlexOpenPosition[] = asArray(openPositionsNode?.OpenPosition).map((p: any) => ({
-    accountId: p.accountId,
-    symbol: p.symbol,
-    description: p.description,
-    quantity: num(p.quantity),
-    markPrice: num(p.markPrice),
-    positionValue: num(p.positionValue),
-    openPrice: num(p.openPrice),
-    costBasisPrice: p.costBasisPrice ? num(p.costBasisPrice) : undefined,
-    currency: p.currency,
-    fxRateToBase: p.fxRateToBase ? num(p.fxRateToBase) : undefined,
-    assetCategory: p.assetCategory,
-    fifoPnlUnrealized: p.fifoPnlUnrealized ? num(p.fifoPnlUnrealized) : undefined,
-  }))
+  const openPositions: FlexOpenPosition[] = asArray(openPositionsNode?.OpenPosition).map((p: any) => {
+    // Flex Query uses `position` attribute, not `quantity`. Fallback for compat.
+    // `positionValue` is not provided by Flex for OpenPositions — compute it.
+    const quantity = num(p.position ?? p.quantity)
+    const markPrice = num(p.markPrice)
+    return {
+      accountId: p.accountId,
+      symbol: p.symbol,
+      description: p.description,
+      quantity,
+      markPrice,
+      positionValue: num(p.positionValue) || quantity * markPrice,
+      openPrice: num(p.openPrice),
+      costBasisPrice: p.costBasisPrice ? num(p.costBasisPrice) : undefined,
+      currency: p.currency,
+      fxRateToBase: p.fxRateToBase ? num(p.fxRateToBase) : undefined,
+      assetCategory: p.assetCategory,
+      fifoPnlUnrealized: p.fifoPnlUnrealized ? num(p.fifoPnlUnrealized) : undefined,
+    }
+  })
 
   const cashReportNode = stmt.CashReport
   const cashBalances: FlexCashBalance[] = asArray(cashReportNode?.CashReportCurrency)
