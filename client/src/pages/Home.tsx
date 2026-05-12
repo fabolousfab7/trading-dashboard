@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from "react"
 import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
-import { BarChart3, Briefcase, Wallet, ArrowRight, Bitcoin, Plus, Pin, Trash2, Edit3, Image, X, ChevronDown, ChevronUp, Zap } from "lucide-react"
+import { Plus, Pin, Trash2, Edit3, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -21,6 +21,26 @@ function fmtEur(n: number) {
 function fmtUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
 }
+
+function fmtPct(n: number) {
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)} %`
+}
+
+const RANGES = [
+  { label: "1S", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "1A", days: 365 },
+]
+
+const CHART_LEGEND = [
+  { label: "FHF", color: "#7d2b1d" },
+  { label: "PEA", color: "#cfb88f" },
+  { label: "Crypto", color: "#3a6e3f" },
+]
+
+const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA}\u{1F1FA}", GBP: "\u{1F1EC}\u{1F1E7}", JPY: "\u{1F1EF}\u{1F1F5}", CAD: "\u{1F1E8}\u{1F1E6}", AUD: "\u{1F1E6}\u{1F1FA}", NZD: "\u{1F1F3}\u{1F1FF}", CHF: "\u{1F1E8}\u{1F1ED}", CNY: "\u{1F1E8}\u{1F1F3}" }
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -40,7 +60,7 @@ export default function Home() {
   const [noteImage, setNoteImage] = useState<File | null>(null)
   const [noteImagePreview, setNoteImagePreview] = useState<string | null>(null)
   const [noteSaving, setNoteSaving] = useState(false)
-  const [notesExpanded, setNotesExpanded] = useState(true)
+  const [expandedNote, setExpandedNote] = useState<string | null>(null)
   const [fhfSim, setFhfSim] = useState<any>(null)
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
@@ -208,18 +228,10 @@ export default function Home() {
     }
   }
 
-  const FLAG: Record<string, string> = { USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CAD: "🇨🇦", AUD: "🇦🇺", NZD: "🇳🇿", CHF: "🇨🇭", CNY: "🇨🇳" }
-
   function eventTimeStr(ev: any) {
     if (!ev.date) return ""
     const d = new Date(ev.date)
     return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-  }
-
-  function eventDateStr(ev: any) {
-    if (!ev.date) return ""
-    const d = new Date(ev.date)
-    return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })
   }
 
   function isPast(ev: any) {
@@ -235,6 +247,7 @@ export default function Home() {
   )
   if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
 
+  // ── Computed values ──────────────────────────────────────────
   const tradingProfit = stats?.totalProfit || 0
   const tradingCount = stats?.count || 0
   const tradingWinRate = stats?.winRate || 0
@@ -274,6 +287,12 @@ export default function Home() {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
   }, 0)
+  const cryptoSharedCost = cryptoShared.reduce((s: number, p: any) => {
+    const own = (Number(p.ownership_pct) || 100) / 100
+    return s + Number(p.quantity) * Number(p.avg_cost) * own
+  }, 0)
+  const cryptoSharedPerfPct = cryptoSharedCost ? ((cryptoSharedValue - cryptoSharedCost) / cryptoSharedCost) * 100 : 0
+
   const ccaNet = fhfSim?.cca_balance || 0
   const fhfEquity = Math.max(0, ibkrNlv - ccaNet)
 
@@ -296,187 +315,208 @@ export default function Home() {
 
   const patrimoineNet = ccaNet + fhfDistribuableNet + peaNet + cryptoPersoNet + cryptoSharedNet
 
-  const ALLOC_COLORS_5 = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55"]
-  const allocationData = [
-    { name: "CCA", value: ccaNet, color: ALLOC_COLORS_5[0] },
-    { name: "FHF IBKR", value: fhfEquity, color: ALLOC_COLORS_5[1] },
-    { name: "PEA", value: peaValue, color: ALLOC_COLORS_5[2] },
-    { name: "Crypto Perso", value: cryptoPersoValue, color: ALLOC_COLORS_5[3] },
-    { name: "Crypto R+F", value: cryptoSharedValue, color: ALLOC_COLORS_5[4] },
-  ].filter(d => d.value > 0)
+  // Chart period variation
+  const chartFirst = chartData.length > 0 ? chartData[0].total : 0
+  const chartLast = chartData.length > 0 ? chartData[chartData.length - 1].total : 0
+  const chartVarAbs = chartLast - chartFirst
+  const chartVarPct = chartFirst > 0 ? (chartVarAbs / chartFirst) * 100 : 0
+
+  // Masthead
+  const now = new Date()
+  const editionNo = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
+  const dateStr = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+  const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+
+  const buckets = [
+    { label: "CCA", sub: "Compte courant associé", value: ccaNet, perf: null as number | null },
+    { label: "FHF Equity", sub: "Capital + résultat", value: fhfEquity, perf: ibkrPerfPct },
+    { label: "PEA Perso", sub: `Plafond ${fmtEur(150000)}`, value: peaValue, perf: peaPerfPct },
+    { label: "Crypto Perso", sub: "100 % détenu", value: cryptoPersoValue, perf: cryptoPersoPerfPct },
+    { label: "Crypto R+F", sub: "Part Fabien · 50 %", value: cryptoSharedValue, perf: cryptoSharedPerfPct },
+  ]
+
+  const infoCards = [
+    { label: "Trading Actif", value: tradingProfit, perf: tradingWinRate, perfLabel: `${tradingWinRate.toFixed(0)} % WR`, sub: `${tradingCount} trades`, link: "/analytics", alloc: 0 },
+    { label: "FHF IBKR", value: ibkrNlv, perf: ibkrPerfPct, perfLabel: fmtPct(ibkrPerfPct), sub: `${positions.length} positions`, link: "/ibkr", alloc: patrimoineBrut > 0 ? (fhfEquity / patrimoineBrut) * 100 : 0 },
+    { label: "PEA Perso", value: peaValue, perf: peaPerfPct, perfLabel: fmtPct(peaPerfPct), sub: `${peaPositions.length} positions`, link: "/pea", alloc: patrimoineBrut > 0 ? (peaValue / patrimoineBrut) * 100 : 0 },
+    { label: "Crypto Perso", value: cryptoPersoValue, perf: cryptoPersoPerfPct, perfLabel: fmtPct(cryptoPersoPerfPct), sub: cryptoPersoValueUsd > 0 ? fmtUsd(cryptoPersoValueUsd) : `${cryptoPerso.length} positions`, link: "/crypto", alloc: patrimoineBrut > 0 ? (cryptoPersoValue / patrimoineBrut) * 100 : 0 },
+  ]
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="border-b border-[--rule] pb-4">
-        <div className="text-[--at-accent] text-xs font-mono uppercase tracking-widest">Patrimoine consolidé</div>
-        <h1 className="text-4xl font-mono font-bold tracking-wider mt-1">
-          <span className="text-[--at-accent]">F.H.F </span>
-          <span className="text-[--at-accent]">Patrimoine</span>
-        </h1>
+    <div style={{ padding: "28px 32px" }}>
+
+      {/* ── 1. MASTHEAD ─────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Patrimoine consolidé &middot; N&deg;&thinsp;{editionNo}
+          </div>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            La situation, en bref.
+          </h1>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontStyle: "italic", color: "var(--ink2)", textTransform: "capitalize" }}>
+            {dateStr}
+          </div>
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+            Édition {timeStr}
+          </div>
+        </div>
       </div>
 
-      <div className="border border-[--rule] bg-[--at-surface] rounded p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-[--at-accent] mb-2 flex items-center">
-              Patrimoine brut (EUR)
-              <InfoTip text="Patrimoine brut = CCA + Equity FHF (NLV IBKR - CCA) + PEA + Crypto Perso + Crypto R+F. Avant impôts sur les plus-values." wide />
-            </div>
-            <div className="text-4xl font-mono font-bold text-[--at-accent]">{fmtEur(patrimoineBrut)}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mt-3 flex items-center">
-              Net estimé (après impôts)
-              <InfoTip text="Patrimoine net = CCA (100%) + FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout). Estimation si liquidation totale." wide />
-            </div>
-            <div className="text-xl font-mono font-bold text-[--ink2]">{fmtEur(patrimoineNet)}</div>
+      {/* ── 2. LEAD — Brut + Courbe ─────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+
+        {/* Left: patrimoine brut */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Brut &middot; tous comptes
+            <InfoTip text="CCA + Equity FHF (NLV IBKR - CCA) + PEA + Crypto Perso + Crypto R+F. Avant impôts." wide />
           </div>
-          {allocationData.length > 0 && (
-            <div className="hidden md:block">
-              <PieChart width={130} height={130}>
-                <Pie data={allocationData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                  outerRadius={55} innerRadius={25} strokeWidth={1} stroke="#fbf8f1">
-                  {allocationData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 52, fontWeight: 700, letterSpacing: -2, color: "var(--ink)", lineHeight: 1.1, marginTop: 8 }}>
+            {fmtEur(patrimoineBrut)}
+          </div>
+          {chartData.length > 1 && (
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8, color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+              {chartVarAbs >= 0 ? "+" : ""}{fmtEur(chartVarAbs)} / {fmtPct(chartVarPct)}
+            </div>
+          )}
+          <div style={{ marginTop: 24, padding: 16, background: "var(--at-surface)", border: "1px dotted var(--rule)", borderRadius: 4 }}>
+            <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+              Net après fiscalité estimée
+              <InfoTip text="CCA (100%) + FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout)." wide />
+            </div>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 6 }}>
+              {fmtEur(patrimoineNet)}
+            </div>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+              IS société &middot; PFU crypto &middot; PS PEA sur PV uniquement
+            </div>
+          </div>
+        </div>
+
+        {/* Right: chart */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 14 }}>
+              {CHART_LEGEND.map(l => (
+                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 1, background: l.color, display: "inline-block" }} />
+                  {l.label}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 2 }}>
+              {RANGES.map(r => (
+                <button key={r.days} onClick={() => setChartRange(r.days)}
+                  style={{
+                    padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                    background: chartRange === r.days ? "var(--at-accent)" : "transparent",
+                    color: chartRange === r.days ? "var(--at-bg)" : "var(--ink2)",
+                  }}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {chartData.length > 1 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="gradIBKR" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#7d2b1d" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#7d2b1d" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradPEA" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#cfb88f" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#cfb88f" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradCrypto" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3a6e3f" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3a6e3f" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
                 <Tooltip
                   contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
                   itemStyle={{ color: "#1a1814" }}
                   labelStyle={{ color: "#4a4540" }}
                   formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
-              </PieChart>
+                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="url(#gradIBKR)" strokeWidth={1.5} />
+                <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#cfb88f" fill="url(#gradPEA)" strokeWidth={1.5} />
+                <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#3a6e3f" fill="url(#gradCrypto)" strokeWidth={1.5} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              Pas encore de données
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-[--rule]">
-          <MiniCard label="CCA" value={fmtEur(ccaNet)} taxLabel="100%" tip="Compte courant d'associé. Récupérable sans impôt." />
-          <MiniCard label="FHF Equity" value={fmtEur(fhfEquity)} taxLabel={ibkrPv > 0 ? `-IS 15% -PS 17.2% sur PV ${fmtEur(ibkrPv)}` : "Pas d'impôt (MV)"}
-            netValue={fmtEur(fhfDistribuableNet)} tip="Equity = NLV IBKR - CCA. IS 15% puis PS 17.2% sur la plus-value uniquement. Taux réduit PME." />
-          <MiniCard label="PEA" value={fmtEur(peaValue)} taxLabel={peaPv > 0 ? `-30% sur PV ${fmtEur(peaPv)}` : "Pas d'impôt (MV)"}
-            netValue={fmtEur(peaNet)} tip="Flat tax 30% sur la plus-value uniquement. Si en moins-value, pas d'impôt." />
-          <MiniCard label="Crypto Perso" value={fmtEur(cryptoPersoValue)} taxLabel="-31.4%"
-            netValue={fmtEur(cryptoPersoNet)} tip="Flat tax 31.4% sur la valeur totale." />
-          <MiniCard label="Crypto R+F" value={fmtEur(cryptoSharedValue)} taxLabel="-31.4%"
-            netValue={fmtEur(cryptoSharedNet)} tip="Part Fabien (50%). Flat tax 31.4% sur la valeur totale." />
-        </div>
       </div>
 
-      {chartData.length > 1 && (
-        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
-              Évolution patrimoine
-            </h2>
-            <div className="flex gap-1">
-              {[30, 90, 365].map(d => (
-                <button key={d} onClick={() => setChartRange(d)}
-                  className={`px-3 py-1 text-[10px] font-mono uppercase rounded transition ${
-                    chartRange === d
-                      ? "bg-[--at-accent]/10 text-[--at-accent] border border-[--at-accent]/40"
-                      : "text-[--ink3] hover:text-[--ink] border border-transparent"
-                  }`}>
-                  {d === 365 ? "1Y" : `${d}J`}
-                </button>
-              ))}
+      {/* ── 3. BUCKETS ──────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", marginBottom: 28 }}>
+        {buckets.map((b, i) => (
+          <div key={b.label} style={{ padding: "16px 18px", borderRight: i < 4 ? "1px solid var(--rule)" : "none" }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+              {b.label}
+            </div>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
+              {b.sub}
+            </div>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 26, fontWeight: 700, letterSpacing: -0.5, color: "var(--ink)", marginTop: 8 }}>
+              {fmtEur(b.value)}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, marginTop: 4, color: b.perf === null ? "var(--ink3)" : b.perf >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+              {b.perf === null ? "—" : fmtPct(b.perf)}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="gradIBKR" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#7d2b1d" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#7d2b1d" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradPEA" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#cfb88f" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#cfb88f" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradCrypto" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3a6e3f" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3a6e3f" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
-                tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-              <Tooltip
-                contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
-                itemStyle={{ color: "#1a1814" }}
-                labelStyle={{ color: "#4a4540" }}
-                formatter={(value: number, name: string) => [fmtEur(value), name]}
-              />
-              <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="url(#gradIBKR)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#cfb88f" fill="url(#gradPEA)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#3a6e3f" fill="url(#gradCrypto)" strokeWidth={1.5} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <SubCard icon={BarChart3} title="Trading Actif" subtitle="Journal de trades"
-          mainValue={fmtEur(tradingProfit)} mainLabel="Profit total"
-          stats={[{ label: "Trades", value: String(tradingCount) }, { label: "Win rate", value: `${tradingWinRate.toFixed(0)}%` }]}
-          link="/analytics" accent="cyan" />
-        <SubCard icon={Briefcase} title="FHF / IBKR" subtitle="Portefeuille société"
-          mainValue={fmtEur(ibkrNlv)} mainLabel="NLV"
-          stats={[
-            { label: "Perf", value: `${ibkrPerfPct >= 0 ? "+" : ""}${ibkrPerfPct.toFixed(1)}%`, color: ibkrPerfPct >= 0 ? "green" : "red" },
-            { label: "Positions", value: String(positions.length) },
-          ]}
-          link="/ibkr" accent="fuchsia" />
-        <SubCard icon={Wallet} title="PEA Perso" subtitle="Boursorama"
-          mainValue={fmtEur(peaValue)} mainLabel="Valeur"
-          stats={[
-            { label: "Perf", value: `${peaPerfPct >= 0 ? "+" : ""}${peaPerfPct.toFixed(1)}%`, color: peaPerfPct >= 0 ? "green" : "red" },
-            { label: "Positions", value: String(peaPositions.length) },
-          ]}
-          link="/pea" accent="zinc" />
-        <SubCard icon={Bitcoin} title="Crypto Perso" subtitle="100% détenu"
-          mainValue={cryptoPerso.length > 0 ? fmtEur(cryptoPersoValue) : "—"}
-          mainLabel={cryptoPerso.length > 0 ? "Valeur" : "Pas connecté"}
-          subValue={cryptoPerso.length > 0 && cryptoPersoValueUsd > 0 ? fmtUsd(cryptoPersoValueUsd) : undefined}
-          stats={cryptoPerso.length > 0 ? [
-            { label: "Perf", value: `${cryptoPersoPerfPct >= 0 ? "+" : ""}${cryptoPersoPerfPct.toFixed(1)}%`, color: cryptoPersoPerfPct >= 0 ? "green" : "red" },
-            { label: "Positions", value: String(cryptoPerso.length) },
-          ] : [{ label: "Statut", value: "À configurer" }]}
-          link="/crypto" accent={cryptoPerso.length > 0 ? "fuchsia" : "zinc"} />
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Market Events */}
-        <div className="border border-[--rule] rounded bg-[--at-surface]">
-          <div className="border-b border-[--rule] p-4 flex items-center gap-2">
-            <Zap size={14} className="text-[--at-accent]" />
-            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
-              Marché · High Impact · Aujourd'hui
-            </h2>
+      {/* ── 4. BOTTOM — Agenda + Notes ──────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 28 }}>
+
+        {/* Agenda du marché */}
+        <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
+              Agenda du marché
+            </span>
+            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+              High Impact
+            </span>
           </div>
-          <div className="p-3 space-y-1 max-h-[500px] overflow-y-auto">
-            {marketLoading && <p className="text-[--ink3] text-xs font-mono text-center py-4">Chargement...</p>}
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            {marketLoading && <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Chargement...</p>}
             {!marketLoading && marketEvents.length === 0 && (
-              <p className="text-[--ink3] text-xs font-mono text-center py-4">Aucun événement high impact aujourd'hui</p>
+              <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Aucun événement high impact aujourd'hui</p>
             )}
             {marketEvents.length > 0 && (
-              <div className="flex items-center gap-3 px-3 py-1 text-[9px] font-mono text-[--ink3] uppercase tracking-wider">
-                <div className="text-base shrink-0 invisible">{"\u{1F3F3}\u{FE0F}"}</div>
-                <div className="text-[--ink3] w-16 shrink-0 text-right">Heure</div>
-                <div className="flex-1 min-w-0">Événement</div>
-                <div className="w-12 text-center">Prévu</div>
-                <div className="w-12 text-center">Préc.</div>
-                <div className="w-12 text-center">Réel</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 0", fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, borderBottom: "1px dotted var(--rule)" }}>
+                <span style={{ width: 20, flexShrink: 0 }}>&nbsp;</span>
+                <span style={{ width: 44, flexShrink: 0, textAlign: "right" }}>Heure</span>
+                <span style={{ flex: 1, minWidth: 0 }}>Événement</span>
+                <span style={{ width: 44, textAlign: "center" }}>Prévu</span>
+                <span style={{ width: 44, textAlign: "center" }}>Préc.</span>
+                <span style={{ width: 44, textAlign: "center" }}>Réel</span>
               </div>
             )}
             {marketEvents.map((ev, i) => {
               const past = isPast(ev)
               return (
-                <div key={i} className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs font-mono ${past ? "opacity-40" : "hover:bg-[--at-accent]/5"}`}>
-                  <span className="text-base shrink-0">{FLAG[ev.country] || ev.country}</span>
-                  <span className="text-[--ink3] w-16 shrink-0 text-right">{eventTimeStr(ev)}</span>
-                  <span className="text-[--ink] flex-1 truncate min-w-0">{ev.title}</span>
-                  <span className="text-[--ink3] w-12 text-center shrink-0">{ev.forecast || "—"}</span>
-                  <span className="text-[--ink3] w-12 text-center shrink-0">{ev.previous || "—"}</span>
-                  <span className={`w-12 text-center shrink-0 ${ev.actual ? "text-[--at-accent] font-bold" : "text-[--ink3]"}`}>{ev.actual || "—"}</span>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", fontSize: 12, fontFamily: "var(--font-mono)", opacity: past ? 0.35 : 1, borderBottom: "1px dotted var(--rule)" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, width: 20 }}>{FLAG[ev.country] || ev.country}</span>
+                  <span style={{ color: "var(--ink3)", width: 44, flexShrink: 0, textAlign: "right" }}>{eventTimeStr(ev)}</span>
+                  <span style={{ color: "var(--ink)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                  <span style={{ color: "var(--ink3)", width: 44, textAlign: "center", flexShrink: 0 }}>{ev.forecast || "—"}</span>
+                  <span style={{ color: "var(--ink3)", width: 44, textAlign: "center", flexShrink: 0 }}>{ev.previous || "—"}</span>
+                  <span style={{ width: 44, textAlign: "center", flexShrink: 0, color: ev.actual ? "var(--at-accent)" : "var(--ink3)", fontWeight: ev.actual ? 700 : 400 }}>{ev.actual || "—"}</span>
                 </div>
               )
             })}
@@ -484,153 +524,150 @@ export default function Home() {
         </div>
 
         {/* Notes & Idées */}
-        <div className="border border-[--rule] rounded bg-[--at-surface]">
-          <div className="border-b border-[--rule] p-4 flex items-center justify-between">
-            <button onClick={() => setNotesExpanded(!notesExpanded)}
-              className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[--at-accent] hover:text-[--at-accent] transition">
-              {notesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              Notes & Idées · {notes.length}
-            </button>
-            <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
-              <Plus size={12} /> Nouvelle note
-            </button>
-          </div>
-
-          {notesExpanded && (
-            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {showNoteForm && (
-                <div className="border border-[--rule] rounded p-4 bg-[--at-surface] space-y-3" onPaste={handleImagePaste}>
-                  <input
-                    type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
-                    onPaste={handleImagePaste}
-                    placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
-                    className="w-full bg-transparent border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/40"
-                  />
-                  <textarea
-                    value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                    onPaste={handleImagePaste}
-                    placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
-                    rows={3}
-                    className="w-full bg-transparent border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/40 resize-none"
-                  />
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-[--rule] rounded text-[--ink2] hover:text-[--ink] hover:border-[--at-accent]/40 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
-                      <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={e => {
-                          const f = e.target.files?.[0]
-                          if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
-                        }} />
-                    </label>
-                    {noteImagePreview && (
-                      <div className="relative">
-                        <img src={noteImagePreview} alt="preview" className="h-16 rounded border border-[--rule]" />
-                        <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
-                          className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
-                          <X size={10} className="text-[--ink]" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={resetNoteForm}
-                      className="px-3 py-1.5 text-[--ink3] hover:text-[--ink] font-mono text-[10px] uppercase tracking-wider transition">
-                      Annuler
-                    </button>
-                    <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
-                      className="px-4 py-1.5 bg-[--at-accent]/20 border border-[--at-accent]/40 text-[--at-accent] hover:bg-[--at-accent]/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
-                      {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {notes.length === 0 && !showNoteForm && (
-                <p className="text-[--ink3] text-xs font-mono text-center py-6">
-                  Aucune note. Clique "Nouvelle note" pour commencer.
-                </p>
-              )}
-              {notes.map(note => (
-                <div key={note.id}
-                  className={`border ${note.is_pinned ? "border-[--at-accent]/30 bg-[--at-accent]/5" : "border-[--rule] bg-[--at-surface]"} rounded p-3 group`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {note.is_pinned && <Pin size={11} className="text-[--at-accent] shrink-0" />}
-                        <h3 className="text-sm font-mono font-bold text-[--ink] truncate">{note.title}</h3>
-                      </div>
-                      {note.content && (
-                        <p className="text-xs font-mono text-[--ink2] mt-1 whitespace-pre-wrap line-clamp-3">{note.content}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-                      <button onClick={() => togglePin(note)} title={note.is_pinned ? "Désépingler" : "Épingler"}
-                        className={`p-1.5 rounded hover:bg-[--at-surface] ${note.is_pinned ? "text-[--at-accent]" : "text-[--ink3]"}`}>
-                        <Pin size={12} />
-                      </button>
-                      <button onClick={() => startEditNote(note)} className="p-1.5 rounded hover:bg-[--at-surface] text-[--ink3] hover:text-[--at-accent]">
-                        <Edit3 size={12} />
-                      </button>
-                      <button onClick={() => deleteNote(note.id)} className="p-1.5 rounded hover:bg-[--at-surface] text-[--ink3] hover:text-[--at-neg]">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                  {note.image_url && (
-                    <img src={note.image_url} alt="chart"
-                      className="mt-2 rounded border border-[--rule] max-h-48 w-full object-contain cursor-pointer hover:border-[--at-accent]/30 transition"
-                      onClick={() => window.open(note.image_url, '_blank')} />
-                  )}
-                  <div className="text-[9px] font-mono text-[--ink3] mt-2">
-                    {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                  </div>
-                </div>
-              ))}
+        <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
+                Notes & Idées
+              </span>
+              <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+                Carnet
+              </span>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MiniCard({ label, value, taxLabel, netValue, tip }: { label: string; value: string; taxLabel: string; netValue?: string; tip: string }) {
-  return (
-    <div className="border border-[--rule] rounded p-3 bg-[--at-surface]">
-      <div className="text-[9px] font-mono uppercase tracking-widest text-[--ink3] flex items-center">
-        {label}<InfoTip text={tip} />
-      </div>
-      <div className="text-sm font-mono font-bold text-[--ink] mt-1">{value}</div>
-      <div className="text-[9px] font-mono text-[--ink3] mt-0.5">{taxLabel}</div>
-      {netValue && <div className="text-[10px] font-mono text-[--ink3] mt-0.5">Net: {netValue}</div>}
-    </div>
-  )
-}
-
-function SubCard({ icon: Icon, title, subtitle, mainValue, mainLabel, subValue, stats, link, accent }: any) {
-  const border = accent === "cyan" ? "border-[--rule] hover:border-[--at-accent]/40" : accent === "fuchsia" ? "border-[--at-accent]/30 hover:border-[--at-accent]/60" : "border-[--rule] hover:border-[--at-accent]/40"
-  const titleColor = accent === "cyan" ? "text-[--at-accent]" : accent === "fuchsia" ? "text-[--at-accent]" : "text-[--ink3]"
-  return (
-    <Link href={link} className={`block border ${border} bg-[--at-surface] rounded p-4 transition cursor-pointer group`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className={`flex items-center gap-2 ${titleColor} text-xs font-mono uppercase tracking-wider`}>
-          <Icon size={14} />{title}
-        </div>
-        <ArrowRight size={14} className="text-[--ink3] group-hover:text-[--ink2] transition" />
-      </div>
-      <div className="text-[10px] font-mono text-[--ink3] uppercase tracking-wider mb-3">{subtitle}</div>
-      <div className="text-3xl font-mono font-bold text-[--ink]">{mainValue}</div>
-      {subValue && <div className="text-xs font-mono text-[--ink3] mt-0.5">{subValue}</div>}
-      <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mt-1">{mainLabel}</div>
-      <div className="border-t border-[--rule] mt-4 pt-3 flex justify-between text-xs font-mono">
-        {stats.map((s: any, i: number) => (
-          <div key={i}>
-            <div className="text-[--ink3] uppercase text-[9px] tracking-wider">{s.label}</div>
-            <div className={`mt-0.5 ${s.color === "green" ? "text-[--at-pos]" : s.color === "red" ? "text-[--at-neg]" : "text-[--ink]"}`}>{s.value}</div>
+            <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-serif)", fontSize: 13, color: "var(--at-accent)", display: "flex", alignItems: "center", gap: 4 }}>
+              <Plus size={13} /> Nouvelle note
+            </button>
           </div>
+
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
+            {showNoteForm && (
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 16, marginBottom: 12, background: "var(--at-surface)" }} onPaste={handleImagePaste}>
+                <input
+                  type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
+                  onPaste={handleImagePaste}
+                  placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
+                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", boxSizing: "border-box" }}
+                />
+                <textarea
+                  value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                  onPaste={handleImagePaste}
+                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
+                  rows={3}
+                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", resize: "none", marginTop: 8, boxSizing: "border-box" }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--rule)", borderRadius: 3, color: "var(--ink2)", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>
+                    <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
+                    <input type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={e => {
+                        const f = e.target.files?.[0]
+                        if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
+                      }} />
+                  </label>
+                  {noteImagePreview && (
+                    <div style={{ position: "relative" }}>
+                      <img src={noteImagePreview} alt="preview" style={{ height: 40, borderRadius: 3, border: "1px solid var(--rule)" }} />
+                      <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
+                        style={{ position: "absolute", top: -6, right: -6, background: "var(--at-neg)", borderRadius: "50%", border: "none", padding: 2, cursor: "pointer", lineHeight: 0 }}>
+                        <X size={10} color="white" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+                  <button onClick={resetNoteForm}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)" }}>
+                    Annuler
+                  </button>
+                  <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
+                    style={{ padding: "5px 14px", background: "var(--at-accent)", color: "var(--at-bg)", border: "none", borderRadius: 3, cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, opacity: (noteSaving || !noteTitle.trim()) ? 0.4 : 1 }}>
+                    {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {notes.length === 0 && !showNoteForm && (
+              <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>
+                Aucune note.
+              </p>
+            )}
+
+            {notes.map(note => (
+              <div key={note.id}>
+                <div
+                  onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
+                  style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px dotted var(--rule)", cursor: "pointer" }}>
+                  {note.image_url && (
+                    <img src={note.image_url} alt=""
+                      style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 2, flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, lineHeight: 1.3, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {note.title}
+                    </div>
+                    <div style={{ fontSize: 9, letterSpacing: 1.5, color: "var(--ink3)", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+                      {new Date(note.created_at).toLocaleDateString("fr-FR")}
+                    </div>
+                  </div>
+                  {note.is_pinned && <Pin size={11} style={{ color: "var(--at-accent)", flexShrink: 0, marginTop: 4 }} />}
+                </div>
+
+                {expandedNote === note.id && (
+                  <div style={{ padding: "10px 0 10px 50px", borderBottom: "1px dotted var(--rule)" }}>
+                    {note.content && (
+                      <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--ink2)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{note.content}</div>
+                    )}
+                    {note.image_url && (
+                      <img src={note.image_url} alt="chart"
+                        style={{ maxWidth: "100%", maxHeight: 300, marginTop: 8, borderRadius: 4, cursor: "zoom-in" }}
+                        onClick={(e) => { e.stopPropagation(); window.open(note.image_url, "_blank") }} />
+                    )}
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button onClick={(e) => { e.stopPropagation(); togglePin(note) }}
+                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: note.is_pinned ? "var(--at-accent)" : "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>
+                        {note.is_pinned ? "Désépingler" : "Épingler"}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); startEditNote(note) }}
+                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>
+                        Modifier
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }}
+                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--at-neg)", cursor: "pointer", background: "none", border: "none" }}>
+                        Supprimer
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. INFO CARDS ───────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        {infoCards.map(c => (
+          <Link key={c.label} href={c.link}
+            style={{ display: "block", padding: 18, border: "1px solid var(--rule)", borderRadius: 4, background: "var(--at-surface)", cursor: "pointer", textDecoration: "none", transition: "border-color .15s" }}
+            className="hover:!border-[--at-accent]/40">
+            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
+              {c.label}
+            </div>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", marginTop: 6 }}>
+              {fmtEur(c.value)}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, marginTop: 4, color: c.perf >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+              {c.perfLabel}
+            </div>
+            <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", marginTop: 2 }}>{c.sub}</div>
+            <div style={{ height: 4, borderRadius: 2, background: "var(--rule)", marginTop: 12, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 2, background: "var(--at-accent)", width: `${Math.min(c.alloc, 100)}%`, transition: "width .3s" }} />
+            </div>
+          </Link>
         ))}
       </div>
-    </Link>
+    </div>
   )
 }
