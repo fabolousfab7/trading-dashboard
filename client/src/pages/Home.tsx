@@ -519,17 +519,17 @@ export default function Home() {
               <LineChart data={perfData}>
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+                  tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
                 <Tooltip
                   contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
                   itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }}
                   formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name]}
                 />
-                <ReferenceLine y={0} stroke="var(--ink3)" strokeWidth={1} />
-                <Line type="monotone" dataKey="FHF" stroke="#7d2b1d" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="PEA" stroke="#cfb88f" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="Crypto P" stroke="#3a6e3f" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="Crypto R+F" stroke="#c08a4d" strokeWidth={1.5} dot={false} />
+                <ReferenceLine y={0} stroke="var(--ink)" strokeWidth={1} />
+                <Line type="monotone" dataKey="FHF" stroke="#7d2b1d" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="PEA" stroke="#cfb88f" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Crypto P" stroke="#3a6e3f" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Crypto R+F" stroke="#c08a4d" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
