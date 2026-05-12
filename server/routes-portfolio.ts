@@ -61,6 +61,11 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
       const accountResult: any = { account: account.label, broker: account.broker, actions: [] }
       console.log("[cron]", "account", account.label, account.broker)
 
+      if (account.broker === "Qonto") {
+        console.log("[cron]", "skip_qonto_in_main_loop", account.label)
+        continue
+      }
+
       try {
         if (account.broker === "Kraken") {
           const { data: kCfgRows } = await serviceClient
@@ -79,47 +84,9 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
           }
         }
 
-        const config = account.ibkr_config?.[0] || account.ibkr_config
-        if (account.broker === "IBKR" && config?.flex_token && config?.query_id) {
-          try {
-            const data = await fetchFlexReport(config.flex_token, config.query_id)
-            const nlv = calculateNlvInBase(data, account.currency_base || "EUR")
-            const now = new Date().toISOString()
-
-            await serviceClient.from("positions").delete().eq("account_id", account.id)
-            if (data.openPositions.length > 0) {
-              await serviceClient.from("positions").insert(
-                data.openPositions.map((p: any) => ({
-                  account_id: account.id,
-                  ticker: p.symbol, name: p.description, quantity: p.quantity,
-                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-                }))
-              )
-            }
-            await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
-            if (data.cashBalances.length > 0) {
-              await serviceClient.from("cash_balances").insert(
-                data.cashBalances.map((c: any) => ({
-                  account_id: account.id, currency: c.currency,
-                  amount: c.endingCash, fx_rate_to_base: c.fxRateToBase,
-                  last_synced_at: now,
-                }))
-              )
-            }
-            await serviceClient.from("ibkr_config").update({
-              last_synced_at: now, last_sync_status: "success", last_sync_error: null,
-            }).eq("account_id", account.id)
-            accountResult.actions.push("ibkr_sync_ok")
-            console.log("[cron]", "action", account.label, "ibkr_sync_ok")
-          } catch (e: any) {
-            accountResult.actions.push(`ibkr_sync_fail: ${e.message}`)
-            console.log("[cron]", "action", account.label, `ibkr_sync_fail: ${e.message}`)
-            await serviceClient.from("ibkr_config").update({
-              last_sync_status: "error", last_sync_error: String(e.message),
-            }).eq("account_id", account.id)
-          }
+        if (account.broker === "IBKR") {
+          console.log("[cron]", "ibkr_skip_position_sync", account.label, "(positions managed manually)")
+          accountResult.actions.push("ibkr_positions_skipped (managed manually)")
         }
 
         const { data: positions } = await serviceClient
