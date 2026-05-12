@@ -8,3 +8,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export function userScopedClient(userToken: string) {
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
+    global: { headers: { Authorization: `Bearer ${userToken}` } },
+  });
+}
