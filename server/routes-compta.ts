@@ -163,6 +163,48 @@ function parseQontoCsv(csvText: string): any[] {
   return rows
 }
 
+async function snapshotQontoBalance(client: any, userId: string) {
+  const { data: transactions } = await client
+    .from("fhf_bank_transactions")
+    .select("amount, side")
+
+  const balance = (transactions || []).reduce((s: number, t: any) => {
+    const amt = Math.abs(Number(t.amount))
+    return s + (t.side === "credit" ? amt : -amt)
+  }, 0)
+
+  let { data: qontoAccount } = await client
+    .from("accounts")
+    .select("id")
+    .eq("broker", "Qonto")
+    .maybeSingle()
+
+  if (!qontoAccount) {
+    const { data: newAcc } = await client
+      .from("accounts")
+      .insert({
+        user_id: userId, label: "Qonto FHF", broker: "Qonto",
+        account_type: "business", currency_base: "EUR",
+        is_active: true, display_order: 5,
+      })
+      .select()
+      .single()
+    qontoAccount = newAcc
+  }
+
+  if (!qontoAccount) return
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  await client.from("portfolio_snapshots").upsert({
+    account_id: qontoAccount.id,
+    snapshot_date: today,
+    nlv_base: balance,
+    capital_invested: null,
+    cash_total: balance,
+  }, { onConflict: "account_id,snapshot_date" })
+}
+
 const invoiceSchema = z.object({
   direction: z.enum(["expense", "revenue"]),
   party_name: z.string().min(1),
@@ -248,6 +290,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       .select()
       .single()
     if (error) return res.status(500).json({ error: error.message })
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.status(201).json(data)
   })
 
@@ -261,6 +304,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       .select()
       .single()
     if (error) return res.status(500).json({ error: error.message })
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.json(data)
   })
 
@@ -273,6 +317,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     }
     const { error } = await userClient.from("fhf_invoices").delete().eq("id", req.params.id)
     if (error) return res.status(500).json({ error: error.message })
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.status(204).send()
   })
 
@@ -375,6 +420,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     const { error } = await userClient.from("fhf_bank_transactions").insert(records)
     if (error) return res.status(500).json({ error: error.message })
 
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
+
     const dates = records.map(r => r.settlement_date).filter(Boolean).sort()
     const skipped = rows.length - records.length
     res.json({ imported: records.length, skipped, importBatch, dateRange: { from: dates[0], to: dates[dates.length - 1] } })
@@ -459,6 +506,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       }
     }
 
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.json({ matched, ambiguous, unmatched })
   })
 
@@ -481,6 +529,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       .eq("id", bankTransactionId)
     if (e2) return res.status(500).json({ error: e2.message })
 
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.json({ ok: true })
   })
 
@@ -493,6 +542,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       await userClient.from("fhf_bank_transactions").update({ invoice_id: null, status: "unmatched" }).eq("id", inv.bank_transaction_id)
     }
     await userClient.from("fhf_invoices").update({ bank_transaction_id: null, reconciled_at: null }).eq("id", req.params.invoiceId)
+    try { await snapshotQontoBalance(userClient, (req as any).userId) } catch {}
     res.json({ ok: true })
   })
 

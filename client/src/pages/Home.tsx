@@ -27,9 +27,12 @@ const RANGES = [
 ]
 
 const CHART_LEGEND_VALUE = [
-  { label: "FHF", color: "#7d2b1d" },
+  { label: "IBKR", color: "#7d2b1d" },
+  { label: "Kraken", color: "#a3453a" },
+  { label: "Qonto", color: "#c4706a" },
   { label: "PEA", color: "#cfb88f" },
-  { label: "Crypto", color: "#3a6e3f" },
+  { label: "Crypto P", color: "#3a6e3f" },
+  { label: "R+F", color: "#6b9f71" },
 ]
 
 const CHART_LEGEND_PERF = [
@@ -63,6 +66,7 @@ export default function Home() {
   const [noteSaving, setNoteSaving] = useState(false)
   const [expandedNote, setExpandedNote] = useState<string | null>(null)
   const [fhfSim, setFhfSim] = useState<any>(null)
+  const [bankBalance, setBankBalance] = useState<any>(null)
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
 
@@ -107,6 +111,10 @@ export default function Home() {
       .then(r => r.ok ? r.json() : null)
       .then(d => setFhfSim(d))
       .catch(() => {})
+    authFetch("/api/compta/bank-balance")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setBankBalance(d))
+      .catch(() => {})
   }, [user])
 
   useEffect(() => {
@@ -121,30 +129,49 @@ export default function Home() {
   }, [user, chartRange])
 
   const chartData = useMemo(() => {
-    const byDate: Record<string, Record<string, number>> = {}
+    const cryptoPositions = crypto?.positions || []
+    const persoVal = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
+      .reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
+    const sharedVal = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
+      .reduce((s: number, p: any) => {
+        const own = (Number(p.ownership_pct) || 100) / 100
+        return s + Number(p.quantity) * Number(p.market_price) * own
+      }, 0)
+    const persoRatio = (persoVal + sharedVal) > 0 ? persoVal / (persoVal + sharedVal) : 0.5
+
+    const byDateBroker: Record<string, Record<string, number>> = {}
     for (const s of snapshots) {
       const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
       if (!acc) continue
-      if (!byDate[s.snapshot_date]) byDate[s.snapshot_date] = {}
-      byDate[s.snapshot_date][acc.broker] = Number(s.nlv_base) || 0
+      const d = s.snapshot_date
+      if (!byDateBroker[d]) byDateBroker[d] = {}
+      byDateBroker[d][acc.broker] = (byDateBroker[d][acc.broker] || 0) + (Number(s.nlv_base) || 0)
     }
-    const dates = Object.keys(byDate).sort()
-    const brokers = [...new Set(snapshotAccounts.map((a: any) => a.broker))]
+    const allDates = Object.keys(byDateBroker).sort()
+    if (allDates.length === 0) return []
+
     const lastKnown: Record<string, number> = {}
-    return dates.map(date => {
-      const row: any = { date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) }
-      for (const b of brokers) {
-        if (byDate[date][b] !== undefined) lastKnown[b] = byDate[date][b]
-        row[b] = lastKnown[b] || 0
+    return allDates.map(date => {
+      const day = byDateBroker[date]
+      for (const broker of Object.keys(day)) {
+        lastKnown[broker] = day[broker]
       }
-      row.total = brokers.reduce((s, b) => s + (row[b] || 0), 0)
-      return row
+      const cryptoNlv = lastKnown["Crypto"] || 0
+      return {
+        date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+        IBKR: lastKnown["IBKR"] || 0,
+        Kraken: lastKnown["Kraken"] || 0,
+        Qonto: lastKnown["Qonto"] || 0,
+        PEA: lastKnown["Boursorama"] || 0,
+        "Crypto Perso": cryptoNlv * persoRatio,
+        "Crypto R+F": cryptoNlv * (1 - persoRatio),
+      }
     })
-  }, [snapshots, snapshotAccounts])
+  }, [snapshots, snapshotAccounts, crypto])
 
   const perfData = useMemo(() => {
     const byDate: Record<string, Record<string, number>> = {}
-    const brokerBuckets: Record<string, string[]> = { IBKR: ["FHF"], Kraken: ["FHF"], Boursorama: ["PEA"], Crypto: ["Crypto P", "Crypto R+F"] }
+    const brokerBuckets: Record<string, string[]> = { IBKR: ["FHF"], Kraken: ["FHF"], Qonto: ["FHF"], Boursorama: ["PEA"], Crypto: ["Crypto P", "Crypto R+F"] }
     for (const s of snapshots) {
       const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
       if (!acc) continue
@@ -336,7 +363,8 @@ export default function Home() {
   }, 0)
 
   // Patrimoine (sans CCA)
-  const patrimoineBrut = fhfNlvTotal + peaValue + cryptoPersoValue + cryptoSharedValue
+  const qontoBalance = bankBalance?.balance || 0
+  const patrimoineBrut = fhfNlvTotal + qontoBalance + peaValue + cryptoPersoValue + cryptoSharedValue
 
   // Fiscalité pour le net
   const ccaNet = fhfSim?.cca_balance || 0
@@ -357,11 +385,13 @@ export default function Home() {
   const peaNet = peaValue - Math.max(0, peaPv) * 0.30
   const cryptoPersoNet = cryptoPersoValue * (1 - 0.314)
   const cryptoSharedNet = cryptoSharedValue * (1 - 0.314)
-  const patrimoineNet = fhfDistribuableNet + peaNet + cryptoPersoNet + cryptoSharedNet
+  const patrimoineNet = fhfDistribuableNet + qontoBalance + peaNet + cryptoPersoNet + cryptoSharedNet
 
   // Chart variation
-  const chartFirst = chartData.length > 0 ? chartData[0].total : 0
-  const chartLast = chartData.length > 0 ? chartData[chartData.length - 1].total : 0
+  const chartKeys = ["IBKR", "Kraken", "Qonto", "PEA", "Crypto Perso", "Crypto R+F"]
+  const sumRow = (row: any) => chartKeys.reduce((s, k) => s + (row[k] || 0), 0)
+  const chartFirst = chartData.length > 0 ? sumRow(chartData[0]) : 0
+  const chartLast = chartData.length > 0 ? sumRow(chartData[chartData.length - 1]) : 0
   const chartVarAbs = chartLast - chartFirst
 
   // % evolution on selected timeframe (from snapshots)
@@ -381,13 +411,14 @@ export default function Home() {
   }
 
   const fhfPctChange = (() => {
-    const ibkrPct = calcPctChange("IBKR")
-    const krakenPct = calcPctChange("Kraken")
-    if (ibkrPct !== null && krakenPct !== null) {
-      const ibkrWeight = ibkrNlv / (ibkrNlv + krakenNlv || 1)
-      return ibkrPct * ibkrWeight + krakenPct * (1 - ibkrWeight)
-    }
-    return ibkrPct ?? krakenPct
+    const pcts = [
+      { pct: calcPctChange("IBKR"), val: ibkrNlv },
+      { pct: calcPctChange("Kraken"), val: krakenNlv },
+      { pct: calcPctChange("Qonto"), val: qontoBalance },
+    ].filter(p => p.pct !== null) as { pct: number; val: number }[]
+    if (pcts.length === 0) return null
+    const totalVal = pcts.reduce((s, p) => s + p.val, 0) || 1
+    return pcts.reduce((s, p) => s + p.pct * (p.val / totalVal), 0)
   })()
   const cryptoPctChange = calcPctChange("Crypto")
   const peaPctChange = calcPctChange("Boursorama")
@@ -426,7 +457,7 @@ export default function Home() {
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold flex items-center">
             Brut &middot; tous comptes
-            <InfoTip text="FHF (IBKR + Kraken) + PEA + Crypto Perso + Crypto R+F. Avant impôts, hors CCA." wide />
+            <InfoTip text="FHF (IBKR + Kraken + Qonto) + PEA + Crypto Perso + Crypto R+F. Avant impôts, hors CCA." wide />
           </div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 48, fontWeight: 700, letterSpacing: -2, lineHeight: 1.1, marginTop: 4 }} className="text-[--ink]">
             {fmtEur(patrimoineBrut)}
@@ -487,31 +518,19 @@ export default function Home() {
           {chartMode === "value" && chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="gradIBKR" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7d2b1d" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#7d2b1d" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradPEA" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#cfb88f" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#cfb88f" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradCrypto" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3a6e3f" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3a6e3f" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip
-                  contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
-                  itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }}
+                  contentStyle={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)" }}
                   formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
-                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="url(#gradIBKR)" strokeWidth={1.5} />
-                <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#cfb88f" fill="url(#gradPEA)" strokeWidth={1.5} />
-                <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#3a6e3f" fill="url(#gradCrypto)" strokeWidth={1.5} />
+                <Area type="monotone" dataKey="Qonto" stackId="1" stroke="#c4706a" fill="#c4706a" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Kraken" stackId="1" stroke="#a3453a" fill="#a3453a" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="#7d2b1d" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="PEA" stackId="1" stroke="#cfb88f" fill="#cfb88f" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Crypto R+F" stackId="1" stroke="#6b9f71" fill="#6b9f71" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Crypto Perso" stackId="1" stroke="#3a6e3f" fill="#3a6e3f" fillOpacity={0.85} />
               </AreaChart>
             </ResponsiveContainer>
           ) : chartMode === "perf" && perfData.length > 1 ? (
@@ -543,8 +562,8 @@ export default function Home() {
       {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <PerfCard label="FHF" sub="Société"
-          lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }]}
-          total={ibkrNlv + krakenNlv} pctChange={fhfPctChange} href="/fhf" />
+          lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }, { name: "Qonto", value: qontoBalance }]}
+          total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfPctChange} href="/fhf" />
         <PerfCard label="Crypto"
           lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
           total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoPctChange} href="/crypto" />

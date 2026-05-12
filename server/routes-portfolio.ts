@@ -560,6 +560,25 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         results.push(accountResult)
       }
 
+      // Snapshot Qonto balance
+      try {
+        const { data: qontoAcc } = await serviceClient
+          .from("accounts").select("id").eq("broker", "Qonto").maybeSingle()
+        if (qontoAcc) {
+          const { data: txs } = await serviceClient
+            .from("fhf_bank_transactions").select("amount, side")
+          const balance = (txs || []).reduce((s: number, t: any) => {
+            const amt = Math.abs(Number(t.amount))
+            return s + (t.side === "credit" ? amt : -amt)
+          }, 0)
+          await serviceClient.from("portfolio_snapshots").upsert({
+            account_id: qontoAcc.id, snapshot_date: today,
+            nlv_base: balance, capital_invested: null, cash_total: balance,
+          }, { onConflict: "account_id,snapshot_date" })
+          results.push({ account: "Qonto FHF", broker: "Qonto", actions: [`snapshot_saved: ${balance.toFixed(2)}`] })
+        }
+      } catch {}
+
       return res.json({ success: true, date: today, results })
     } catch (e: any) {
       return res.status(500).json({ error: e.message })
@@ -649,6 +668,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     if (!positions || positions.length === 0) return res.json({ updated: 0 })
 
     let updated = 0
+    const touchedAccounts = new Set<string>()
     for (const p of positions) {
       try {
         let price: number | null = null
@@ -665,9 +685,35 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
             last_synced_at: new Date().toISOString(),
           }).eq("id", p.id)
           updated++
+          touchedAccounts.add(p.account_id)
         }
       } catch {}
     }
+
+    const today = new Date().toISOString().slice(0, 10)
+    for (const accountId of touchedAccounts) {
+      try {
+        const { data: accPos } = await userClient
+          .from("positions").select("quantity, market_price, fx_rate_to_base, ownership_pct").eq("account_id", accountId)
+        const { data: accCash } = await userClient
+          .from("cash_balances").select("amount, fx_rate_to_base").eq("account_id", accountId)
+        const posValue = (accPos || []).reduce((s: number, p: any) => {
+          const fx = Number(p.fx_rate_to_base) || 1
+          const own = (Number(p.ownership_pct) || 100) / 100
+          return s + Number(p.quantity) * Number(p.market_price) * fx * own
+        }, 0)
+        const cashTotal = (accCash || []).reduce((s: number, c: any) => {
+          return s + Number(c.amount) * (Number(c.fx_rate_to_base) || 1)
+        }, 0)
+        await userClient.from("portfolio_snapshots").upsert({
+          account_id: accountId,
+          snapshot_date: today,
+          nlv_base: posValue + cashTotal,
+          cash_total: cashTotal,
+        }, { onConflict: "account_id,snapshot_date" })
+      } catch {}
+    }
+
     return res.json({ updated })
   })
 
