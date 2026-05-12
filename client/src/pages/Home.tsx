@@ -41,6 +41,7 @@ const CHART_LEGEND_PERF = [
   { label: "PEA", color: "#7d2b1d" },
   { label: "Crypto P", color: "#b8944a" },
   { label: "Crypto R+F", color: "#cfb88f" },
+  { label: "Trading", color: "#5b5a55" },
 ]
 
 const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA}\u{1F1FA}", GBP: "\u{1F1EC}\u{1F1E7}", JPY: "\u{1F1EF}\u{1F1F5}", CAD: "\u{1F1E8}\u{1F1E6}", AUD: "\u{1F1E6}\u{1F1FA}", NZD: "\u{1F1F3}\u{1F1FF}", CHF: "\u{1F1E8}\u{1F1ED}", CNY: "\u{1F1E8}\u{1F1F3}" }
@@ -48,6 +49,7 @@ const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
+  const [trades, setTrades] = useState<any[]>([])
   const [ibkr, setIbkr] = useState<any>(null)
   const [pea, setPea] = useState<any>(null)
   const [crypto, setCrypto] = useState<any>(null)
@@ -97,6 +99,10 @@ export default function Home() {
     authFetch("/api/kraken/portfolio")
       .then(r => r.ok ? r.json() : null)
       .then(d => setKraken(d))
+      .catch(() => {})
+    authFetch("/api/trades")
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTrades(Array.isArray(d) ? d.filter((t: any) => !["Kraken", "FTMO"].includes(t.compte)) : []))
       .catch(() => {})
     authFetch("/api/notes")
       .then(r => r.ok ? r.json() : { notes: [] })
@@ -185,20 +191,35 @@ export default function Home() {
     }
     const dates = Object.keys(byDate).sort()
     if (dates.length < 2) return []
-    const allBuckets = ["FHF", "PEA", "Crypto P", "Crypto R+F"]
+
+    const periodStart = dates[0]
+    const tradePnlByDate: Record<string, number> = {}
+    const periodTrades = trades
+      .filter(t => t.date && t.date >= periodStart)
+      .sort((a: any, b: any) => a.date.localeCompare(b.date))
+    let cumPnl = 0
+    for (const t of periodTrades) {
+      cumPnl += Number(t.profit) || 0
+      tradePnlByDate[t.date.slice(0, 10)] = cumPnl
+    }
+
+    const portfolioBuckets = ["FHF", "PEA", "Crypto P", "Crypto R+F"]
     const lastKnown: Record<string, number> = {}
     const first: Record<string, number> = {}
+    let lastTradingPnl = 0
     return dates.map((date, i) => {
       const row: any = { date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) }
-      for (const b of allBuckets) {
+      for (const b of portfolioBuckets) {
         if (byDate[date]?.[b] !== undefined) lastKnown[b] = byDate[date][b]
         const val = lastKnown[b] || 0
         if (i === 0) first[b] = val
-        row[b] = first[b] > 0 ? ((val - first[b]) / first[b]) * 100 : 0
+        row[b] = val - (first[b] || 0)
       }
+      if (tradePnlByDate[date] !== undefined) lastTradingPnl = tradePnlByDate[date]
+      row["Trading"] = lastTradingPnl
       return row
     })
-  }, [snapshots, snapshotAccounts])
+  }, [snapshots, snapshotAccounts, trades])
 
   async function saveNote() {
     if (!noteTitle.trim()) return
@@ -537,19 +558,19 @@ export default function Home() {
           ) : chartMode === "perf" && perfData.length > 1 ? (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={perfData}>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)}€`} />
                 <Tooltip
-                  contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
-                  itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }}
-                  formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name]}
+                  contentStyle={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)" }}
+                  formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${fmtEur(value)}`, name]}
                 />
                 <ReferenceLine y={0} stroke="var(--ink)" strokeWidth={1} />
                 <Line type="monotone" dataKey="FHF" stroke="#2d5a27" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="PEA" stroke="#7d2b1d" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Crypto P" stroke="#b8944a" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Crypto R+F" stroke="#cfb88f" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Trading" stroke="#5b5a55" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
