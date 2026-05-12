@@ -3,7 +3,7 @@ import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
 import { Plus, Pin, Trash2, Edit3, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import { AreaChart, Area, LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -26,10 +26,17 @@ const RANGES = [
   { label: "1A", days: 365 },
 ]
 
-const CHART_LEGEND = [
+const CHART_LEGEND_VALUE = [
   { label: "FHF", color: "#7d2b1d" },
   { label: "PEA", color: "#cfb88f" },
   { label: "Crypto", color: "#3a6e3f" },
+]
+
+const CHART_LEGEND_PERF = [
+  { label: "FHF", color: "#7d2b1d" },
+  { label: "PEA", color: "#cfb88f" },
+  { label: "Crypto P", color: "#3a6e3f" },
+  { label: "Crypto R+F", color: "#c08a4d" },
 ]
 
 const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA}\u{1F1FA}", GBP: "\u{1F1EC}\u{1F1E7}", JPY: "\u{1F1EF}\u{1F1F5}", CAD: "\u{1F1E8}\u{1F1E6}", AUD: "\u{1F1E6}\u{1F1FA}", NZD: "\u{1F1F3}\u{1F1FF}", CHF: "\u{1F1E8}\u{1F1ED}", CNY: "\u{1F1E8}\u{1F1F3}" }
@@ -45,6 +52,7 @@ export default function Home() {
   const [snapshots, setSnapshots] = useState<any[]>([])
   const [snapshotAccounts, setSnapshotAccounts] = useState<any[]>([])
   const [chartRange, setChartRange] = useState(90)
+  const [chartMode, setChartMode] = useState<"value" | "perf">("value")
   const [notes, setNotes] = useState<any[]>([])
   const [showNoteForm, setShowNoteForm] = useState(false)
   const [editingNote, setEditingNote] = useState<any>(null)
@@ -130,6 +138,36 @@ export default function Home() {
         row[b] = lastKnown[b] || 0
       }
       row.total = brokers.reduce((s, b) => s + (row[b] || 0), 0)
+      return row
+    })
+  }, [snapshots, snapshotAccounts])
+
+  const perfData = useMemo(() => {
+    const byDate: Record<string, Record<string, number>> = {}
+    const brokerBuckets: Record<string, string[]> = { IBKR: ["FHF"], Kraken: ["FHF"], Boursorama: ["PEA"], Crypto: ["Crypto P", "Crypto R+F"] }
+    for (const s of snapshots) {
+      const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
+      if (!acc) continue
+      const buckets = brokerBuckets[acc.broker]
+      if (!buckets) continue
+      if (!byDate[s.snapshot_date]) byDate[s.snapshot_date] = {}
+      for (const b of buckets) {
+        byDate[s.snapshot_date][b] = (byDate[s.snapshot_date][b] || 0) + (Number(s.nlv_base) || 0)
+      }
+    }
+    const dates = Object.keys(byDate).sort()
+    if (dates.length < 2) return []
+    const allBuckets = ["FHF", "PEA", "Crypto P", "Crypto R+F"]
+    const lastKnown: Record<string, number> = {}
+    const first: Record<string, number> = {}
+    return dates.map((date, i) => {
+      const row: any = { date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) }
+      for (const b of allBuckets) {
+        if (byDate[date]?.[b] !== undefined) lastKnown[b] = byDate[date][b]
+        const val = lastKnown[b] || 0
+        if (i === 0) first[b] = val
+        row[b] = first[b] > 0 ? ((val - first[b]) / first[b]) * 100 : 0
+      }
       return row
     })
   }, [snapshots, snapshotAccounts])
@@ -415,7 +453,7 @@ export default function Home() {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 14 }}>
-              {CHART_LEGEND.map(l => (
+              {(chartMode === "value" ? CHART_LEGEND_VALUE : CHART_LEGEND_PERF).map(l => (
                 <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
                   <span style={{ width: 8, height: 8, borderRadius: 1, background: l.color, display: "inline-block" }} />
                   {l.label}
@@ -423,6 +461,17 @@ export default function Home() {
               ))}
             </div>
             <div style={{ display: "flex", gap: 2 }}>
+              {([{ label: "Patrimoine", mode: "value" as const }, { label: "Performance", mode: "perf" as const }]).map(m => (
+                <button key={m.mode} onClick={() => setChartMode(m.mode)}
+                  style={{
+                    padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                    background: chartMode === m.mode ? "var(--at-accent)" : "transparent",
+                    color: chartMode === m.mode ? "var(--at-bg)" : "var(--ink2)",
+                  }}>
+                  {m.label}
+                </button>
+              ))}
+              <div style={{ width: 1, background: "var(--rule)", margin: "0 4px" }} />
               {RANGES.map(r => (
                 <button key={r.days} onClick={() => setChartRange(r.days)}
                   style={{
@@ -435,7 +484,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-          {chartData.length > 1 ? (
+          {chartMode === "value" && chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={chartData}>
                 <defs>
@@ -464,6 +513,24 @@ export default function Home() {
                 <Area type="monotone" dataKey="Boursorama" stackId="1" stroke="#cfb88f" fill="url(#gradPEA)" strokeWidth={1.5} />
                 <Area type="monotone" dataKey="Crypto" stackId="1" stroke="#3a6e3f" fill="url(#gradCrypto)" strokeWidth={1.5} />
               </AreaChart>
+            </ResponsiveContainer>
+          ) : chartMode === "perf" && perfData.length > 1 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={perfData}>
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#4a4540", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+                <Tooltip
+                  contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
+                  itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }}
+                  formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name]}
+                />
+                <ReferenceLine y={0} stroke="var(--ink3)" strokeWidth={1} />
+                <Line type="monotone" dataKey="FHF" stroke="#7d2b1d" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="PEA" stroke="#cfb88f" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="Crypto P" stroke="#3a6e3f" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="Crypto R+F" stroke="#c08a4d" strokeWidth={1.5} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           ) : (
             <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
