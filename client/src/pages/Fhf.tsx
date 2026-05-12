@@ -66,10 +66,32 @@ export default function Fhf() {
   const [taxMode, setTaxMode] = useState<"flat" | "bareme">("bareme")
   const [showRevenus, setShowRevenus] = useState(false)
   const [includeRevenus, setIncludeRevenus] = useState(false)
+  const [cronTriggering, setCronTriggering] = useState(false)
+  const [cronResult, setCronResult] = useState<any>(null)
 
   useEffect(() => {
     loadData()
   }, [])
+
+  async function triggerCron() {
+    setCronTriggering(true)
+    setCronResult(null)
+    try {
+      const res = await fetch("/api/admin/trigger-cron", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      })
+      const data = await res.json()
+      setCronResult({ status: res.status, ...data })
+    } catch (e: any) {
+      setCronResult({ status: 0, error: e.message })
+    } finally {
+      setCronTriggering(false)
+    }
+  }
 
   async function loadData() {
     setLoading(true)
@@ -482,6 +504,63 @@ export default function Fhf() {
           <div className="text-[10px] text-[--ink3] mt-1">P&L min. mensuel</div>
         </div>
       </div>
+
+      {/* Maintenance */}
+      <section className="mt-12 border-t border-[--rule] pt-8">
+        <h2 className="font-serif text-2xl text-[--ink] mb-4">Maintenance</h2>
+        <div className="bg-white/40 border border-[--rule] rounded p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-serif text-lg text-[--ink]">Snapshot manuel</h3>
+              <p className="text-sm text-[--ink2] mt-1">
+                Lance la routine quotidienne en direct : sync Kraken + IBKR, refresh prix, snapshot patrimoine.
+                Utile pour diagnostiquer le cron Vercel et forcer une mise à jour.
+              </p>
+            </div>
+            <button
+              onClick={triggerCron}
+              disabled={cronTriggering}
+              className="px-4 py-2 bg-[--at-accent] text-white rounded font-mono text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              {cronTriggering ? "Exécution..." : "Lancer le cron"}
+            </button>
+          </div>
+          {cronResult && (
+            <div className="mt-4 pt-4 border-t border-[--rule]">
+              <div className="flex items-center gap-4 mb-3 font-mono text-sm">
+                <span className={cronResult.success ? "text-[--at-pos]" : "text-[--at-neg]"}>
+                  {cronResult.success ? "✓ Succès" : "✗ Échec"} (HTTP {cronResult.status})
+                </span>
+                {cronResult.durationMs !== undefined && (
+                  <span className="text-[--ink2]">Durée : {(cronResult.durationMs / 1000).toFixed(1)}s</span>
+                )}
+                {cronResult.date && <span className="text-[--ink2]">Date : {cronResult.date}</span>}
+              </div>
+              {cronResult.error && (
+                <div className="text-[--at-neg] font-mono text-sm mb-2">Erreur : {cronResult.error}</div>
+              )}
+              {cronResult.results && cronResult.results.length > 0 && (
+                <div className="space-y-2">
+                  {cronResult.results.map((r: any, i: number) => (
+                    <details key={i} className="border border-[--rule] rounded p-3 bg-[--paper]">
+                      <summary className="font-mono text-sm cursor-pointer">
+                        <span className="font-bold text-[--ink]">{r.account}</span>
+                        <span className="text-[--ink2] ml-2">({r.broker})</span>
+                        <span className="text-[--ink3] ml-2">— {r.actions?.length || 0} action(s)</span>
+                      </summary>
+                      <ul className="mt-2 pl-4 space-y-1 font-mono text-xs text-[--ink2]">
+                        {r.actions?.map((a: string, j: number) => (
+                          <li key={j} className={a.includes("fail") || a.includes("error") ? "text-[--at-neg]" : ""}>{a}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

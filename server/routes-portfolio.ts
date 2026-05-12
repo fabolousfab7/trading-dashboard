@@ -38,6 +38,205 @@ async function requireAuth(supabase: SupabaseClient, req: Request, res: Response
   next()
 }
 
+export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
+  success: boolean; date: string; durationMs: number; results: any[]; error?: string
+}> {
+  const t0 = Date.now()
+  const today = new Date().toISOString().slice(0, 10)
+  const results: any[] = []
+
+  try {
+    const { data: allAccounts } = await serviceClient
+      .from("accounts")
+      .select("*, ibkr_config(*)")
+      .eq("is_active", true)
+
+    console.log("[cron]", "start", { date: today, nb_accounts: allAccounts?.length })
+
+    if (!allAccounts || allAccounts.length === 0) {
+      return { success: true, date: today, durationMs: Date.now() - t0, results }
+    }
+
+    for (const account of allAccounts) {
+      const accountResult: any = { account: account.label, broker: account.broker, actions: [] }
+      console.log("[cron]", "account", account.label, account.broker)
+
+      try {
+        if (account.broker === "Kraken") {
+          const { data: kCfgRows } = await serviceClient
+            .from("kraken_config").select("*").eq("account_id", account.id)
+          const kCfg = kCfgRows?.[0]
+          if (kCfg?.api_key && kCfg?.api_secret) {
+            try {
+              const krakenCfg: KrakenConfig = { apiKey: kCfg.api_key, apiSecret: kCfg.api_secret }
+              const result = await syncKrakenAccount(serviceClient, account, krakenCfg)
+              accountResult.actions.push(`kraken_sync_ok: ${result.positions} positions`)
+              console.log("[cron]", "action", account.label, `kraken_sync_ok: ${result.positions} positions`)
+            } catch (e: any) {
+              accountResult.actions.push(`kraken_sync_fail: ${e.message}`)
+              console.log("[cron]", "action", account.label, `kraken_sync_fail: ${e.message}`)
+            }
+          }
+        }
+
+        const config = account.ibkr_config?.[0] || account.ibkr_config
+        if (account.broker === "IBKR" && config?.flex_token && config?.query_id) {
+          try {
+            const data = await fetchFlexReport(config.flex_token, config.query_id)
+            const nlv = calculateNlvInBase(data, account.currency_base || "EUR")
+            const now = new Date().toISOString()
+
+            await serviceClient.from("positions").delete().eq("account_id", account.id)
+            if (data.openPositions.length > 0) {
+              await serviceClient.from("positions").insert(
+                data.openPositions.map((p: any) => ({
+                  account_id: account.id,
+                  ticker: p.symbol, name: p.description, quantity: p.quantity,
+                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                }))
+              )
+            }
+            await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
+            if (data.cashBalances.length > 0) {
+              await serviceClient.from("cash_balances").insert(
+                data.cashBalances.map((c: any) => ({
+                  account_id: account.id, currency: c.currency,
+                  amount: c.endingCash, fx_rate_to_base: c.fxRateToBase,
+                  last_synced_at: now,
+                }))
+              )
+            }
+            await serviceClient.from("ibkr_config").update({
+              last_synced_at: now, last_sync_status: "success", last_sync_error: null,
+            }).eq("account_id", account.id)
+            accountResult.actions.push("ibkr_sync_ok")
+            console.log("[cron]", "action", account.label, "ibkr_sync_ok")
+          } catch (e: any) {
+            accountResult.actions.push(`ibkr_sync_fail: ${e.message}`)
+            console.log("[cron]", "action", account.label, `ibkr_sync_fail: ${e.message}`)
+            await serviceClient.from("ibkr_config").update({
+              last_sync_status: "error", last_sync_error: String(e.message),
+            }).eq("account_id", account.id)
+          }
+        }
+
+        const { data: positions } = await serviceClient
+          .from("positions")
+          .select("*")
+          .eq("account_id", account.id)
+
+        if (positions && positions.length > 0) {
+          const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
+          const stockPositions = positions.filter((p: any) => !p.coingecko_id && p.stooq_symbol)
+
+          if (cryptoPositions.length > 0) {
+            const ids = [...new Set(cryptoPositions.map((p: any) => p.coingecko_id))]
+            const prices = await fetchCoinGeckoPrices(ids, ["eur", "usd"])
+            for (const p of cryptoPositions) {
+              const coinPrices = prices[p.coingecko_id]
+              if (coinPrices?.eur !== undefined) {
+                await serviceClient.from("positions").update({
+                  market_price: coinPrices.eur,
+                  market_price_usd: coinPrices.usd || null,
+                  last_synced_at: new Date().toISOString(),
+                }).eq("id", p.id)
+              }
+            }
+            accountResult.actions.push(`coingecko_refreshed: ${Object.keys(prices).length}`)
+            console.log("[cron]", "action", account.label, `coingecko_refreshed: ${Object.keys(prices).length}`)
+          }
+
+          for (const p of stockPositions) {
+            try {
+              let price = await fetchStooqPrice(p.stooq_symbol)
+              if (price === null && p.stooq_symbol) {
+                if (p.stooq_symbol.endsWith(".fr")) {
+                  price = await fetchYahooPrice(p.ticker, "PA")
+                } else if (p.stooq_symbol.endsWith(".de")) {
+                  price = await fetchYahooPrice(p.ticker, "DE")
+                } else if (p.stooq_symbol.endsWith(".us")) {
+                  price = await fetchYahooPrice(p.ticker, "")
+                }
+              }
+              if (price) {
+                await serviceClient.from("positions").update({
+                  market_price: price,
+                  last_synced_at: new Date().toISOString(),
+                }).eq("id", p.id)
+              }
+            } catch {}
+          }
+          if (stockPositions.length > 0) {
+            accountResult.actions.push(`stooq_refreshed: ${stockPositions.length}`)
+            console.log("[cron]", "action", account.label, `stooq_refreshed: ${stockPositions.length}`)
+          }
+        }
+
+        const { data: freshPositions } = await serviceClient
+          .from("positions").select("*").eq("account_id", account.id)
+        const { data: freshCash } = await serviceClient
+          .from("cash_balances").select("*").eq("account_id", account.id)
+
+        const posValue = (freshPositions || []).reduce((s: number, p: any) => {
+          const qty = Number(p.quantity), price = Number(p.market_price)
+          const fx = Number(p.fx_rate_to_base) || 1
+          const own = (Number(p.ownership_pct) || 100) / 100
+          return qty !== 0 && price !== 0 ? s + qty * price * fx * own : s
+        }, 0)
+        const cashValue = (freshCash || []).reduce((s: number, c: any) => {
+          const fx = Number(c.fx_rate_to_base) || 1
+          return s + Number(c.amount) * fx
+        }, 0)
+        const nlvBase = posValue + cashValue
+
+        await serviceClient.from("portfolio_snapshots").upsert({
+          account_id: account.id,
+          snapshot_date: today,
+          nlv_base: nlvBase,
+          capital_invested: account.capital_invested || null,
+          cash_total: cashValue || null,
+        }, { onConflict: "account_id,snapshot_date" })
+        accountResult.actions.push(`snapshot_saved: ${nlvBase.toFixed(2)}`)
+        console.log("[cron]", "action", account.label, `snapshot_saved: ${nlvBase.toFixed(2)}`)
+
+      } catch (e: any) {
+        accountResult.actions.push(`error: ${e.message}`)
+        console.log("[cron]", "action", account.label, `error: ${e.message}`)
+      }
+      results.push(accountResult)
+    }
+
+    try {
+      const { data: qontoAcc } = await serviceClient
+        .from("accounts").select("id").eq("broker", "Qonto").maybeSingle()
+      if (qontoAcc) {
+        const { data: txs } = await serviceClient
+          .from("fhf_bank_transactions").select("amount, side")
+        const balance = (txs || []).reduce((s: number, t: any) => {
+          const amt = Math.abs(Number(t.amount))
+          return s + (t.side === "credit" ? amt : -amt)
+        }, 0)
+        await serviceClient.from("portfolio_snapshots").upsert({
+          account_id: qontoAcc.id, snapshot_date: today,
+          nlv_base: balance, capital_invested: null, cash_total: balance,
+        }, { onConflict: "account_id,snapshot_date" })
+        results.push({ account: "Qonto FHF", broker: "Qonto", actions: [`snapshot_saved: ${balance.toFixed(2)}`] })
+        console.log("[cron]", "action", "Qonto FHF", `snapshot_saved: ${balance.toFixed(2)}`)
+      }
+    } catch {}
+
+    const durationMs = Date.now() - t0
+    console.log("[cron]", "done", { durationMs, nb_results: results.length })
+    return { success: true, date: today, durationMs, results }
+  } catch (e: any) {
+    const durationMs = Date.now() - t0
+    console.log("[cron]", "error", { durationMs, error: e.message })
+    return { success: false, date: today, durationMs, results, error: e.message }
+  }
+}
+
 export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) {
   const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
 
@@ -394,195 +593,39 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
   })
 
   app.get("/api/cron/daily", async (req: Request, res: Response) => {
+    console.log("[cron-endpoint]", "headers", {
+      authHeader_present: !!req.headers.authorization,
+      authHeader_preview: req.headers.authorization?.slice(0, 20),
+      vercel_id: req.headers["x-vercel-id"],
+      vercel_cron: req.headers["x-vercel-cron"],
+    })
     const authHeader = req.headers.authorization
     const cronSecret = process.env.CRON_SECRET
+    console.log("[cron-endpoint]", "secret_check", {
+      cronSecret_set: !!cronSecret,
+      cronSecret_length: cronSecret?.length || 0,
+      match: authHeader === `Bearer ${cronSecret}`,
+    })
     if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return res.status(401).json({ error: "Unauthorized" })
     }
-
     const serviceClient = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+    const result = await runDailySnapshot(serviceClient)
+    return res.status(result.success ? 200 : 500).json(result)
+  })
 
-    const results: any[] = []
-
-    try {
-      const { data: allAccounts } = await serviceClient
-        .from("accounts")
-        .select("*, ibkr_config(*)")
-        .eq("is_active", true)
-
-      if (!allAccounts || allAccounts.length === 0) {
-        return res.json({ message: "No active accounts", results })
-      }
-
-      const today = new Date().toISOString().slice(0, 10)
-
-      for (const account of allAccounts) {
-        const accountResult: any = { account: account.label, broker: account.broker, actions: [] }
-
-        try {
-          // Kraken sync
-          if (account.broker === "Kraken") {
-            const { data: kCfgRows } = await serviceClient
-              .from("kraken_config").select("*").eq("account_id", account.id)
-            const kCfg = kCfgRows?.[0]
-            if (kCfg?.api_key && kCfg?.api_secret) {
-              try {
-                const krakenCfg: KrakenConfig = { apiKey: kCfg.api_key, apiSecret: kCfg.api_secret }
-                const result = await syncKrakenAccount(serviceClient, account, krakenCfg)
-                accountResult.actions.push(`kraken_sync_ok: ${result.positions} positions`)
-              } catch (e: any) {
-                accountResult.actions.push(`kraken_sync_fail: ${e.message}`)
-              }
-            }
-          }
-
-          const config = account.ibkr_config?.[0] || account.ibkr_config
-          if (account.broker === "IBKR" && config?.flex_token && config?.query_id) {
-            try {
-              const data = await fetchFlexReport(config.flex_token, config.query_id)
-              const nlv = calculateNlvInBase(data, account.currency_base || "EUR")
-              const now = new Date().toISOString()
-
-              await serviceClient.from("positions").delete().eq("account_id", account.id)
-              if (data.openPositions.length > 0) {
-                await serviceClient.from("positions").insert(
-                  data.openPositions.map((p: any) => ({
-                    account_id: account.id,
-                    ticker: p.symbol, name: p.description, quantity: p.quantity,
-                    currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                    unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                    fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-                  }))
-                )
-              }
-              await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
-              if (data.cashBalances.length > 0) {
-                await serviceClient.from("cash_balances").insert(
-                  data.cashBalances.map((c: any) => ({
-                    account_id: account.id, currency: c.currency,
-                    amount: c.endingCash, fx_rate_to_base: c.fxRateToBase,
-                    last_synced_at: now,
-                  }))
-                )
-              }
-              await serviceClient.from("ibkr_config").update({
-                last_synced_at: now, last_sync_status: "success", last_sync_error: null,
-              }).eq("account_id", account.id)
-              accountResult.actions.push("ibkr_sync_ok")
-            } catch (e: any) {
-              accountResult.actions.push(`ibkr_sync_fail: ${e.message}`)
-              await serviceClient.from("ibkr_config").update({
-                last_sync_status: "error", last_sync_error: String(e.message),
-              }).eq("account_id", account.id)
-            }
-          }
-
-          const { data: positions } = await serviceClient
-            .from("positions")
-            .select("*")
-            .eq("account_id", account.id)
-
-          if (positions && positions.length > 0) {
-            const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
-            const stockPositions = positions.filter((p: any) => !p.coingecko_id && p.stooq_symbol)
-
-            if (cryptoPositions.length > 0) {
-              const ids = [...new Set(cryptoPositions.map((p: any) => p.coingecko_id))]
-              const prices = await fetchCoinGeckoPrices(ids, ["eur", "usd"])
-              for (const p of cryptoPositions) {
-                const coinPrices = prices[p.coingecko_id]
-                if (coinPrices?.eur !== undefined) {
-                  await serviceClient.from("positions").update({
-                    market_price: coinPrices.eur,
-                    market_price_usd: coinPrices.usd || null,
-                    last_synced_at: new Date().toISOString(),
-                  }).eq("id", p.id)
-                }
-              }
-              accountResult.actions.push(`coingecko_refreshed: ${Object.keys(prices).length}`)
-            }
-
-            for (const p of stockPositions) {
-              try {
-                let price = await fetchStooqPrice(p.stooq_symbol)
-                if (price === null && p.stooq_symbol) {
-                  if (p.stooq_symbol.endsWith(".fr")) {
-                    price = await fetchYahooPrice(p.ticker, "PA")
-                  } else if (p.stooq_symbol.endsWith(".de")) {
-                    price = await fetchYahooPrice(p.ticker, "DE")
-                  } else if (p.stooq_symbol.endsWith(".us")) {
-                    price = await fetchYahooPrice(p.ticker, "")
-                  }
-                }
-                if (price) {
-                  await serviceClient.from("positions").update({
-                    market_price: price,
-                    last_synced_at: new Date().toISOString(),
-                  }).eq("id", p.id)
-                }
-              } catch {}
-            }
-            if (stockPositions.length > 0) accountResult.actions.push(`stooq_refreshed: ${stockPositions.length}`)
-          }
-
-          const { data: freshPositions } = await serviceClient
-            .from("positions").select("*").eq("account_id", account.id)
-          const { data: freshCash } = await serviceClient
-            .from("cash_balances").select("*").eq("account_id", account.id)
-
-          const posValue = (freshPositions || []).reduce((s: number, p: any) => {
-            const qty = Number(p.quantity), price = Number(p.market_price)
-            const fx = Number(p.fx_rate_to_base) || 1
-            const own = (Number(p.ownership_pct) || 100) / 100
-            return qty !== 0 && price !== 0 ? s + qty * price * fx * own : s
-          }, 0)
-          const cashValue = (freshCash || []).reduce((s: number, c: any) => {
-            const fx = Number(c.fx_rate_to_base) || 1
-            return s + Number(c.amount) * fx
-          }, 0)
-          const nlvBase = posValue + cashValue
-
-          await serviceClient.from("portfolio_snapshots").upsert({
-            account_id: account.id,
-            snapshot_date: today,
-            nlv_base: nlvBase,
-            capital_invested: account.capital_invested || null,
-            cash_total: cashValue || null,
-          }, { onConflict: "account_id,snapshot_date" })
-          accountResult.actions.push(`snapshot_saved: ${nlvBase.toFixed(2)}`)
-
-        } catch (e: any) {
-          accountResult.actions.push(`error: ${e.message}`)
-        }
-        results.push(accountResult)
-      }
-
-      // Snapshot Qonto balance
-      try {
-        const { data: qontoAcc } = await serviceClient
-          .from("accounts").select("id").eq("broker", "Qonto").maybeSingle()
-        if (qontoAcc) {
-          const { data: txs } = await serviceClient
-            .from("fhf_bank_transactions").select("amount, side")
-          const balance = (txs || []).reduce((s: number, t: any) => {
-            const amt = Math.abs(Number(t.amount))
-            return s + (t.side === "credit" ? amt : -amt)
-          }, 0)
-          await serviceClient.from("portfolio_snapshots").upsert({
-            account_id: qontoAcc.id, snapshot_date: today,
-            nlv_base: balance, capital_invested: null, cash_total: balance,
-          }, { onConflict: "account_id,snapshot_date" })
-          results.push({ account: "Qonto FHF", broker: "Qonto", actions: [`snapshot_saved: ${balance.toFixed(2)}`] })
-        }
-      } catch {}
-
-      return res.json({ success: true, date: today, results })
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message })
-    }
+  app.post("/api/admin/trigger-cron", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    console.log("[admin-trigger-cron]", "called by user", userId)
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const result = await runDailySnapshot(serviceClient)
+    return res.status(result.success ? 200 : 500).json(result)
   })
 
   app.post("/api/accounts/:id/refresh-prices", auth, async (req: Request, res: Response) => {
