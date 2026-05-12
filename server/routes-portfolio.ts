@@ -508,9 +508,14 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
             for (const p of stockPositions) {
               try {
                 let price = await fetchStooqPrice(p.stooq_symbol)
-                if (price === null && p.stooq_symbol && p.stooq_symbol.endsWith(".fr")) {
-                  const ticker = p.stooq_symbol.replace(".fr", "").toUpperCase()
-                  price = await fetchYahooPrice(ticker, "PA")
+                if (price === null && p.stooq_symbol) {
+                  if (p.stooq_symbol.endsWith(".fr")) {
+                    price = await fetchYahooPrice(p.ticker, "PA")
+                  } else if (p.stooq_symbol.endsWith(".de")) {
+                    price = await fetchYahooPrice(p.ticker, "DE")
+                  } else if (p.stooq_symbol.endsWith(".us")) {
+                    price = await fetchYahooPrice(p.ticker, "")
+                  }
                 }
                 if (price) {
                   await serviceClient.from("positions").update({
@@ -590,9 +595,14 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       ...stockPositions.map(async (p: any) => {
         const stooqSym = p.stooq_symbol || defaultStooqSymbol(p.ticker, p.currency)
         let price = await fetchStooqPrice(stooqSym).catch(() => null)
-        if (price === null && stooqSym.endsWith(".fr")) {
-          const ticker = stooqSym.replace(".fr", "").toUpperCase()
-          price = await fetchYahooPrice(ticker, "PA")
+        if (price === null) {
+          if (stooqSym.endsWith(".fr")) {
+            price = await fetchYahooPrice(p.ticker, "PA")
+          } else if (stooqSym.endsWith(".de")) {
+            price = await fetchYahooPrice(p.ticker, "DE")
+          } else if (stooqSym.endsWith(".us")) {
+            price = await fetchYahooPrice(p.ticker, "")
+          }
         }
         return { id: p.id, ticker: p.ticker, price, priceUsd: null as number | null }
       }),
@@ -617,6 +627,48 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       failed: failed.length,
       failedTickers: failed.map((f) => f.ticker),
     })
+  })
+
+  app.get("/api/portfolio/refresh-prices", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const userId = (req as any).userId
+
+    const { data: accounts, error: accErr } = await userClient
+      .from("accounts")
+      .select("id")
+      .eq("user_id", userId)
+    if (accErr) return res.status(500).json({ error: accErr.message })
+    if (!accounts || accounts.length === 0) return res.json({ updated: 0 })
+
+    const { data: positions, error: posErr } = await userClient
+      .from("positions")
+      .select("*")
+      .in("account_id", accounts.map((a: any) => a.id))
+      .not("stooq_symbol", "is", null)
+    if (posErr) return res.status(500).json({ error: posErr.message })
+    if (!positions || positions.length === 0) return res.json({ updated: 0 })
+
+    let updated = 0
+    for (const p of positions) {
+      try {
+        let price: number | null = null
+        if (p.stooq_symbol.endsWith(".fr")) {
+          price = await fetchYahooPrice(p.ticker, "PA")
+        } else if (p.stooq_symbol.endsWith(".de")) {
+          price = await fetchYahooPrice(p.ticker, "DE")
+        } else if (p.stooq_symbol.endsWith(".us")) {
+          price = await fetchYahooPrice(p.ticker, "")
+        }
+        if (price !== null) {
+          await userClient.from("positions").update({
+            market_price: price,
+            last_synced_at: new Date().toISOString(),
+          }).eq("id", p.id)
+          updated++
+        }
+      } catch {}
+    }
+    return res.json({ updated })
   })
 
   app.get("/api/notes", auth, async (req: Request, res: Response) => {

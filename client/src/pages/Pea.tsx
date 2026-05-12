@@ -105,14 +105,11 @@ export default function Pea() {
   }
 
   async function refreshPrices() {
-    if (!account) return
     setRefreshing(true); setError(null)
     try {
-      const r = await authFetch(`/api/accounts/${account.id}/refresh-prices`, { method: "POST" })
+      const r = await authFetch("/api/portfolio/refresh-prices")
       const result = await r.json()
-      if (result.failed > 0 && result.failedTickers?.length) {
-        setError(`Échec sur : ${result.failedTickers.join(", ")} — vérifie le stooq_symbol`)
-      }
+      if (!r.ok) throw new Error(result.error || "Refresh failed")
       await loadData()
     } catch (e: any) { setError(String(e.message || e)) }
     finally { setRefreshing(false) }
@@ -174,7 +171,7 @@ export default function Pea() {
           <button onClick={refreshPrices} disabled={refreshing || positions.length === 0}
             className="px-3 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "Sync..." : "Refresh cours"}
+            {refreshing ? "Refresh..." : "Rafraîchir les prix"}
           </button>
         </div>
       </div>

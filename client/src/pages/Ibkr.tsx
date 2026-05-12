@@ -43,6 +43,7 @@ export default function Ibkr() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<any>(null)
@@ -80,6 +81,18 @@ export default function Ibkr() {
       await loadData()
     } catch (e: any) { setSyncError(String(e.message || e)) }
     finally { setSyncing(false) }
+  }
+
+  async function refreshPrices() {
+    setRefreshing(true); setSyncError(null)
+    try {
+      const r = await authFetch("/api/portfolio/refresh-prices")
+      const result = await r.json()
+      if (!r.ok) throw new Error(result.error || "Refresh failed")
+      setSyncError(null)
+      await loadData()
+    } catch (e: any) { setSyncError(String(e.message || e)) }
+    finally { setRefreshing(false) }
   }
 
   useEffect(() => { loadData() }, [])
@@ -134,11 +147,18 @@ export default function Ibkr() {
             {data.ibkrSync?.last_synced_at && <> · Sync {new Date(data.ibkrSync.last_synced_at).toLocaleString("fr-FR")}</>}
           </p>
         </div>
-        <button onClick={sync} disabled={syncing}
-          className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
-          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-          {syncing ? "Sync..." : "Sync IBKR"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={refreshPrices} disabled={refreshing}
+            className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? "Refresh..." : "Rafraîchir les prix"}
+          </button>
+          <button onClick={sync} disabled={syncing}
+            className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
+            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "Sync..." : "Sync IBKR"}
+          </button>
+        </div>
       </div>
 
       {syncError && (
