@@ -18,12 +18,8 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
-function fmtUsd(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
-}
-
 function fmtPct(n: number) {
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)} %`
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
 }
 
 const RANGES = [
@@ -48,6 +44,7 @@ export default function Home() {
   const [ibkr, setIbkr] = useState<any>(null)
   const [pea, setPea] = useState<any>(null)
   const [crypto, setCrypto] = useState<any>(null)
+  const [kraken, setKraken] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [snapshots, setSnapshots] = useState<any[]>([])
   const [snapshotAccounts, setSnapshotAccounts] = useState<any[]>([])
@@ -88,6 +85,10 @@ export default function Home() {
         return { ibkr: ibkrPortfolio, pea: peaPortfolio, crypto: cryptoPortfolio }
       }).catch(() => ({ ibkr: null, pea: null, crypto: null })),
     ]).then(([s, portfolios]: any) => { setStats(s); setIbkr(portfolios?.ibkr); setPea(portfolios?.pea); setCrypto(portfolios?.crypto); setLoading(false) })
+    authFetch("/api/kraken/portfolio")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setKraken(d))
+      .catch(() => {})
     authFetch("/api/notes")
       .then(r => r.ok ? r.json() : { notes: [] })
       .then(({ notes: n }) => setNotes(n || []))
@@ -252,6 +253,7 @@ export default function Home() {
   const tradingCount = stats?.count || 0
   const tradingWinRate = stats?.winRate || 0
 
+  // IBKR
   const positions = ibkr?.positions || []
   const cashBalances = ibkr?.cashBalances || []
   const ibkrPositionsBase = positions.reduce((s: number, p: any) => {
@@ -263,84 +265,91 @@ export default function Home() {
     return s + Number(c.amount) * fx
   }, 0)
   const ibkrNlv = ibkrPositionsBase + ibkrCashBase
-  const ibkrSnapshot = ibkr?.latestSnapshot
-  const ibkrCapital = ibkrSnapshot ? Number(ibkrSnapshot.capital_invested) || 0 : 0
-  const ibkrPerfPct = ibkrCapital ? ((ibkrNlv - ibkrCapital) / ibkrCapital) * 100 : 0
 
+  // Kraken
+  const krakenPositions = kraken?.positions || []
+  const krakenPositionsValue = krakenPositions.reduce((s: number, p: any) => {
+    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    return s + Number(p.quantity) * Number(p.market_price) * fx
+  }, 0)
+  const krakenCashValue = (kraken?.cashBalances || []).reduce((s: number, c: any) => {
+    const fx = c.fx_rate_to_base ? Number(c.fx_rate_to_base) : 1
+    return s + Number(c.amount) * fx
+  }, 0)
+  const krakenNlv = krakenPositionsValue + krakenCashValue
+
+  // FHF consolidated (IBKR + Kraken)
+  const fhfCapitalTotal = (fhfSim?.capital_ibkr || 0) + (fhfSim?.capital_kraken || 0)
+  const fhfNlvTotal = ibkrNlv + krakenNlv
+  const fhfPnl = fhfNlvTotal - fhfCapitalTotal
+  const fhfRoi = fhfCapitalTotal > 0 ? (fhfPnl / fhfCapitalTotal) * 100 : 0
+
+  // PEA
   const peaPositions = pea?.positions || []
   const peaPositionsValue = peaPositions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
   const peaCashTotal = (pea?.cashBalances || []).reduce((s: number, c: any) => s + Number(c.amount), 0)
   const peaValue = peaPositionsValue + peaCashTotal
-  const peaCapital = Number(pea?.account?.capital_invested) || 0
-  const peaPerfPct = peaCapital ? ((peaValue - peaCapital) / peaCapital) * 100 : 0
+  const peaInvested = peaPositions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
+  const peaPnl = peaPositionsValue - peaInvested
+  const peaRoi = peaInvested > 0 ? (peaPnl / peaInvested) * 100 : 0
 
+  // Crypto Perso (ownership 100%)
   const cryptoPositions = crypto?.positions || []
   const cryptoPerso = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
   const cryptoShared = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
 
   const cryptoPersoValue = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
-  const cryptoPersoValueUsd = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * (Number(p.market_price_usd) || 0), 0)
   const cryptoPersoCost = cryptoPerso.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
-  const cryptoPersoPerfPct = cryptoPersoCost ? ((cryptoPersoValue - cryptoPersoCost) / cryptoPersoCost) * 100 : 0
+  const cryptoPersoPnl = cryptoPersoValue - cryptoPersoCost
+  const cryptoPersoRoi = cryptoPersoCost > 0 ? (cryptoPersoPnl / cryptoPersoCost) * 100 : 0
 
+  // Crypto R+F (shared, ownership < 100%)
+  const cryptoSharedValueTotal = cryptoShared.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
+  const cryptoSharedCostTotal = cryptoShared.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
   const cryptoSharedValue = cryptoShared.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.market_price) * own
   }, 0)
-  const cryptoSharedCost = cryptoShared.reduce((s: number, p: any) => {
+  const cryptoSharedPnlFab = cryptoSharedValue - cryptoShared.reduce((s: number, p: any) => {
     const own = (Number(p.ownership_pct) || 100) / 100
     return s + Number(p.quantity) * Number(p.avg_cost) * own
   }, 0)
-  const cryptoSharedPerfPct = cryptoSharedCost ? ((cryptoSharedValue - cryptoSharedCost) / cryptoSharedCost) * 100 : 0
+  const cryptoSharedRoi = cryptoSharedCostTotal > 0 ? ((cryptoSharedValueTotal - cryptoSharedCostTotal) / cryptoSharedCostTotal) * 100 : 0
 
+  // Patrimoine (sans CCA)
+  const patrimoineBrut = fhfNlvTotal + peaValue + cryptoPersoValue + cryptoSharedValue
+
+  // Fiscalité pour le net
   const ccaNet = fhfSim?.cca_balance || 0
-  const fhfEquity = Math.max(0, ibkrNlv - ccaNet)
-
+  const fhfEquity = Math.max(0, fhfNlvTotal - ccaNet)
   const ibkrCost = positions.reduce((s: number, p: any) => {
     const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
     return s + Number(p.quantity) * Number(p.avg_cost) * fx
   }, 0)
-  const ibkrPv = Math.max(0, fhfEquity - ibkrCost)
-  const fhfNetApresIs = fhfEquity - ibkrPv * 0.15
-  const fhfDistribuableNet = fhfNetApresIs - ibkrPv * 0.85 * 0.172
+  const krakenCost = krakenPositions.reduce((s: number, p: any) => {
+    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    return s + Number(p.quantity) * Number(p.avg_cost) * fx
+  }, 0)
+  const fhfPv = Math.max(0, fhfEquity - ibkrCost - krakenCost)
+  const fhfNetApresIs = fhfEquity - fhfPv * 0.15
+  const fhfDistribuableNet = fhfNetApresIs - fhfPv * 0.85 * 0.172
 
-  const peaCost = peaPositions.reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.avg_cost), 0)
-  const peaPv = Math.max(0, peaValue - peaCost)
-  const peaNet = peaValue - peaPv * 0.30
-
-  const patrimoineBrut = ccaNet + fhfEquity + peaValue + cryptoPersoValue + cryptoSharedValue
-
+  const peaPv = Math.max(0, peaValue - peaInvested - peaCashTotal)
+  const peaNet = peaValue - Math.max(0, peaPv) * 0.30
   const cryptoPersoNet = cryptoPersoValue * (1 - 0.314)
   const cryptoSharedNet = cryptoSharedValue * (1 - 0.314)
+  const patrimoineNet = fhfDistribuableNet + peaNet + cryptoPersoNet + cryptoSharedNet
 
-  const patrimoineNet = ccaNet + fhfDistribuableNet + peaNet + cryptoPersoNet + cryptoSharedNet
-
-  // Chart period variation
+  // Chart variation
   const chartFirst = chartData.length > 0 ? chartData[0].total : 0
   const chartLast = chartData.length > 0 ? chartData[chartData.length - 1].total : 0
   const chartVarAbs = chartLast - chartFirst
-  const chartVarPct = chartFirst > 0 ? (chartVarAbs / chartFirst) * 100 : 0
 
   // Masthead
   const now = new Date()
   const editionNo = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
   const dateStr = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-
-  const buckets = [
-    { label: "CCA", sub: "Compte courant associé", value: ccaNet, perf: null as number | null },
-    { label: "FHF Equity", sub: "Capital + résultat", value: fhfEquity, perf: ibkrPerfPct },
-    { label: "PEA Perso", sub: `Plafond ${fmtEur(150000)}`, value: peaValue, perf: peaPerfPct },
-    { label: "Crypto Perso", sub: "100 % détenu", value: cryptoPersoValue, perf: cryptoPersoPerfPct },
-    { label: "Crypto R+F", sub: "Part Fabien · 50 %", value: cryptoSharedValue, perf: cryptoSharedPerfPct },
-  ]
-
-  const infoCards = [
-    { label: "Trading Actif", value: tradingProfit, perf: tradingWinRate, perfLabel: `${tradingWinRate.toFixed(0)} % WR`, sub: `${tradingCount} trades`, link: "/analytics", alloc: 0 },
-    { label: "FHF IBKR", value: ibkrNlv, perf: ibkrPerfPct, perfLabel: fmtPct(ibkrPerfPct), sub: `${positions.length} positions`, link: "/ibkr", alloc: patrimoineBrut > 0 ? (fhfEquity / patrimoineBrut) * 100 : 0 },
-    { label: "PEA Perso", value: peaValue, perf: peaPerfPct, perfLabel: fmtPct(peaPerfPct), sub: `${peaPositions.length} positions`, link: "/pea", alloc: patrimoineBrut > 0 ? (peaValue / patrimoineBrut) * 100 : 0 },
-    { label: "Crypto Perso", value: cryptoPersoValue, perf: cryptoPersoPerfPct, perfLabel: fmtPct(cryptoPersoPerfPct), sub: cryptoPersoValueUsd > 0 ? fmtUsd(cryptoPersoValueUsd) : `${cryptoPerso.length} positions`, link: "/crypto", alloc: patrimoineBrut > 0 ? (cryptoPersoValue / patrimoineBrut) * 100 : 0 },
-  ]
 
   return (
     <div style={{ padding: "28px 32px" }}>
@@ -366,37 +375,34 @@ export default function Home() {
       </div>
 
       {/* ── 2. LEAD — Brut + Courbe ─────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
-
-        {/* Left: patrimoine brut */}
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold flex items-center">
             Brut &middot; tous comptes
-            <InfoTip text="CCA + Equity FHF (NLV IBKR - CCA) + PEA + Crypto Perso + Crypto R+F. Avant impôts." wide />
+            <InfoTip text="FHF (IBKR + Kraken) + PEA + Crypto Perso + Crypto R+F. Avant impôts, hors CCA." wide />
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 52, fontWeight: 700, letterSpacing: -2, color: "var(--ink)", lineHeight: 1.1, marginTop: 8 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 48, fontWeight: 700, letterSpacing: -2, lineHeight: 1.1, marginTop: 4 }} className="text-[--ink]">
             {fmtEur(patrimoineBrut)}
           </div>
           {chartData.length > 1 && (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8, color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {chartVarAbs >= 0 ? "+" : ""}{fmtEur(chartVarAbs)} / {fmtPct(chartVarPct)}
+            <div style={{ fontFamily: "var(--font-mono)" }} className={`text-xs mt-1.5 tabular-nums ${chartVarAbs >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+              {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {chartRange}j
             </div>
           )}
-          <div style={{ marginTop: 24, padding: 16, background: "var(--at-surface)", border: "1px dotted var(--rule)", borderRadius: 4 }}>
-            <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+          <div className="mt-4 p-3 bg-[--at-surface] border border-dotted border-[--rule] rounded">
+            <div className="text-[9px] tracking-[0.15em] text-[--ink2] uppercase font-semibold flex items-center">
               Net après fiscalité estimée
-              <InfoTip text="CCA (100%) + FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout)." wide />
+              <InfoTip text="FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout)." wide />
             </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 6 }}>
+            <div style={{ fontFamily: "var(--font-serif)" }} className="text-xl font-bold mt-0.5 text-[--ink]">
               {fmtEur(patrimoineNet)}
             </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
-              IS société &middot; PFU crypto &middot; PS PEA sur PV uniquement
+            <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">
+              IS société &middot; PFU crypto &middot; PS PEA sur PV
             </div>
           </div>
         </div>
 
-        {/* Right: chart */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 14 }}>
@@ -421,7 +427,7 @@ export default function Home() {
             </div>
           </div>
           {chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="gradIBKR" x1="0" y1="0" x2="0" y2="1">
@@ -442,8 +448,7 @@ export default function Home() {
                   tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
                 <Tooltip
                   contentStyle={{ background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }}
-                  itemStyle={{ color: "#1a1814" }}
-                  labelStyle={{ color: "#4a4540" }}
+                  itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }}
                   formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
                 <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="url(#gradIBKR)" strokeWidth={1.5} />
@@ -452,45 +457,93 @@ export default function Home() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
               Pas encore de données
             </div>
           )}
         </div>
       </div>
 
-      {/* ── 3. BUCKETS ──────────────────────────────────────── */}
+      {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", marginBottom: 28 }}>
-        {buckets.map((b, i) => (
-          <div key={b.label} style={{ padding: "16px 18px", borderRight: i < 4 ? "1px solid var(--rule)" : "none" }}>
-            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-              {b.label}
+
+        {/* FHF */}
+        <Link href="/fhf" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">FHF</div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">IBKR + Kraken</div>
+          <div className="mt-3 space-y-1.5">
+            <PerfRow label="Investi" value={fmtEur(fhfCapitalTotal)} />
+            <PerfRow label="Valeur" value={fmtEur(fhfNlvTotal)} bold />
+            <PerfRow label="P&L" value={`${fhfPnl >= 0 ? "+" : ""}${fmtEur(fhfPnl)}`} color={fhfPnl >= 0} bold />
+          </div>
+          <RoiBar value={fhfRoi} />
+        </Link>
+
+        {/* Crypto Perso */}
+        <Link href="/crypto" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Crypto Perso</div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">100% détenu</div>
+          <div className="mt-3 space-y-1.5">
+            <PerfRow label="Investi" value={fmtEur(cryptoPersoCost)} />
+            <PerfRow label="Valeur" value={fmtEur(cryptoPersoValue)} bold />
+            <PerfRow label="P&L" value={`${cryptoPersoPnl >= 0 ? "+" : ""}${fmtEur(cryptoPersoPnl)}`} color={cryptoPersoPnl >= 0} bold />
+          </div>
+          <RoiBar value={cryptoPersoRoi} />
+        </Link>
+
+        {/* Crypto R+F */}
+        <Link href="/crypto-shared" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Crypto R+F</div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Part Fabien &middot; 50%</div>
+          <div className="mt-3 space-y-1.5">
+            <PerfRow label="Total" value={fmtEur(cryptoSharedValueTotal)} />
+            <PerfRow label="Part Fab." value={fmtEur(cryptoSharedValue)} bold />
+            <PerfRow label="P&L" value={`${cryptoSharedPnlFab >= 0 ? "+" : ""}${fmtEur(cryptoSharedPnlFab)}`} color={cryptoSharedPnlFab >= 0} bold />
+          </div>
+          <RoiBar value={cryptoSharedRoi} />
+        </Link>
+
+        {/* Trading Actif */}
+        <Link href="/analytics" style={{ textDecoration: "none", padding: "16px 22px", borderRight: "1px solid var(--rule)", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Trading Actif</div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Journal tous comptes</div>
+          <div className="mt-3 space-y-1.5">
+            <PerfRow label="P&L" value={`${tradingProfit >= 0 ? "+" : ""}${fmtEur(tradingProfit)}`} color={tradingProfit >= 0} bold />
+            <PerfRow label="Trades" value={String(tradingCount)} />
+            <PerfRow label="Win rate" value={`${tradingWinRate.toFixed(0)}%`} />
+          </div>
+          <div className="mt-3">
+            <div style={{ fontFamily: "var(--font-mono)" }} className={`text-sm font-bold tabular-nums ${tradingWinRate >= 50 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+              {tradingWinRate.toFixed(0)}% WR
             </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
-              {b.sub}
-            </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 26, fontWeight: 700, letterSpacing: -0.5, color: "var(--ink)", marginTop: 8 }}>
-              {fmtEur(b.value)}
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, marginTop: 4, color: b.perf === null ? "var(--ink3)" : b.perf >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {b.perf === null ? "—" : fmtPct(b.perf)}
+            <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${tradingWinRate >= 50 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
+                style={{ width: `${Math.min(100, tradingWinRate)}%` }} />
             </div>
           </div>
-        ))}
+        </Link>
+
+        {/* PEA */}
+        <Link href="/pea" style={{ textDecoration: "none", padding: "16px 22px", transition: "background .15s" }} className="hover:bg-[--at-surface]">
+          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">PEA Perso</div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Boursobank</div>
+          <div className="mt-3 space-y-1.5">
+            <PerfRow label="Versé" value={fmtEur(peaInvested)} />
+            <PerfRow label="Valeur" value={fmtEur(peaValue)} bold />
+            <PerfRow label="P&L" value={`${peaPnl >= 0 ? "+" : ""}${fmtEur(peaPnl)}`} color={peaPnl >= 0} bold />
+          </div>
+          <RoiBar value={peaRoi} />
+        </Link>
       </div>
 
       {/* ── 4. BOTTOM — Agenda + Notes ──────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
 
         {/* Agenda du marché */}
         <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
-              Agenda du marché
-            </span>
-            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
-              High Impact
-            </span>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Agenda du marché</span>
+            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>High Impact</span>
           </div>
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
             {marketLoading && <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Chargement...</p>}
@@ -527,43 +580,28 @@ export default function Home() {
         <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
-                Notes & Idées
-              </span>
-              <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
-                Carnet
-              </span>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Notes & Idées</span>
+              <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>Carnet</span>
             </div>
             <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
               style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-serif)", fontSize: 13, color: "var(--at-accent)", display: "flex", alignItems: "center", gap: 4 }}>
               <Plus size={13} /> Nouvelle note
             </button>
           </div>
-
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
             {showNoteForm && (
               <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 16, marginBottom: 12, background: "var(--at-surface)" }} onPaste={handleImagePaste}>
-                <input
-                  type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)}
-                  onPaste={handleImagePaste}
+                <input type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)} onPaste={handleImagePaste}
                   placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
-                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", boxSizing: "border-box" }}
-                />
-                <textarea
-                  value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  onPaste={handleImagePaste}
-                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)"
-                  rows={3}
-                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", resize: "none", marginTop: 8, boxSizing: "border-box" }}
-                />
+                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", boxSizing: "border-box" }} />
+                <textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} onPaste={handleImagePaste}
+                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)" rows={3}
+                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", resize: "none", marginTop: 8, boxSizing: "border-box" }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--rule)", borderRadius: 3, color: "var(--ink2)", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>
                     <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
                     <input type="file" accept="image/*" style={{ display: "none" }}
-                      onChange={e => {
-                        const f = e.target.files?.[0]
-                        if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) }
-                      }} />
+                      onChange={e => { const f = e.target.files?.[0]; if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) } }} />
                   </label>
                   {noteImagePreview && (
                     <div style={{ position: "relative" }}>
@@ -587,41 +625,27 @@ export default function Home() {
                 </div>
               </div>
             )}
-
             {notes.length === 0 && !showNoteForm && (
-              <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>
-                Aucune note.
-              </p>
+              <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>Aucune note.</p>
             )}
-
             {notes.map(note => (
               <div key={note.id}>
-                <div
-                  onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
+                <div onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
                   style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px dotted var(--rule)", cursor: "pointer" }}>
-                  {note.image_url && (
-                    <img src={note.image_url} alt=""
-                      style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 2, flexShrink: 0 }} />
-                  )}
+                  {note.image_url && <img src={note.image_url} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 2, flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, lineHeight: 1.3, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {note.title}
-                    </div>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, lineHeight: 1.3, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{note.title}</div>
                     <div style={{ fontSize: 9, letterSpacing: 1.5, color: "var(--ink3)", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginTop: 2 }}>
                       {new Date(note.created_at).toLocaleDateString("fr-FR")}
                     </div>
                   </div>
                   {note.is_pinned && <Pin size={11} style={{ color: "var(--at-accent)", flexShrink: 0, marginTop: 4 }} />}
                 </div>
-
                 {expandedNote === note.id && (
                   <div style={{ padding: "10px 0 10px 50px", borderBottom: "1px dotted var(--rule)" }}>
-                    {note.content && (
-                      <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--ink2)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{note.content}</div>
-                    )}
+                    {note.content && <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--ink2)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{note.content}</div>}
                     {note.image_url && (
-                      <img src={note.image_url} alt="chart"
-                        style={{ maxWidth: "100%", maxHeight: 300, marginTop: 8, borderRadius: 4, cursor: "zoom-in" }}
+                      <img src={note.image_url} alt="chart" style={{ maxWidth: "100%", maxHeight: 300, marginTop: 8, borderRadius: 4, cursor: "zoom-in" }}
                         onClick={(e) => { e.stopPropagation(); window.open(note.image_url, "_blank") }} />
                     )}
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -630,13 +654,9 @@ export default function Home() {
                         {note.is_pinned ? "Désépingler" : "Épingler"}
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); startEditNote(note) }}
-                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>
-                        Modifier
-                      </button>
+                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>Modifier</button>
                       <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }}
-                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--at-neg)", cursor: "pointer", background: "none", border: "none" }}>
-                        Supprimer
-                      </button>
+                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--at-neg)", cursor: "pointer", background: "none", border: "none" }}>Supprimer</button>
                     </div>
                   </div>
                 )}
@@ -645,28 +665,31 @@ export default function Home() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* ── 5. INFO CARDS ───────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-        {infoCards.map(c => (
-          <Link key={c.label} href={c.link}
-            style={{ display: "block", padding: 18, border: "1px solid var(--rule)", borderRadius: 4, background: "var(--at-surface)", cursor: "pointer", textDecoration: "none", transition: "border-color .15s" }}
-            className="hover:!border-[--at-accent]/40">
-            <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
-              {c.label}
-            </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", marginTop: 6 }}>
-              {fmtEur(c.value)}
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, marginTop: 4, color: c.perf >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {c.perfLabel}
-            </div>
-            <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", marginTop: 2 }}>{c.sub}</div>
-            <div style={{ height: 4, borderRadius: 2, background: "var(--rule)", marginTop: 12, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 2, background: "var(--at-accent)", width: `${Math.min(c.alloc, 100)}%`, transition: "width .3s" }} />
-            </div>
-          </Link>
-        ))}
+function PerfRow({ label, value, bold, color }: { label: string; value: string; bold?: boolean; color?: boolean }) {
+  const colorClass = color === undefined ? "text-[--ink]" : color ? "text-[--at-pos]" : "text-[--at-neg]"
+  return (
+    <div className="flex justify-between text-xs">
+      <span className="text-[--ink3]">{label}</span>
+      <span style={{ fontFamily: "var(--font-mono)" }} className={`tabular-nums ${bold ? "font-bold" : ""} ${colorClass}`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function RoiBar({ value }: { value: number }) {
+  return (
+    <div className="mt-3">
+      <div style={{ fontFamily: "var(--font-mono)" }} className={`text-sm font-bold tabular-nums ${value >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+        {fmtPct(value)}
+      </div>
+      <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${value >= 0 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
+          style={{ width: `${Math.min(100, Math.abs(value))}%` }} />
       </div>
     </div>
   )
