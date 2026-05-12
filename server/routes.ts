@@ -81,10 +81,17 @@ export async function registerRoutes(
     
     if (authError || !user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('trades')
       .select('profit, risk')
       .eq('user_id', user.id);
+
+    const exclude = (req.query.exclude as string || "").split(",").map(s => s.trim()).filter(Boolean);
+    for (const ex of exclude) {
+      query = query.neq('compte', ex);
+    }
+
+    const { data, error } = await query;
 
     if (error) return res.status(500).json({ message: error.message });
 

@@ -65,7 +65,7 @@ export default function Home() {
   useEffect(() => {
     if (!user) { setLoading(false); return }
     Promise.all([
-      authFetch("/api/trades/stats").then((r) => r.ok ? r.json() : null).catch(() => null),
+      authFetch("/api/trades/stats?exclude=Kraken,FTMO").then((r) => r.ok ? r.json() : null).catch(() => null),
       authFetch("/api/accounts").then(async (r) => {
         if (!r.ok) return { ibkr: null, pea: null, crypto: null }
         const { accounts } = await r.json()
