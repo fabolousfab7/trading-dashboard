@@ -19,6 +19,7 @@ function fmtEur(n: number) {
 }
 
 const RANGES = [
+  { label: "24h", days: 1 },
   { label: "1S", days: 7 },
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
@@ -27,19 +28,19 @@ const RANGES = [
 ]
 
 const CHART_LEGEND_VALUE = [
-  { label: "IBKR", color: "#7d2b1d" },
-  { label: "Kraken", color: "#a3453a" },
-  { label: "Qonto", color: "#c4706a" },
-  { label: "PEA", color: "#cfb88f" },
-  { label: "Crypto P", color: "#3a6e3f" },
-  { label: "R+F", color: "#6b9f71" },
+  { label: "IBKR", color: "#2d5a27" },
+  { label: "Kraken", color: "#3a6e3f" },
+  { label: "Qonto", color: "#6b9f71" },
+  { label: "PEA", color: "#7d2b1d" },
+  { label: "Crypto P", color: "#b8944a" },
+  { label: "R+F", color: "#cfb88f" },
 ]
 
 const CHART_LEGEND_PERF = [
-  { label: "FHF", color: "#7d2b1d" },
-  { label: "PEA", color: "#cfb88f" },
-  { label: "Crypto P", color: "#3a6e3f" },
-  { label: "Crypto R+F", color: "#c08a4d" },
+  { label: "FHF", color: "#2d5a27" },
+  { label: "PEA", color: "#7d2b1d" },
+  { label: "Crypto P", color: "#b8944a" },
+  { label: "Crypto R+F", color: "#cfb88f" },
 ]
 
 const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA}\u{1F1FA}", GBP: "\u{1F1EC}\u{1F1E7}", JPY: "\u{1F1EF}\u{1F1F5}", CAD: "\u{1F1E8}\u{1F1E6}", AUD: "\u{1F1E6}\u{1F1FA}", NZD: "\u{1F1F3}\u{1F1FF}", CHF: "\u{1F1E8}\u{1F1ED}", CNY: "\u{1F1E8}\u{1F1F3}" }
@@ -525,12 +526,12 @@ export default function Home() {
                   contentStyle={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)" }}
                   formatter={(value: number, name: string) => [fmtEur(value), name]}
                 />
-                <Area type="monotone" dataKey="Qonto" stackId="1" stroke="#c4706a" fill="#c4706a" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Kraken" stackId="1" stroke="#a3453a" fill="#a3453a" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#7d2b1d" fill="#7d2b1d" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="PEA" stackId="1" stroke="#cfb88f" fill="#cfb88f" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Crypto R+F" stackId="1" stroke="#6b9f71" fill="#6b9f71" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Crypto Perso" stackId="1" stroke="#3a6e3f" fill="#3a6e3f" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Qonto" stackId="1" stroke="#6b9f71" fill="#6b9f71" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Kraken" stackId="1" stroke="#3a6e3f" fill="#3a6e3f" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#2d5a27" fill="#2d5a27" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="PEA" stackId="1" stroke="#7d2b1d" fill="#7d2b1d" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Crypto R+F" stackId="1" stroke="#cfb88f" fill="#cfb88f" fillOpacity={0.85} />
+                <Area type="monotone" dataKey="Crypto Perso" stackId="1" stroke="#b8944a" fill="#b8944a" fillOpacity={0.85} />
               </AreaChart>
             </ResponsiveContainer>
           ) : chartMode === "perf" && perfData.length > 1 ? (
@@ -545,10 +546,10 @@ export default function Home() {
                   formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name]}
                 />
                 <ReferenceLine y={0} stroke="var(--ink)" strokeWidth={1} />
-                <Line type="monotone" dataKey="FHF" stroke="#7d2b1d" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="PEA" stroke="#cfb88f" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Crypto P" stroke="#3a6e3f" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Crypto R+F" stroke="#c08a4d" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="FHF" stroke="#2d5a27" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="PEA" stroke="#7d2b1d" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Crypto P" stroke="#b8944a" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Crypto R+F" stroke="#cfb88f" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
