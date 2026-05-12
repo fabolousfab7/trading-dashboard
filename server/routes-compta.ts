@@ -668,6 +668,33 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     res.json({ category, capital_invested: invested })
   })
 
+  app.get("/api/compta/bank-balance", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    try {
+      const { data: transactions } = await userClient
+        .from("fhf_bank_transactions")
+        .select("amount, side, settlement_date")
+        .order("settlement_date", { ascending: false })
+
+      if (!transactions || transactions.length === 0) {
+        return res.json({ balance: 0, lastDate: null, nbTransactions: 0 })
+      }
+
+      const balance = transactions.reduce((s: number, t: any) => {
+        const amt = Math.abs(Number(t.amount))
+        return s + (t.side === "credit" ? amt : -amt)
+      }, 0)
+
+      res.json({
+        balance,
+        lastDate: transactions[0].settlement_date,
+        nbTransactions: transactions.length,
+      })
+    } catch (err: any) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   // FHF Simulation fiscale
   app.get("/api/fhf/simulation", auth, async (req: Request, res: Response) => {
     const userClient = userScopedClient((req as any).userToken)
@@ -804,6 +831,14 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       const resultat_net = resultat_avant_is - is_amount
       const taux_effectif_is = resultat_avant_is > 0 ? (is_amount / resultat_avant_is) * 100 : 0
 
+      const { data: bankTx } = await userClient
+        .from("fhf_bank_transactions")
+        .select("amount, side")
+      const tresoQonto = (bankTx || []).reduce((s: number, t: any) => {
+        const amt = Math.abs(Number(t.amount))
+        return s + (t.side === "credit" ? amt : -amt)
+      }, 0)
+
       res.json({
         year,
         ibkr_nlv,
@@ -837,6 +872,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         is_tranche_reduite: resultat_avant_is > 0 ? Math.min(resultat_avant_is, 42500) * 0.15 : 0,
         is_tranche_normale: resultat_avant_is > 42500 ? (resultat_avant_is - 42500) * 0.25 : 0,
         cca_balance,
+        treso_qonto: tresoQonto,
       })
     } catch (err: any) {
       res.status(500).json({ error: err.message })

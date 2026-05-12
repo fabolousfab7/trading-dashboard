@@ -68,6 +68,7 @@ export default function Compta() {
   const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
+  const [bankBalance, setBankBalance] = useState<{ balance: number; lastDate: string | null; nbTransactions: number } | null>(null)
   const { toast } = useToast()
 
   const loadData = useCallback(async () => {
@@ -89,6 +90,10 @@ export default function Compta() {
       setVatSummary(await vatR.json())
       const sugD = await sugR.json()
       setSuggestions(sugD.suggestions || [])
+      authFetch("/api/compta/bank-balance")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setBankBalance(d))
+        .catch(() => {})
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }, [selectedMonth])
@@ -445,7 +450,7 @@ export default function Compta() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
           <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">CHARGES HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." /></div>
           <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
@@ -470,6 +475,17 @@ export default function Compta() {
           </div>
           <div className="text-[10px] font-mono text-[--ink3] mt-1">
             {(stats?.cca_balance || 0) >= 0 ? "FHF te doit" : "Tu dois a FHF"}
+          </div>
+        </div>
+        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">SOLDE QONTO<InfoTip text="Solde calculé depuis les relevés CSV importés. Entrées − Sorties depuis la 1ère transaction. Dernier mouvement importé affiché en dessous." /></div>
+          <div style={{ fontFamily: "var(--font-serif)" }} className="text-2xl font-bold tracking-tight">
+            {bankBalance ? fmtEur(bankBalance.balance) : "—"}
+          </div>
+          <div className="text-[10px] italic text-[--ink3] mt-0.5" style={{ fontFamily: "var(--font-serif)" }}>
+            {bankBalance?.lastDate
+              ? `Relevé au ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")}`
+              : "Aucun relevé importé"}
           </div>
         </div>
       </div>
@@ -525,6 +541,11 @@ export default function Compta() {
               Sélectionner un CSV
               <input type="file" accept=".csv" onChange={handleCsvDrop} className="hidden" />
             </label>
+          </div>
+          <div className="text-[10px] text-[--ink3] mt-2" style={{ fontFamily: "var(--font-serif)" }}>
+            {bankBalance?.lastDate
+              ? `Dernier mouvement importé : ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")} · ${bankBalance.nbTransactions} transactions`
+              : "Aucun relevé importé"}
           </div>
           {importResult && <div className="mt-3 text-[--at-pos] font-mono text-xs">{importResult}</div>}
           <button

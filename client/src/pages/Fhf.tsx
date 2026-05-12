@@ -56,6 +56,7 @@ interface SimData {
   is_tranche_reduite: number
   is_tranche_normale: number
   cca_balance: number
+  treso_qonto: number
 }
 
 export default function Fhf() {
@@ -465,6 +466,13 @@ export default function Fhf() {
           <div className="text-[10px] text-[--ink3] mt-1">
             {data.cca_balance >= 0 ? "FHF doit à Fabien" : "Fabien doit à FHF"}
           </div>
+        </div>
+        <div className="border border-[--rule] rounded-lg p-4 bg-[--at-surface]">
+          <div className="text-[10px] text-[--ink3] uppercase tracking-wider mb-1 flex items-center">
+            Trésorerie Qonto<InfoTip text="Solde du compte bancaire FHF (Qonto). Calculé depuis les relevés CSV importés." />
+          </div>
+          <div className="text-lg font-bold text-[--at-accent]">{EUR.format(data.treso_qonto)}</div>
+          <div className="text-[10px] text-[--ink3] mt-1">Solde bancaire</div>
         </div>
         <div className="border border-[--rule] rounded-lg p-4 bg-[--at-surface]">
           <div className="text-[10px] text-[--ink3] uppercase tracking-wider mb-1 flex items-center">
