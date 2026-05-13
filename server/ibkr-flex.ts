@@ -118,9 +118,9 @@ async function sendRequest(token: string, queryId: string, maxAttempts = 2, dela
     }
 
     if (String(errorCode) === "1001") {
-      throw new Error("IBKR Flex temporairement indisponible (rate-limit). Réessaie dans 15-30 minutes.")
+      throw new Error(`IBKR_RATE_LIMIT: ${errorMessage}`)
     }
-    throw new Error(`Flex SendRequest error ${errorCode}: ${errorMessage}`)
+    throw new Error(`IBKR_API_ERROR_${errorCode}: ${errorMessage}`)
   }
 
   throw new Error("Flex SendRequest: unexpected exit from retry loop")

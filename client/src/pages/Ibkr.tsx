@@ -96,6 +96,7 @@ export default function Ibkr() {
   const [error, setError] = useState<string | null>(null)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncSuccess, setSyncSuccess] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
   const [comptaCapital, setComptaCapital] = useState<number | null>(null)
 
@@ -135,22 +136,27 @@ export default function Ibkr() {
     } finally { setRefreshing(false) }
   }
 
-  async function syncIbkr() {
+  async function syncIbkr(force = false) {
     if (!account?.id) return
-    setSyncing(true); setSyncError(null)
+    setSyncing(true); setSyncError(null); setSyncSuccess(null)
     try {
-      const r = await authFetch(`/api/accounts/${account.id}/sync`, { method: "POST" })
+      const url = `/api/accounts/${account.id}/sync${force ? "?force=true" : ""}`
+      const r = await authFetch(url, { method: "POST" })
       const text = await r.text()
-      let result: { error?: string }
+      let result: { error?: string; positionsCount?: number; syncedAt?: string }
       try {
         result = JSON.parse(text)
       } catch {
         if (text.includes("timed out") || text.includes("Timeout")) {
-          throw new Error("Le serveur a mis trop de temps à répondre (timeout). IBKR Flex est probablement en rate-limit, réessaie dans 15-30 minutes.")
+          throw new Error("Timeout réseau côté IBKR, réessaie dans quelques minutes.")
         }
-        throw new Error(`Erreur serveur (HTTP ${r.status}). La lambda a probablement crashé ou timeout.`)
+        throw new Error(`Erreur serveur (HTTP ${r.status})`)
       }
       if (!r.ok) throw new Error(result.error || `Sync failed (HTTP ${r.status})`)
+      const time = result.syncedAt
+        ? new Date(result.syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+        : new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      setSyncSuccess(`Sync OK · ${result.positionsCount ?? "?"} positions · ${time}`)
       await loadData()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -242,7 +248,7 @@ export default function Ibkr() {
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               Rafraîchir prix
             </button>
-            <button onClick={syncIbkr} disabled={syncing}
+            <button onClick={() => syncIbkr(false)} disabled={syncing}
               style={{
                 padding: "7px 16px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase",
                 background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink)", borderRadius: 3,
@@ -253,6 +259,17 @@ export default function Ibkr() {
               onMouseLeave={e => { e.currentTarget.style.background = "var(--at-surface)" }}>
               <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
               Sync IBKR Flex
+            </button>
+            <button onClick={() => syncIbkr(true)} disabled={syncing}
+              style={{
+                padding: "7px 10px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase",
+                background: "transparent", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3,
+                cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.5 : 1,
+                transition: "background .15s",
+              }}
+              onMouseEnter={e => { if (!syncing) e.currentTarget.style.background = "var(--at-bg)" }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+              Forcer
             </button>
           </div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)", marginTop: 6 }}>
@@ -280,6 +297,12 @@ export default function Ibkr() {
         <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>Sync : {syncError}</span>
           <button onClick={() => setSyncError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
+        </div>
+      )}
+      {syncSuccess && (
+        <div style={{ background: "color-mix(in srgb, var(--at-pos) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-pos) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "var(--at-pos)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{syncSuccess}</span>
+          <button onClick={() => setSyncSuccess(null)} style={{ color: "var(--at-pos)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
         </div>
       )}
 

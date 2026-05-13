@@ -328,6 +328,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const userId = (req as any).userId
     const userClient = userScopedClient((req as any).userToken)
     const accountId = req.params.id
+    const force = req.query.force === "true" || req.body?.force === true
     const { data: account, error: accErr } = await userClient
       .from("accounts")
       .select("*, ibkr_config(*)")
@@ -338,8 +339,12 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const config = (account as any).ibkr_config?.[0] || (account as any).ibkr_config
     if (!config) return res.status(400).json({ error: "No IBKR config for this account" })
     const baseCurrency = account.currency_base || "EUR"
+    const lastSyncAt = config.last_synced_at
+
+    console.log(`[ibkr-sync] start`, { source: force ? "user-force" : "user", accountId, lastSyncAt })
 
     try {
+      console.log(`[ibkr-sync] calling IBKR Flex...`)
       const data = await fetchFlexReport(config.flex_token, config.query_id)
       const nlv = calculateNlvInBase(data, baseCurrency)
       const now = new Date().toISOString()
@@ -405,6 +410,8 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         })
         .eq("account_id", accountId)
 
+      console.log(`[ibkr-sync] OK`, { positionsCount: data.openPositions.length, cashCount: data.cashBalances.length, nlvBase: nlv.nlvBase })
+
       return res.json({
         success: true,
         syncedAt: now,
@@ -412,15 +419,31 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         cashCount: data.cashBalances.length,
         nlvBase: nlv.nlvBase,
       })
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e)
+      console.error(`[ibkr-sync] error:`, raw)
+
       await userClient
         .from("ibkr_config")
         .update({
           last_sync_status: "error",
-          last_sync_error: String(e.message || e),
+          last_sync_error: raw,
         })
         .eq("account_id", accountId)
-      return res.status(500).json({ error: String(e.message || e) })
+
+      let userMessage = raw
+      if (raw.startsWith("IBKR_RATE_LIMIT:")) {
+        const lastSync = lastSyncAt ? new Date(lastSyncAt) : null
+        const ago = lastSync ? Math.round((Date.now() - lastSync.getTime()) / 60000) : null
+        const nextFree = lastSync ? new Date(lastSync.getTime() + 15 * 60000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
+        userMessage = `Rate-limit IBKR Flex.${ago !== null ? ` Dernier sync il y a ${ago}min.` : ""}${nextFree ? ` Prochain libre vers ${nextFree}.` : ""} Ou clique Forcer.`
+      } else if (raw.includes("timed out") || raw.includes("Timeout") || raw.includes("timeout")) {
+        userMessage = "Timeout réseau côté IBKR, réessaie dans quelques minutes."
+      } else if (raw.startsWith("IBKR_API_ERROR_")) {
+        userMessage = `IBKR Flex : ${raw.replace(/^IBKR_API_ERROR_\d+:\s*/, "")}`
+      }
+
+      return res.status(500).json({ error: userMessage })
     }
   })
 
