@@ -72,6 +72,7 @@ export default function Home() {
   const [bankBalance, setBankBalance] = useState<any>(null)
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
+  const [cotData, setCotData] = useState<any>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null))
@@ -121,6 +122,10 @@ export default function Home() {
     authFetch("/api/compta/bank-balance")
       .then(r => r.ok ? r.json() : null)
       .then(d => setBankBalance(d))
+      .catch(() => {})
+    fetch("/api/cot/latest")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setCotData(d))
       .catch(() => {})
   }, [user])
 
@@ -819,6 +824,107 @@ export default function Home() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── 5. WIDGET COT ──────────────────────────────────── */}
+      <div style={{ marginTop: 28, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+        {(() => {
+          const EXPOSED = ["BTC", "ETH", "SP500", "NASDAQ", "RUSSELL"]
+          const cotInstruments = cotData?.instruments || []
+          const latestDate = cotData?.latestDate
+
+          if (cotInstruments.length === 0 || !cotInstruments.some((i: any) => i.data)) {
+            return (
+              <>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
+                  <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Rapport COT</span>
+                  <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>CFTC</span>
+                </div>
+                <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
+                  Rapport COT pas encore récupéré &middot; premier sync prévu samedi 02h UTC
+                </p>
+              </>
+            )
+          }
+
+          const reportDate = latestDate ? new Date(latestDate + "T00:00:00") : null
+          const tuesdayStr = reportDate
+            ? `mardi ${reportDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
+            : "—"
+          const friday = reportDate ? new Date(reportDate.getTime() + 3 * 86400000) : null
+          const fridayStr = friday
+            ? `vendredi ${friday.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
+            : "—"
+
+          function fmtNet(n: number): string {
+            const abs = Math.abs(n)
+            if (abs >= 1000) return `${n >= 0 ? "+" : ""}${(n / 1000).toFixed(0)} k`
+            return `${n >= 0 ? "+" : ""}${n.toLocaleString("fr-FR")}`
+          }
+
+          return (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Rapport COT</span>
+                <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+                  CFTC &middot; arrêté au {tuesdayStr} &middot; publié {fridayStr}
+                </span>
+              </div>
+
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "var(--at-surface)" }}>
+                      {["Instrument", "Net LS", "Δ 7j", "1Y %ile", "Biais"].map((h, i) => (
+                        <th key={h} style={{
+                          padding: "10px 14px",
+                          textAlign: i === 0 ? "left" : "right",
+                          fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                          borderBottom: "1px solid var(--rule)",
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cotInstruments.map((inst: any) => {
+                      const d = inst.data
+                      const isExposed = EXPOSED.includes(inst.key)
+                      const biaisColor = d?.biais === "haussier" ? "var(--at-pos)" : d?.biais === "baissier" ? "var(--at-neg)" : "var(--ink3)"
+                      const biaisArrow = d?.biais === "haussier" ? "↑" : d?.biais === "baissier" ? "↓" : "→"
+
+                      return (
+                        <tr key={inst.key} style={{
+                          borderBottom: "1px dotted var(--rule)",
+                          background: isExposed ? "var(--at-surface)" : "transparent",
+                        }}>
+                          <td style={{ padding: "9px 14px", fontFamily: "var(--font-serif)", fontSize: 14, color: "var(--ink)" }}>
+                            {inst.label}
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ink)" }}>
+                            {d ? fmtNet(d.net_large_specs) : "—"}
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: d?.delta_7d != null ? (d.delta_7d >= 0 ? "var(--at-pos)" : "var(--at-neg)") : "var(--ink3)" }}>
+                            {d?.delta_7d != null ? fmtNet(d.delta_7d) : "—"}
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ink2)" }}>
+                            {d?.percentile_1y != null ? `${d.percentile_1y.toFixed(0)} %` : "—"}
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 600, color: biaisColor }}>
+                            {d ? `${biaisArrow} ${d.biais}` : "—"}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 8 }}>
+                Tu es exposé long sur les 5 premiers &middot; les autres sont info macro
+              </div>
+            </>
+          )
+        })()}
       </div>
     </div>
   )

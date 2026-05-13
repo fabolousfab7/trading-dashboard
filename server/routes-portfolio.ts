@@ -11,6 +11,7 @@ import { fetchCoinGeckoPrices } from "./coingecko.js"
 import { fetchYahooPrice } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
+import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -904,5 +905,73 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const { error } = await userClient.from("position_notes").delete().eq("id", req.params.id)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(204).send()
+  })
+
+  // ── COT (Commitment of Traders) ─────────────────────────────────────
+
+  app.get("/api/cron/cot", async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization
+    const cronSecret = process.env.CRON_SECRET
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+    console.log("[cot-cron]", "starting COT sync")
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    try {
+      const result = await syncCotReports(serviceClient)
+      console.log("[cot-cron]", `fetched ${result.fetched} instruments`, result.errors.length > 0 ? `errors: ${result.errors.join("; ")}` : "")
+      return res.json({ success: true, ...result })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[cot-cron]", "fatal", msg)
+      return res.status(500).json({ success: false, error: msg })
+    }
+  })
+
+  app.get("/api/cot/latest", async (_req: Request, res: Response) => {
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data, error } = await serviceClient
+      .from("cot_reports")
+      .select("instrument, report_date, net_large_specs, delta_7d, percentile_1y")
+      .order("report_date", { ascending: false })
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    const latestByInstrument: Record<string, any> = {}
+    for (const row of data || []) {
+      if (!latestByInstrument[row.instrument]) {
+        latestByInstrument[row.instrument] = row
+      }
+    }
+
+    const instruments = COT_INSTRUMENTS.map(inst => {
+      const row = latestByInstrument[inst.key]
+      if (!row) return { key: inst.key, label: inst.label, data: null }
+      const net = Number(row.net_large_specs)
+      const pct = row.percentile_1y !== null ? Number(row.percentile_1y) : null
+      let biais: "haussier" | "baissier" | "neutre" = "neutre"
+      if (net > 0 && pct !== null && pct >= 60) biais = "haussier"
+      else if (net < 0 && pct !== null && pct <= 40) biais = "baissier"
+      return {
+        key: inst.key,
+        label: inst.label,
+        data: {
+          report_date: row.report_date,
+          net_large_specs: net,
+          delta_7d: row.delta_7d !== null ? Number(row.delta_7d) : null,
+          percentile_1y: pct,
+          biais,
+        },
+      }
+    })
+
+    const latestDate = Object.values(latestByInstrument)[0]?.report_date || null
+    return res.json({ instruments, latestDate })
   })
 }
