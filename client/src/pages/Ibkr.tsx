@@ -434,7 +434,7 @@ export default function Ibkr() {
                           {price.toFixed(2)} {sym}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
-                          {fmtEur(valueFx)}
+                          {value.toFixed(2)} {sym}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: dayVar === null ? "var(--ink3)" : dayVar >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
                           {dayVar === null ? "—" : `${dayVar >= 0 ? "+" : ""}${dayVar.toFixed(2)} %`}
