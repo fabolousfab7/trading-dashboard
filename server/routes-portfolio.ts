@@ -340,8 +340,25 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     if (!config) return res.status(400).json({ error: "No IBKR config for this account" })
     const baseCurrency = account.currency_base || "EUR"
     const lastSyncAt = config.last_synced_at
+    const COOLDOWN_MS = 15 * 60 * 1000
+    const lastSyncDate = lastSyncAt ? new Date(lastSyncAt) : null
+    const cooldownEndsAt = lastSyncDate ? new Date(lastSyncDate.getTime() + COOLDOWN_MS) : null
+    const inCooldown = cooldownEndsAt ? Date.now() < cooldownEndsAt.getTime() : false
 
-    console.log(`[ibkr-sync] start`, { source: force ? "user-force" : "user", accountId, lastSyncAt })
+    console.log(`[ibkr-sync] start`, { source: force ? "user-force" : "user", accountId, lastSyncAt, cooldownEndsAt: cooldownEndsAt?.toISOString(), inCooldown, force })
+
+    if (inCooldown && !force) {
+      const agoMin = lastSyncDate ? Math.round((Date.now() - lastSyncDate.getTime()) / 60000) : 0
+      const freeAt = cooldownEndsAt!.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      console.log(`[ibkr-sync] BLOCKED by app cooldown, retry in ${Math.round((cooldownEndsAt!.getTime() - Date.now()) / 60000)}min`)
+      return res.status(429).json({
+        error: `Dernier sync il y a ${agoMin}min. Prochain libre vers ${freeAt}, ou clique Forcer.`,
+      })
+    }
+
+    if (force && inCooldown) {
+      console.log(`[ibkr-sync] FORCE mode, skipping app cooldown`)
+    }
 
     try {
       console.log(`[ibkr-sync] calling IBKR Flex...`)
@@ -433,10 +450,9 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
 
       let userMessage = raw
       if (raw.startsWith("IBKR_RATE_LIMIT:")) {
-        const lastSync = lastSyncAt ? new Date(lastSyncAt) : null
-        const ago = lastSync ? Math.round((Date.now() - lastSync.getTime()) / 60000) : null
-        const nextFree = lastSync ? new Date(lastSync.getTime() + 15 * 60000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
-        userMessage = `Rate-limit IBKR Flex.${ago !== null ? ` Dernier sync il y a ${ago}min.` : ""}${nextFree ? ` Prochain libre vers ${nextFree}.` : ""} Ou clique Forcer.`
+        const ibkrMsg = raw.replace(/^IBKR_RATE_LIMIT:\s*/, "")
+        console.error(`[ibkr-sync] IBKR RATE LIMIT (code 1001): "${ibkrMsg}"`)
+        userMessage = `Rate-limit IBKR (réponse serveur) : ${ibkrMsg}. Réessaie dans 15 min.`
       } else if (raw.includes("timed out") || raw.includes("Timeout") || raw.includes("timeout")) {
         userMessage = "Timeout réseau côté IBKR, réessaie dans quelques minutes."
       } else if (raw.startsWith("IBKR_API_ERROR_")) {
