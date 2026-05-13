@@ -231,14 +231,14 @@ export default function Ibkr() {
             Société FHF &middot; compte titres IBKR
           </div>
           <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
-            Portefeuille FHF
+            Le carnet d'ordres.
           </h1>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={refreshPrices} disabled={refreshing}
               style={{
-                padding: "7px 16px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase",
+                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
                 background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink)", borderRadius: 3,
                 cursor: refreshing ? "wait" : "pointer", opacity: refreshing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6,
                 transition: "background .15s",
@@ -250,19 +250,17 @@ export default function Ibkr() {
             </button>
             <button onClick={() => syncIbkr(false)} disabled={syncing}
               style={{
-                padding: "7px 16px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase",
-                background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink)", borderRadius: 3,
+                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
                 cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6,
-                transition: "background .15s",
-              }}
-              onMouseEnter={e => { if (!syncing) e.currentTarget.style.background = "var(--at-bg)" }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--at-surface)" }}>
+                transition: "opacity .15s",
+              }}>
               <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
               Sync IBKR Flex
             </button>
             <button onClick={() => syncIbkr(true)} disabled={syncing}
               style={{
-                padding: "7px 10px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase",
+                padding: "8px 10px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
                 background: "transparent", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3,
                 cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.5 : 1,
                 transition: "background .15s",
@@ -314,10 +312,10 @@ export default function Ibkr() {
             NLV totale
             <InfoTip text="Net Liquidation Value = Cash + Valeur marchande des positions. Sync IBKR Flex Query quotidienne 22h UTC." />
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -1 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
             {fmtEur(nlv)}
           </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
             Positions {fmtEur(positionsBase)} &middot; Cash {fmtEur(cashBase)}
           </div>
         </div>
@@ -328,10 +326,10 @@ export default function Ibkr() {
             Perf totale
             <InfoTip text="(NLV actuelle − Capital investi) / Capital investi × 100. Inclut P&L réalisé + latent + dividendes − commissions." />
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: totalPerf >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -1 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: totalPerf >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {totalPerf >= 0 ? "+" : ""}{fmtEur(totalPerf)}
           </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
             {totalPerfPct >= 0 ? "+" : ""}{totalPerfPct.toFixed(2)} %
           </div>
         </div>
@@ -341,7 +339,7 @@ export default function Ibkr() {
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
             P&L latent
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: unrealizedPnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -1 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: unrealizedPnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {unrealizedPnl >= 0 ? "+" : ""}{fmtEur(unrealizedPnl)}
           </div>
         </div>
@@ -351,10 +349,10 @@ export default function Ibkr() {
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
             Cash net
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -1 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
             {fmtEur(cashBase)}
           </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
             {cashBalances.map((c) => `${Number(c.amount).toFixed(0)} ${c.currency}`).join(" · ")}
           </div>
         </div>
@@ -365,11 +363,11 @@ export default function Ibkr() {
 
         {/* LEFT — Positions table */}
         <div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
               Positions ouvertes
             </span>
-            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
               {positions.length} lignes &middot; classées par valeur
             </span>
           </div>
@@ -460,11 +458,11 @@ export default function Ibkr() {
 
         {/* RIGHT — Sector allocation donut */}
         <div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
               Allocation
             </span>
-            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
               Par secteur
             </span>
           </div>
