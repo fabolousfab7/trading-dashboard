@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react"
 import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
-import { Plus, Pin, Trash2, Edit3, Image, X } from "lucide-react"
+import { Plus, Pin, Trash2, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
+import NotePanel from "@/components/NotePanel"
 import { AreaChart, Area, LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -60,14 +61,9 @@ export default function Home() {
   const [chartRange, setChartRange] = useState(90)
   const [chartMode, setChartMode] = useState<"value" | "perf">("value")
   const [notes, setNotes] = useState<any[]>([])
-  const [showNoteForm, setShowNoteForm] = useState(false)
-  const [editingNote, setEditingNote] = useState<any>(null)
-  const [noteTitle, setNoteTitle] = useState("")
-  const [noteContent, setNoteContent] = useState("")
-  const [noteImage, setNoteImage] = useState<File | null>(null)
-  const [noteImagePreview, setNoteImagePreview] = useState<string | null>(null)
-  const [noteSaving, setNoteSaving] = useState(false)
-  const [expandedNote, setExpandedNote] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerNote, setDrawerNote] = useState<any>(null)
+  const [drawerTitle, setDrawerTitle] = useState("")
   const [fhfSim, setFhfSim] = useState<any>(null)
   const [bankBalance, setBankBalance] = useState<any>(null)
   const [marketEvents, setMarketEvents] = useState<any[]>([])
@@ -226,60 +222,30 @@ export default function Home() {
     })
   }, [snapshots, snapshotAccounts, trades])
 
-  async function saveNote() {
-    if (!noteTitle.trim()) return
-    setNoteSaving(true)
-    try {
-      let imageUrl = editingNote?.image_url || null
-      if (noteImage) {
-        const { data: session } = await supabase.auth.getSession()
-        const userId = session.session?.user?.id
-        const ext = noteImage.name.split('.').pop()
-        const fileName = `${userId}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage
-          .from('note-images')
-          .upload(fileName, noteImage, { contentType: noteImage.type })
-        if (!upErr) {
-          const { data: urlData } = supabase.storage
-            .from('note-images')
-            .getPublicUrl(fileName)
-          imageUrl = urlData.publicUrl
-        }
-      }
-      const body = { title: noteTitle, content: noteContent || null, image_url: imageUrl }
-      if (editingNote) {
-        const r = await authFetch(`/api/notes/${editingNote.id}`, { method: "PUT", body: JSON.stringify(body) })
-        if (r.ok) {
-          const { note } = await r.json()
-          setNotes(prev => prev.map(n => n.id === note.id ? note : n))
-        }
-      } else {
-        const r = await authFetch("/api/notes", { method: "POST", body: JSON.stringify(body) })
-        if (r.ok) {
-          const { note } = await r.json()
-          setNotes(prev => [note, ...prev])
-        }
-      }
-      resetNoteForm()
-    } catch (e) { console.error(e) }
-    finally { setNoteSaving(false) }
+  function openNoteDrawer(note: any | null) {
+    setDrawerNote(note)
+    setDrawerTitle(note?.title || "")
+    setDrawerOpen(true)
   }
 
-  function resetNoteForm() {
-    setShowNoteForm(false)
-    setEditingNote(null)
-    setNoteTitle("")
-    setNoteContent("")
-    setNoteImage(null)
-    setNoteImagePreview(null)
-  }
-
-  function startEditNote(note: any) {
-    setEditingNote(note)
-    setNoteTitle(note.title)
-    setNoteContent(note.content || "")
-    setNoteImagePreview(note.image_url || null)
-    setShowNoteForm(true)
+  async function handleNoteSave(text: string, images: string[]) {
+    if (!drawerTitle.trim()) return
+    const body = { title: drawerTitle, content: text || null, images }
+    if (drawerNote?.id) {
+      const r = await authFetch(`/api/notes/${drawerNote.id}`, { method: "PUT", body: JSON.stringify(body) })
+      if (r.ok) {
+        const { note } = await r.json()
+        setNotes(prev => prev.map(n => n.id === note.id ? note : n))
+        setDrawerNote(note)
+      }
+    } else {
+      const r = await authFetch("/api/notes", { method: "POST", body: JSON.stringify(body) })
+      if (r.ok) {
+        const { note } = await r.json()
+        setNotes(prev => [note, ...prev])
+        setDrawerNote(note)
+      }
+    }
   }
 
   async function deleteNote(id: string) {
@@ -299,21 +265,6 @@ export default function Home() {
           if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         }))
-    }
-  }
-
-  function handleImagePaste(e: React.ClipboardEvent) {
-    const items = e.clipboardData.items
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) {
-          setNoteImage(file)
-          setNoteImagePreview(URL.createObjectURL(file))
-        }
-        return
-      }
     }
   }
 
@@ -743,85 +694,59 @@ export default function Home() {
               <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Notes & Idées</span>
               <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>Carnet</span>
             </div>
-            <button onClick={() => { resetNoteForm(); setShowNoteForm(true) }}
+            <button onClick={() => openNoteDrawer(null)}
               style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-serif)", fontSize: 13, color: "var(--at-accent)", display: "flex", alignItems: "center", gap: 4 }}>
               <Plus size={13} /> Nouvelle note
             </button>
           </div>
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {showNoteForm && (
-              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 16, marginBottom: 12, background: "var(--at-surface)" }} onPaste={handleImagePaste}>
-                <input type="text" value={noteTitle} onChange={e => setNoteTitle(e.target.value)} onPaste={handleImagePaste}
-                  placeholder="Titre (ex: Setup EUR/USD H4, Idée long NVDA...)"
-                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", boxSizing: "border-box" }} />
-                <textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} onPaste={handleImagePaste}
-                  placeholder="Détails, niveaux, thèse... (Ctrl+V pour coller un chart)" rows={3}
-                  style={{ width: "100%", background: "transparent", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--ink)", outline: "none", resize: "none", marginTop: 8, boxSizing: "border-box" }} />
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--rule)", borderRadius: 3, color: "var(--ink2)", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>
-                    <Image size={12} /> {noteImagePreview ? "Changer" : "Ajouter chart"}
-                    <input type="file" accept="image/*" style={{ display: "none" }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) { setNoteImage(f); setNoteImagePreview(URL.createObjectURL(f)) } }} />
-                  </label>
-                  {noteImagePreview && (
-                    <div style={{ position: "relative" }}>
-                      <img src={noteImagePreview} alt="preview" style={{ height: 40, borderRadius: 3, border: "1px solid var(--rule)" }} />
-                      <button onClick={() => { setNoteImage(null); setNoteImagePreview(null) }}
-                        style={{ position: "absolute", top: -6, right: -6, background: "var(--at-neg)", borderRadius: "50%", border: "none", padding: 2, cursor: "pointer", lineHeight: 0 }}>
-                        <X size={10} color="white" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
-                  <button onClick={resetNoteForm}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)" }}>
-                    Annuler
-                  </button>
-                  <button onClick={saveNote} disabled={noteSaving || !noteTitle.trim()}
-                    style={{ padding: "5px 14px", background: "var(--at-accent)", color: "var(--at-bg)", border: "none", borderRadius: 3, cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, opacity: (noteSaving || !noteTitle.trim()) ? 0.4 : 1 }}>
-                    {noteSaving ? "..." : editingNote ? "Modifier" : "Ajouter"}
-                  </button>
-                </div>
-              </div>
-            )}
-            {notes.length === 0 && !showNoteForm && (
+            {notes.length === 0 && (
               <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>Aucune note.</p>
             )}
-            {notes.map(note => (
-              <div key={note.id}>
-                <div onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
-                  style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px dotted var(--rule)", cursor: "pointer" }}>
-                  {note.image_url && <img src={note.image_url} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 2, flexShrink: 0 }} />}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, lineHeight: 1.3, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{note.title}</div>
-                    <div style={{ fontSize: 9, letterSpacing: 1.5, color: "var(--ink3)", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginTop: 2 }}>
-                      {new Date(note.created_at).toLocaleDateString("fr-FR")}
+            {notes.map(note => {
+              const imgs = note.images?.length > 0 ? note.images : (note.image_url ? [note.image_url] : [])
+              return (
+                <div key={note.id} onClick={() => openNoteDrawer(note)}
+                  style={{
+                    padding: "10px 12px", borderBottom: "1px dotted var(--rule)", cursor: "pointer",
+                    borderLeft: note.is_pinned ? "3px solid var(--at-accent)" : "3px solid transparent",
+                    transition: "background .15s",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--at-surface)" }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {note.title}
                     </div>
-                  </div>
-                  {note.is_pinned && <Pin size={11} style={{ color: "var(--at-accent)", flexShrink: 0, marginTop: 4 }} />}
-                </div>
-                {expandedNote === note.id && (
-                  <div style={{ padding: "10px 0 10px 50px", borderBottom: "1px dotted var(--rule)" }}>
-                    {note.content && <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--ink2)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{note.content}</div>}
-                    {note.image_url && (
-                      <img src={note.image_url} alt="chart" style={{ maxWidth: "100%", maxHeight: 300, marginTop: 8, borderRadius: 4, cursor: "zoom-in" }}
-                        onClick={(e) => { e.stopPropagation(); window.open(note.image_url, "_blank") }} />
-                    )}
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button onClick={(e) => { e.stopPropagation(); togglePin(note) }}
-                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: note.is_pinned ? "var(--at-accent)" : "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>
-                        {note.is_pinned ? "Désépingler" : "Épingler"}
+                    <div style={{ display: "flex", gap: 6, marginLeft: 8, flexShrink: 0 }}>
+                      <button onClick={e => { e.stopPropagation(); togglePin(note) }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: note.is_pinned ? "var(--at-accent)" : "var(--ink3)", padding: 2 }}>
+                        <Pin size={11} />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); startEditNote(note) }}
-                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink3)", cursor: "pointer", background: "none", border: "none" }}>Modifier</button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }}
-                        style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--at-neg)", cursor: "pointer", background: "none", border: "none" }}>Supprimer</button>
+                      <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-neg)", padding: 2 }}>
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
+                  {note.content && (
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                      {note.content}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    {imgs.length > 0 && (
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)", display: "flex", alignItems: "center", gap: 3 }}>
+                        <Image size={9} /> {imgs.length}
+                      </span>
+                    )}
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)" }}>
+                      {new Date(note.created_at).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -926,6 +851,43 @@ export default function Home() {
           )
         })()}
       </div>
+
+      <NotePanel
+        isOpen={drawerOpen}
+        onClose={() => { setDrawerOpen(false); setDrawerNote(null) }}
+        mode="drawer"
+        header={
+          <div style={{ padding: "20px 24px 16px", borderBottom: "2px solid var(--ink)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1, marginRight: 12 }}>
+                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
+                  {drawerNote ? "Modifier la note" : "Nouvelle note"}
+                </div>
+                <input
+                  value={drawerTitle}
+                  onChange={e => setDrawerTitle(e.target.value)}
+                  placeholder="Titre de la note…"
+                  style={{
+                    width: "100%", boxSizing: "border-box", background: "transparent",
+                    border: "none", borderBottom: "1px dotted var(--rule)",
+                    fontFamily: "var(--font-serif)", fontSize: 20, fontWeight: 700, color: "var(--ink)",
+                    outline: "none", padding: "4px 0",
+                  }}
+                />
+              </div>
+              <button onClick={() => { setDrawerOpen(false); setDrawerNote(null) }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        }
+        initialText={drawerNote?.content || ""}
+        initialImages={drawerNote?.images?.length > 0 ? drawerNote.images : (drawerNote?.image_url ? [drawerNote.image_url] : [])}
+        textPlaceholder="Détails, niveaux, thèse…"
+        onSave={handleNoteSave}
+        updatedAt={drawerNote?.updated_at || null}
+      />
     </div>
   )
 }

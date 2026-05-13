@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
-import { X, ChevronLeft, ChevronRight } from "lucide-react"
+import { X } from "lucide-react"
+import NotePanel from "./NotePanel"
 
 const COMPANY_INFO: Record<string, { sector: string; description: string; metrics: string }> = {
   "RMS": {
@@ -95,8 +96,6 @@ const COMPANY_INFO: Record<string, { sector: string; description: string; metric
   },
 }
 
-const MAX_IMAGES = 6
-
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -106,26 +105,12 @@ async function authFetch(url: string, options: RequestInit = {}) {
   })
 }
 
-async function uploadImage(file: File): Promise<string | null> {
-  const { data: session } = await supabase.auth.getSession()
-  const userId = session.session?.user?.id
-  const ext = file.name?.split(".").pop() || "png"
-  const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const { error } = await supabase.storage
-    .from("position-charts")
-    .upload(fileName, file, { contentType: file.type })
-  if (error) return null
-  const { data: urlData } = supabase.storage.from("position-charts").getPublicUrl(fileName)
-  return urlData.publicUrl
-}
-
 interface PositionNoteModalProps {
   isOpen: boolean
   onClose: () => void
   ticker: string
   accountId: string
   positionId?: string
-  currency?: string
 }
 
 interface NoteData {
@@ -140,361 +125,94 @@ interface NoteData {
 export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, positionId }: PositionNoteModalProps) {
   const [note, setNote] = useState<NoteData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-
-  const [thesis, setThesis] = useState("")
-  const [images, setImages] = useState<string[]>([])
-  const [dirty, setDirty] = useState(false)
-
-  const [toast, setToast] = useState<string | null>(null)
-  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
-  const [dragging, setDragging] = useState(false)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [initialText, setInitialText] = useState("")
+  const [initialImages, setInitialImages] = useState<string[]>([])
 
   const info = COMPANY_INFO[ticker]
 
   useEffect(() => {
     if (!isOpen) return
     setLoading(true)
-    setDirty(false)
     authFetch(`/api/position-notes?account_id=${accountId}&ticker=${encodeURIComponent(ticker)}`)
       .then(r => r.ok ? r.json() : { notes: [] })
       .then(({ notes }) => {
         const active = (notes as NoteData[])?.[0] || null
         setNote(active)
-        setThesis(active?.thesis || "")
+        setInitialText(active?.thesis || "")
         const imgs: string[] = active?.images || []
         if (imgs.length === 0 && active?.image_url) {
           imgs.push(active.image_url)
         }
-        setImages(imgs)
+        setInitialImages(imgs)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [isOpen, accountId, ticker])
 
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 2000)
-  }
-
-  const addImageFiles = useCallback(async (files: File[]) => {
-    const remaining = MAX_IMAGES - images.length
-    if (remaining <= 0) { showToast("Maximum 6 graphes par thèse"); return }
-    const toProcess = files.slice(0, remaining)
-    if (files.length > remaining) showToast(`${files.length - remaining} image(s) ignorée(s) — max 6`)
-    for (const file of toProcess) {
-      const url = await uploadImage(file)
-      if (url) {
-        setImages(prev => [...prev, url])
-        setDirty(true)
-        showToast("Graphe ajouté")
+  const handleSave = useCallback(async (text: string, images: string[]) => {
+    const body = { thesis: text || null, images }
+    if (note?.id) {
+      const r = await authFetch(`/api/position-notes/${note.id}`, { method: "PUT", body: JSON.stringify(body) })
+      if (r.ok) {
+        const { note: updated } = await r.json()
+        setNote(updated)
+      }
+    } else {
+      const r = await authFetch("/api/position-notes", {
+        method: "POST",
+        body: JSON.stringify({ account_id: accountId, ticker, position_id: positionId || null, ...body }),
+      })
+      if (r.ok) {
+        const { note: created } = await r.json()
+        setNote(created)
       }
     }
-  }, [images.length])
+  }, [note, accountId, ticker, positionId])
 
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items
-    const imageFiles: File[] = []
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) imageFiles.push(file)
-      }
-    }
-    if (imageFiles.length > 0) addImageFiles(imageFiles)
-  }, [addImageFiles])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const files: File[] = []
-    for (const f of e.dataTransfer.files) {
-      if (f.type.startsWith("image/")) files.push(f)
-    }
-    if (files.length > 0) addImageFiles(files)
-  }, [addImageFiles])
-
-  function removeImage(idx: number) {
-    setImages(prev => prev.filter((_, i) => i !== idx))
-    setDirty(true)
-  }
-
-  function handleThesisChange(val: string) {
-    setThesis(val)
-    setDirty(true)
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px"
-    }
-  }
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px"
-    }
-  }, [thesis, loading])
-
-  async function save() {
-    setSaving(true)
-    try {
-      const body = { thesis: thesis || null, images }
-      if (note?.id) {
-        const r = await authFetch(`/api/position-notes/${note.id}`, { method: "PUT", body: JSON.stringify(body) })
-        if (r.ok) {
-          const { note: updated } = await r.json()
-          setNote(updated)
-          setDirty(false)
-          showToast("Sauvegardé")
-        }
-      } else {
-        const r = await authFetch("/api/position-notes", {
-          method: "POST",
-          body: JSON.stringify({ account_id: accountId, ticker, position_id: positionId || null, ...body }),
-        })
-        if (r.ok) {
-          const { note: created } = await r.json()
-          setNote(created)
-          setDirty(false)
-          showToast("Sauvegardé")
-        }
-      }
-    } catch (e) { console.error(e) }
-    finally { setSaving(false) }
-  }
-
-  // Lightbox keyboard nav
-  useEffect(() => {
-    if (lightboxIdx === null) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setLightboxIdx(null)
-      if (e.key === "ArrowRight") setLightboxIdx(i => i !== null ? Math.min(i + 1, images.length - 1) : null)
-      if (e.key === "ArrowLeft") setLightboxIdx(i => i !== null ? Math.max(i - 1, 0) : null)
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [lightboxIdx, images.length])
-
-  // Escape to close panel (when lightbox not open)
-  useEffect(() => {
-    if (!isOpen || lightboxIdx !== null) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [isOpen, lightboxIdx, onClose])
-
-  if (!isOpen) return null
-
-  return (
-    <>
-      {/* ── PANEL OVERLAY ──────────────────────────────────────── */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(26,24,20,0.5)" }}
-        onClick={onClose}>
-        <div style={{
-          background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 6,
-          width: "100%", maxWidth: 620, maxHeight: "88vh", overflowY: "auto", margin: 16,
-        }}
-          onClick={e => e.stopPropagation()}
-          onPaste={handlePaste}
-          onDragOver={e => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}>
-
-          {/* ── HEADER ───────────────────────────────────────── */}
-          <div style={{ padding: "20px 24px 16px", borderBottom: "2px solid var(--ink)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.5 }}>
-                  {ticker}
-                </div>
-                <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontStyle: "italic", color: "var(--ink2)", marginTop: 2 }}>
-                  {info?.description?.split("—")[0]?.trim() || ticker}
-                </div>
-              </div>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }}>
-                <X size={18} />
-              </button>
-            </div>
+  const header = (
+    <div style={{ padding: "20px 24px 16px", borderBottom: "2px solid var(--ink)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.5 }}>
+            {ticker}
           </div>
-
-          {loading && (
-            <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-              Chargement…
-            </div>
-          )}
-
-          {!loading && (
-            <div style={{ padding: "20px 24px" }}>
-
-              {/* ── SECTOR ─────────────────────────────────── */}
-              {info && (
-                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)", marginBottom: 12 }}>
-                  {info.sector}
-                </div>
-              )}
-
-              {/* ── DESCRIPTION ────────────────────────────── */}
-              {info && (
-                <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
-                    {info.description}
-                  </p>
-                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink2)", marginTop: 8 }}>
-                    {info.metrics}
-                  </p>
-                </div>
-              )}
-
-              {/* ── SECTION: THÈSE ─────────────────────────── */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 12px" }}>
-                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
-                  Thèse
-                </span>
-                <span style={{ flex: 1, borderBottom: "1px dotted var(--rule)" }} />
-              </div>
-
-              <textarea
-                ref={textareaRef}
-                value={thesis}
-                onChange={e => handleThesisChange(e.target.value)}
-                placeholder="Ta thèse : setup technique, catalyseur fondamental, conviction…"
-                style={{
-                  width: "100%", boxSizing: "border-box",
-                  background: "var(--at-surface)", border: "1px dotted var(--rule)", borderRadius: 4,
-                  padding: 12, fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.55,
-                  color: "var(--ink)", resize: "none", outline: "none", minHeight: 80, overflow: "hidden",
-                }}
-              />
-
-              {/* ── SECTION: GRAPHES ───────────────────────── */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 12px" }}>
-                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
-                  Graphes
-                </span>
-                <span style={{ flex: 1, borderBottom: "1px dotted var(--rule)" }} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {images.map((url, i) => (
-                  <div key={i} style={{ position: "relative", aspectRatio: "16/10", borderRadius: 4, overflow: "hidden", border: "1px solid var(--rule)", cursor: "pointer", transition: "transform .15s" }}
-                    onClick={() => setLightboxIdx(i)}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.02)" }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)" }}>
-                    <img src={url} alt={`graphe ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    <button
-                      onClick={e => { e.stopPropagation(); removeImage(i) }}
-                      style={{
-                        position: "absolute", top: 4, right: 4, width: 20, height: 20,
-                        background: "rgba(26,24,20,0.7)", borderRadius: "50%", border: "none",
-                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                        opacity: 0, transition: "opacity .15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.opacity = "1" }}
-                      onMouseLeave={e => { e.currentTarget.style.opacity = "0" }}
-                      className="img-delete-btn">
-                      <X size={12} color="var(--at-bg)" />
-                    </button>
-                  </div>
-                ))}
-
-                {images.length < MAX_IMAGES && (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      aspectRatio: "16/10", borderRadius: 4,
-                      border: dragging ? "2px solid var(--at-accent)" : "2px dashed var(--rule)",
-                      background: dragging ? "color-mix(in srgb, var(--at-accent) 5%, transparent)" : "var(--at-bg)",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", transition: "border .15s, background .15s", gap: 4,
-                    }}>
-                    <span style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 12, color: "var(--ink3)" }}>
-                      Coller un graphe
-                    </span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)", letterSpacing: 1, textTransform: "uppercase" }}>
-                      Ctrl+V · Drop · Clic
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }}
-                onChange={e => {
-                  const files = Array.from(e.target.files || [])
-                  if (files.length > 0) addImageFiles(files)
-                  e.target.value = ""
-                }} />
-
-              {/* ── FOOTER ─────────────────────────────────── */}
-              <div style={{ borderTop: "1px dotted var(--rule)", marginTop: 20, paddingTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)" }}>
-                  {note?.updated_at || note?.created_at
-                    ? `Mis à jour : ${new Date(note.updated_at || note.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
-                    : "Nouvelle thèse"
-                  }
-                </span>
-                {dirty && (
-                  <button onClick={save} disabled={saving}
-                    style={{
-                      padding: "8px 20px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                      background: "var(--at-accent)", color: "var(--at-bg)", border: "none", borderRadius: 3,
-                      cursor: saving ? "wait" : "pointer", opacity: saving ? 0.5 : 1, transition: "opacity .15s",
-                    }}>
-                    {saving ? "…" : "Sauvegarder"}
-                  </button>
-                )}
-              </div>
-
-              {/* ── TOAST ──────────────────────────────────── */}
-              {toast && (
-                <div style={{
-                  position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 100,
-                  background: "var(--ink)", color: "var(--at-bg)", padding: "8px 20px", borderRadius: 4,
-                  fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 0.5,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                }}>
-                  {toast}
-                </div>
-              )}
-            </div>
-          )}
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontStyle: "italic", color: "var(--ink2)", marginTop: 2 }}>
+            {info?.description?.split("—")[0]?.trim() || ticker}
+          </div>
         </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }}>
+          <X size={18} />
+        </button>
       </div>
-
-      {/* ── LIGHTBOX ─────────────────────────────────────────── */}
-      {lightboxIdx !== null && images[lightboxIdx] && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(26,24,20,0.92)", display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={() => setLightboxIdx(null)}>
-          <button onClick={() => setLightboxIdx(null)}
-            style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
-            <X size={24} />
-          </button>
-          {lightboxIdx > 0 && (
-            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i !== null ? i - 1 : null) }}
-              style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
-              <ChevronLeft size={32} />
-            </button>
-          )}
-          {lightboxIdx < images.length - 1 && (
-            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i !== null ? i + 1 : null) }}
-              style={{ position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
-              <ChevronRight size={32} />
-            </button>
-          )}
-          <img src={images[lightboxIdx]} alt="graphe" onClick={e => e.stopPropagation()}
-            style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 4 }} />
+      {info && !loading && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)", marginBottom: 8 }}>
+            {info.sector}
+          </div>
+          <p style={{ fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.55, color: "var(--ink)", margin: 0 }}>
+            {info.description}
+          </p>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink2)", marginTop: 8, marginBottom: 0 }}>
+            {info.metrics}
+          </p>
         </div>
       )}
+    </div>
+  )
 
-      {/* ── HOVER STYLE FOR DELETE BUTTONS ────────────────────── */}
-      <style>{`
-        div:hover > .img-delete-btn { opacity: 1 !important; }
-      `}</style>
-    </>
+  return (
+    <NotePanel
+      isOpen={isOpen}
+      onClose={onClose}
+      mode="modal"
+      header={header}
+      loading={loading}
+      initialText={initialText}
+      initialImages={initialImages}
+      textPlaceholder="Ta thèse : setup technique, catalyseur fondamental, conviction…"
+      textSectionTitle="Thèse"
+      onSave={handleSave}
+      updatedAt={note?.updated_at || note?.created_at || null}
+    />
   )
 }
