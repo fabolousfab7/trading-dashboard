@@ -16,7 +16,6 @@ const SECTOR_MAP: Record<string, string> = {
   "ALCAP": "Immobilier",
 }
 
-const PEA_PLAFOND = 150000
 
 interface Position {
   id: string
@@ -206,7 +205,6 @@ export default function Pea() {
     return s + qty * (price - cost)
   }, 0)
 
-  const plafondRestant = PEA_PLAFOND - capitalInvested
 
   const sortedPositions = [...positions].sort((a, b) =>
     (Number(b.quantity) * Number(b.market_price)) - (Number(a.quantity) * Number(a.market_price))
@@ -357,17 +355,14 @@ export default function Pea() {
           </div>
         </div>
 
-        {/* Plafond restant */}
+        {/* Cash dispo */}
         <div style={{ padding: "16px 22px" }}>
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
-            Plafond restant
-            <InfoTip text="150 000 € − capital versé cumulé. Plafond légal de versement PEA." />
+            Cash dispo
+            <InfoTip text="Liquidités EUR immédiatement déployables sur le PEA." />
           </div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
-            {fmtEur(plafondRestant)}
-          </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
-            {fmtEur(capitalInvested)} versés sur 150 000 €
+            {fmtEur(cashTotal)}
           </div>
         </div>
       </div>
