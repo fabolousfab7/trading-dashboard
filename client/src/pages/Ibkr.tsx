@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { RefreshCw } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
+import AllocBar from "@/components/AllocBar"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
@@ -381,10 +382,10 @@ export default function Ibkr() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
                 <thead>
                   <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
-                    {["Ticker", "Nom", "Qté", "PRU", "Cours", "Valeur", "Var jour", "P&L latent"].map((h, i) => (
+                    {["Ticker", "Nom", "Poids", "Qté", "PRU", "Cours", "Valeur", "Var jour", "P&L latent"].map((h, i) => (
                       <th key={h} style={{
                         padding: "10px 12px",
-                        textAlign: i < 2 ? "left" : "right",
+                        textAlign: i < 3 ? "left" : "right",
                         fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
                         borderBottom: "1px solid var(--rule)",
                       }}>
@@ -423,6 +424,9 @@ export default function Ibkr() {
                         </td>
                         <td style={{ padding: "9px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {p.name}
+                        </td>
+                        <td style={{ padding: "9px 12px" }}>
+                          <AllocBar value={nlv > 0 ? (valueFx / nlv) * 100 : 0} />
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
                           {qty}
