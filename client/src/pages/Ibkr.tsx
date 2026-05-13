@@ -88,11 +88,25 @@ export default function Ibkr() {
     setSyncing(true); setSyncError(null)
     try {
       const r = await authFetch(`/api/accounts/${account.id}/sync`, { method: "POST" })
-      const result = await r.json()
-      if (!r.ok) throw new Error(result.error || "Sync failed")
+
+      let result: any
+      const text = await r.text()
+      try {
+        result = JSON.parse(text)
+      } catch {
+        if (text.includes("timed out") || text.includes("Timeout")) {
+          throw new Error("Le serveur a mis trop de temps à répondre (timeout). IBKR Flex est probablement en rate-limit, réessaie dans 15-30 minutes.")
+        }
+        throw new Error(`Erreur serveur (HTTP ${r.status}). La lambda a probablement crashé ou timeout.`)
+      }
+
+      if (!r.ok) throw new Error(result.error || `Sync failed (HTTP ${r.status})`)
       await loadData()
-    } catch (e: any) { setSyncError(String(e.message || e)) }
-    finally { setSyncing(false) }
+    } catch (e: any) {
+      setSyncError(String(e.message || e))
+    } finally {
+      setSyncing(false)
+    }
   }
 
   useEffect(() => { loadData() }, [])

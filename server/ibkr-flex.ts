@@ -84,7 +84,7 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function sendRequest(token: string, queryId: string, maxAttempts = 5, delayMs = 30000): Promise<string> {
+async function sendRequest(token: string, queryId: string, maxAttempts = 2, delayMs = 5000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -117,6 +117,9 @@ async function sendRequest(token: string, queryId: string, maxAttempts = 5, dela
       continue
     }
 
+    if (String(errorCode) === "1001") {
+      throw new Error("IBKR Flex temporairement indisponible (rate-limit). Réessaie dans 15-30 minutes.")
+    }
     throw new Error(`Flex SendRequest error ${errorCode}: ${errorMessage}`)
   }
 
@@ -126,7 +129,7 @@ async function sendRequest(token: string, queryId: string, maxAttempts = 5, dela
 async function getStatement(
   token: string,
   referenceCode: string,
-  maxAttempts = 10,
+  maxAttempts = 5,
   delayMs = 3000,
 ): Promise<string> {
   const url = `${FLEX_BASE_URL}.${GET_STATEMENT_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(referenceCode)}&v=${API_VERSION}`
