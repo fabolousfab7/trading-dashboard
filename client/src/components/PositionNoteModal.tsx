@@ -1,26 +1,26 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { supabase } from "@/lib/supabase"
-import { X, Image as ImageIcon } from "lucide-react"
+import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
 const COMPANY_INFO: Record<string, { sector: string; description: string; metrics: string }> = {
   "RMS": {
     sector: "Luxe",
-    description: "Hermès International — maison de luxe française fondée en 1837. Maroquinerie (44%), prêt-à-porter (28%), soie & textiles (6%), horlogerie (3%), parfums (3%). 294 magasins dans le monde. Croissance organique ~6% au T1 2026.",
+    description: "Hermès International — maison de luxe française fondée en 1837. Maroquinerie (44%), prêt-à-porter (28%), soie & textiles (6%), horlogerie (3%), parfums (3%). 294 magasins dans le monde.",
     metrics: "Cap: ~170 Md€ · Marge op: 39,8% · Div: 0,53% · PER: ~45x",
   },
   "MC": {
     sector: "Luxe",
-    description: "LVMH Moët Hennessy Louis Vuitton — n°1 mondial du luxe. Louis Vuitton, Dior, Fendi, Bulgari, Tiffany, Hennessy, Dom Pérignon, Sephora. 6 283 magasins. CA ~85 Md€. Cession de marques non-stratégiques envisagée (FT, mai 2026).",
+    description: "LVMH Moët Hennessy Louis Vuitton — n°1 mondial du luxe. Louis Vuitton, Dior, Fendi, Bulgari, Tiffany, Hennessy, Dom Pérignon, Sephora. 6 283 magasins. CA ~85 Md€.",
     metrics: "Cap: ~235 Md€ · Marge EBITDA: 30% · Div: ~1,6% · PER: ~22x",
   },
   "EL": {
     sector: "Santé / Optique",
-    description: "EssilorLuxottica — leader mondial de l'optique. Verres (Varilux, Transitions), montures (Ray-Ban, Oakley, Persol), retail (Sunglass Hut, LensCrafters). 204K employés. Lunettes connectées Ray-Ban Meta en croissance. CA T1 2026: 7,1 Md€ (+10,8% organique).",
+    description: "EssilorLuxottica — leader mondial de l'optique. Verres (Varilux, Transitions), montures (Ray-Ban, Oakley, Persol), retail (Sunglass Hut, LensCrafters). Lunettes connectées Ray-Ban Meta en croissance.",
     metrics: "Cap: ~83 Md€ · Marge EBITDA: 23% · Div: 2,2% · PER: ~36x",
   },
   "UBI": {
     sector: "Tech / Gaming",
-    description: "Ubisoft Entertainment — éditeur français de jeux vidéo. Franchises : Assassin's Creed, Far Cry, Rainbow Six, Just Dance. En restructuration depuis 2024. Rumeurs de rachat par Tencent / consortium. Cours au plus bas historique.",
+    description: "Ubisoft Entertainment — éditeur français de jeux vidéo. Franchises : Assassin's Creed, Far Cry, Rainbow Six, Just Dance. En restructuration depuis 2024. Rumeurs de rachat par Tencent / consortium.",
     metrics: "Cap: ~600 M€ · Marge op: négative · Div: 0% · PER: n/a",
   },
   "ALCAP": {
@@ -30,7 +30,7 @@ const COMPANY_INFO: Record<string, { sector: string; description: string; metric
   },
   "AI": {
     sector: "Tech / IA",
-    description: "C3.ai — plateforme enterprise IA. Applications IA pour l'industrie, la défense, l'énergie. Fondée par Tom Siebel. Partenariat avec Microsoft Azure, AWS, Google Cloud. Revenus ~$310M/an.",
+    description: "C3.ai — plateforme enterprise IA. Applications IA pour l'industrie, la défense, l'énergie. Fondée par Tom Siebel. Partenariat avec Microsoft Azure, AWS, Google Cloud.",
     metrics: "Cap: ~$3,2 Md · Marge brute: 60% · Cash: $730M · Non profitable",
   },
   "BKKT": {
@@ -45,7 +45,7 @@ const COMPANY_INFO: Record<string, { sector: string; description: string; metric
   },
   "NIO": {
     sector: "Auto / EV",
-    description: "NIO Inc — constructeur chinois de véhicules électriques premium. Battery-as-a-Service (swap stations). Modèles : ES8, ES6, ET7, ET5. Expansion Europe en cours.",
+    description: "NIO Inc — constructeur chinois de véhicules électriques premium. Battery-as-a-Service (swap stations). Modèles : ES8, ES6, ET7, ET5. Expansion Europe.",
     metrics: "Cap: ~$10 Md · Cash burning · Livraisons: ~160K/an · Non profitable",
   },
   "RACE": {
@@ -90,10 +90,12 @@ const COMPANY_INFO: Record<string, { sector: string; description: string; metric
   },
   "RI": {
     sector: "Spiritueux",
-    description: "Pernod Ricard — n°2 mondial des vins et spiritueux. Absolut, Jameson, Martell, Chivas, Mumm, Perrier-Jouët. 160 pays. Impact Moyen-Orient sur les ventes.",
+    description: "Pernod Ricard — n°2 mondial des vins et spiritueux. Absolut, Jameson, Martell, Chivas, Mumm, Perrier-Jouët. 160 pays.",
     metrics: "Cap: ~$16 Md · Marge op: ~28% · Div: ~3,5% · PER: ~16x",
   },
 }
+
+const MAX_IMAGES = 6
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -102,6 +104,19 @@ async function authFetch(url: string, options: RequestInit = {}) {
     ...options,
     headers: { ...options.headers, "Content-Type": "application/json", Authorization: `Bearer ${token}` },
   })
+}
+
+async function uploadImage(file: File): Promise<string | null> {
+  const { data: session } = await supabase.auth.getSession()
+  const userId = session.session?.user?.id
+  const ext = file.name?.split(".").pop() || "png"
+  const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage
+    .from("position-charts")
+    .upload(fileName, file, { contentType: file.type })
+  if (error) return null
+  const { data: urlData } = supabase.storage.from("position-charts").getPublicUrl(fileName)
+  return urlData.publicUrl
 }
 
 interface PositionNoteModalProps {
@@ -113,344 +128,373 @@ interface PositionNoteModalProps {
   currency?: string
 }
 
-export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, positionId, currency = "EUR" }: PositionNoteModalProps) {
-  const [allNotes, setAllNotes] = useState<any[]>([])
+interface NoteData {
+  id: string
+  thesis: string | null
+  images: string[]
+  image_url: string | null
+  updated_at: string
+  created_at: string
+}
+
+export default function PositionNoteModal({ isOpen, onClose, ticker, accountId, positionId }: PositionNoteModalProps) {
+  const [note, setNote] = useState<NoteData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const [thesis, setThesis] = useState("")
-  const [targetPrice, setTargetPrice] = useState("")
-  const [stopLoss, setStopLoss] = useState("")
-  const [horizon, setHorizon] = useState("")
-  const [status, setStatus] = useState("active")
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [images, setImages] = useState<string[]>([])
+  const [dirty, setDirty] = useState(false)
 
-  const activeNote = allNotes[0] || null
+  const [toast, setToast] = useState<string | null>(null)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const info = COMPANY_INFO[ticker]
 
   useEffect(() => {
     if (!isOpen) return
     setLoading(true)
+    setDirty(false)
     authFetch(`/api/position-notes?account_id=${accountId}&ticker=${encodeURIComponent(ticker)}`)
       .then(r => r.ok ? r.json() : { notes: [] })
-      .then(({ notes }) => setAllNotes(notes || []))
+      .then(({ notes }) => {
+        const active = (notes as NoteData[])?.[0] || null
+        setNote(active)
+        setThesis(active?.thesis || "")
+        const imgs: string[] = active?.images || []
+        if (imgs.length === 0 && active?.image_url) {
+          imgs.push(active.image_url)
+        }
+        setImages(imgs)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [isOpen, accountId, ticker])
 
-  function resetForm() {
-    setEditingNoteId(null)
-    setThesis("")
-    setTargetPrice("")
-    setStopLoss("")
-    setHorizon("")
-    setStatus("active")
-    setImageFile(null)
-    setImagePreview(null)
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2000)
   }
 
-  function prefillFromNote(note: any) {
-    if (!note) { resetForm(); return }
-    setEditingNoteId(note.id)
-    setThesis(note.thesis || "")
-    setTargetPrice(note.target_price != null ? String(note.target_price) : "")
-    setStopLoss(note.stop_loss != null ? String(note.stop_loss) : "")
-    setHorizon(note.horizon || "")
-    setStatus(note.status || "active")
-    setImageFile(null)
-    setImagePreview(note.image_url || null)
-  }
+  const addImageFiles = useCallback(async (files: File[]) => {
+    const remaining = MAX_IMAGES - images.length
+    if (remaining <= 0) { showToast("Maximum 6 graphes par thèse"); return }
+    const toProcess = files.slice(0, remaining)
+    if (files.length > remaining) showToast(`${files.length - remaining} image(s) ignorée(s) — max 6`)
+    for (const file of toProcess) {
+      const url = await uploadImage(file)
+      if (url) {
+        setImages(prev => [...prev, url])
+        setDirty(true)
+        showToast("Graphe ajouté")
+      }
+    }
+  }, [images.length])
 
-  function clearImage() {
-    setImageFile(null)
-    setImagePreview(null)
-  }
-
-  function handleImagePaste(e: React.ClipboardEvent) {
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData.items
+    const imageFiles: File[] = []
     for (const item of items) {
       if (item.type.startsWith("image/")) {
         e.preventDefault()
         const file = item.getAsFile()
-        if (file) {
-          setImageFile(file)
-          setImagePreview(URL.createObjectURL(file))
-        }
-        return
+        if (file) imageFiles.push(file)
       }
     }
+    if (imageFiles.length > 0) addImageFiles(imageFiles)
+  }, [addImageFiles])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const files: File[] = []
+    for (const f of e.dataTransfer.files) {
+      if (f.type.startsWith("image/")) files.push(f)
+    }
+    if (files.length > 0) addImageFiles(files)
+  }, [addImageFiles])
+
+  function removeImage(idx: number) {
+    setImages(prev => prev.filter((_, i) => i !== idx))
+    setDirty(true)
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (f) {
-      setImageFile(f)
-      setImagePreview(URL.createObjectURL(f))
+  function handleThesisChange(val: string) {
+    setThesis(val)
+    setDirty(true)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px"
     }
   }
 
-  async function saveNote() {
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px"
+    }
+  }, [thesis, loading])
+
+  async function save() {
     setSaving(true)
     try {
-      let imageUrl = editingNoteId ? (imagePreview || null) : null
-      if (imageFile) {
-        const { data: session } = await supabase.auth.getSession()
-        const userId = session.session?.user?.id
-        const ext = imageFile.name.split(".").pop()
-        const fileName = `${userId}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage
-          .from("position-charts")
-          .upload(fileName, imageFile, { contentType: imageFile.type })
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from("position-charts").getPublicUrl(fileName)
-          imageUrl = urlData.publicUrl
-        }
-      }
-
-      const body: any = {
-        thesis: thesis || null,
-        image_url: imageUrl,
-        target_price: targetPrice ? Number(targetPrice) : null,
-        stop_loss: stopLoss ? Number(stopLoss) : null,
-        horizon: horizon || null,
-        status,
-      }
-
-      if (editingNoteId) {
-        const r = await authFetch(`/api/position-notes/${editingNoteId}`, { method: "PUT", body: JSON.stringify(body) })
+      const body = { thesis: thesis || null, images }
+      if (note?.id) {
+        const r = await authFetch(`/api/position-notes/${note.id}`, { method: "PUT", body: JSON.stringify(body) })
         if (r.ok) {
-          const { note } = await r.json()
-          setAllNotes(prev => prev.map(n => n.id === note.id ? note : n))
+          const { note: updated } = await r.json()
+          setNote(updated)
+          setDirty(false)
+          showToast("Sauvegardé")
         }
       } else {
-        body.account_id = accountId
-        body.ticker = ticker
-        body.position_id = positionId || null
-        const r = await authFetch("/api/position-notes", { method: "POST", body: JSON.stringify(body) })
+        const r = await authFetch("/api/position-notes", {
+          method: "POST",
+          body: JSON.stringify({ account_id: accountId, ticker, position_id: positionId || null, ...body }),
+        })
         if (r.ok) {
-          const { note } = await r.json()
-          setAllNotes(prev => [note, ...prev])
+          const { note: created } = await r.json()
+          setNote(created)
+          setDirty(false)
+          showToast("Sauvegardé")
         }
       }
-      setIsEditing(false)
-      resetForm()
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e) { console.error(e) }
+    finally { setSaving(false) }
   }
+
+  // Lightbox keyboard nav
+  useEffect(() => {
+    if (lightboxIdx === null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightboxIdx(null)
+      if (e.key === "ArrowRight") setLightboxIdx(i => i !== null ? Math.min(i + 1, images.length - 1) : null)
+      if (e.key === "ArrowLeft") setLightboxIdx(i => i !== null ? Math.max(i - 1, 0) : null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [lightboxIdx, images.length])
+
+  // Escape to close panel (when lightbox not open)
+  useEffect(() => {
+    if (!isOpen || lightboxIdx !== null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [isOpen, lightboxIdx, onClose])
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[--at-bg]/70" onClick={onClose}>
-      <div className="bg-[--at-surface] border border-[--rule] rounded-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4"
-        onClick={e => e.stopPropagation()}>
+    <>
+      {/* ── PANEL OVERLAY ──────────────────────────────────────── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(26,24,20,0.5)" }}
+        onClick={onClose}>
+        <div style={{
+          background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 6,
+          width: "100%", maxWidth: 620, maxHeight: "88vh", overflowY: "auto", margin: 16,
+        }}
+          onClick={e => e.stopPropagation()}
+          onPaste={handlePaste}
+          onDragOver={e => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}>
 
-        <div className="flex items-center justify-between p-4 border-b border-[--rule]">
-          <div className="flex items-center gap-3">
-            <span className="text-[--at-accent] font-bold font-mono text-lg">{ticker}</span>
-            <span className="text-[--ink3] text-xs font-mono">Thèse & Conviction</span>
-          </div>
-          <button onClick={onClose} className="text-[--ink3] hover:text-[--ink] transition">
-            <X size={18} />
-          </button>
-        </div>
-
-        {COMPANY_INFO[ticker] && (
-          <div className="p-4 pb-0">
-            <div className="border border-[--rule] rounded p-3 bg-[--at-accent]/5">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[--at-accent] bg-[--at-accent]/10 px-2 py-0.5 rounded">
-                  {COMPANY_INFO[ticker].sector}
-                </span>
+          {/* ── HEADER ───────────────────────────────────────── */}
+          <div style={{ padding: "20px 24px 16px", borderBottom: "2px solid var(--ink)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.5 }}>
+                  {ticker}
+                </div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontStyle: "italic", color: "var(--ink2)", marginTop: 2 }}>
+                  {info?.description?.split("—")[0]?.trim() || ticker}
+                </div>
               </div>
-              <p className="text-xs font-mono text-[--ink] leading-relaxed">
-                {COMPANY_INFO[ticker].description}
-              </p>
-              <p className="text-[10px] font-mono text-[--ink3] mt-1.5">
-                {COMPANY_INFO[ticker].metrics}
-              </p>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }}>
+                <X size={18} />
+              </button>
             </div>
           </div>
-        )}
 
-        {loading && <div className="p-6 text-[--ink3] text-xs font-mono text-center">Chargement...</div>}
+          {loading && (
+            <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              Chargement…
+            </div>
+          )}
 
-        {!loading && !isEditing && (
-          <div className="p-4 space-y-4">
-            {activeNote ? (
-              <>
-                <div className="flex items-center gap-2">
-                  {activeNote.horizon && (
-                    <span className="px-2 py-0.5 bg-[--at-accent]/10 border border-[--rule] rounded text-[10px] font-mono text-[--at-accent] uppercase">
-                      {activeNote.horizon}
-                    </span>
-                  )}
-                  {activeNote.status && (
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase ${
-                      activeNote.status === "active" ? "bg-[--at-pos]/10 border border-[--at-pos]/20 text-[--at-pos]" :
-                      activeNote.status === "closed" ? "bg-[--ink3]/10 border border-[--rule] text-[--ink2]" :
-                      "bg-[--at-neg]/10 border border-[--at-neg]/20 text-[--at-neg]"
-                    }`}>
-                      {activeNote.status}
-                    </span>
-                  )}
+          {!loading && (
+            <div style={{ padding: "20px 24px" }}>
+
+              {/* ── SECTOR ─────────────────────────────────── */}
+              {info && (
+                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)", marginBottom: 12 }}>
+                  {info.sector}
                 </div>
+              )}
 
-                {(activeNote.target_price || activeNote.stop_loss) && (
-                  <div className="flex gap-4">
-                    {activeNote.target_price && (
-                      <div className="text-xs font-mono">
-                        <span className="text-[--ink3]">Target: </span>
-                        <span className="text-[--at-pos]">{activeNote.target_price} {currency}</span>
-                      </div>
-                    )}
-                    {activeNote.stop_loss && (
-                      <div className="text-xs font-mono">
-                        <span className="text-[--ink3]">Stop: </span>
-                        <span className="text-[--at-neg]">{activeNote.stop_loss} {currency}</span>
-                      </div>
-                    )}
+              {/* ── DESCRIPTION ────────────────────────────── */}
+              {info && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                    {info.description}
+                  </p>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink2)", marginTop: 8 }}>
+                    {info.metrics}
+                  </p>
+                </div>
+              )}
+
+              {/* ── SECTION: THÈSE ─────────────────────────── */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 12px" }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
+                  Thèse
+                </span>
+                <span style={{ flex: 1, borderBottom: "1px dotted var(--rule)" }} />
+              </div>
+
+              <textarea
+                ref={textareaRef}
+                value={thesis}
+                onChange={e => handleThesisChange(e.target.value)}
+                placeholder="Ta thèse : setup technique, catalyseur fondamental, conviction…"
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  background: "var(--at-surface)", border: "1px dotted var(--rule)", borderRadius: 4,
+                  padding: 12, fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.55,
+                  color: "var(--ink)", resize: "none", outline: "none", minHeight: 80, overflow: "hidden",
+                }}
+              />
+
+              {/* ── SECTION: GRAPHES ───────────────────────── */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 12px" }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
+                  Graphes
+                </span>
+                <span style={{ flex: 1, borderBottom: "1px dotted var(--rule)" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {images.map((url, i) => (
+                  <div key={i} style={{ position: "relative", aspectRatio: "16/10", borderRadius: 4, overflow: "hidden", border: "1px solid var(--rule)", cursor: "pointer", transition: "transform .15s" }}
+                    onClick={() => setLightboxIdx(i)}
+                    onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.02)" }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)" }}>
+                    <img src={url} alt={`graphe ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <button
+                      onClick={e => { e.stopPropagation(); removeImage(i) }}
+                      style={{
+                        position: "absolute", top: 4, right: 4, width: 20, height: 20,
+                        background: "rgba(26,24,20,0.7)", borderRadius: "50%", border: "none",
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        opacity: 0, transition: "opacity .15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity = "1" }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity = "0" }}
+                      className="img-delete-btn">
+                      <X size={12} color="var(--at-bg)" />
+                    </button>
+                  </div>
+                ))}
+
+                {images.length < MAX_IMAGES && (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      aspectRatio: "16/10", borderRadius: 4,
+                      border: dragging ? "2px solid var(--at-accent)" : "2px dashed var(--rule)",
+                      background: dragging ? "color-mix(in srgb, var(--at-accent) 5%, transparent)" : "var(--at-bg)",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", transition: "border .15s, background .15s", gap: 4,
+                    }}>
+                    <span style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 12, color: "var(--ink3)" }}>
+                      Coller un graphe
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)", letterSpacing: 1, textTransform: "uppercase" }}>
+                      Ctrl+V · Drop · Clic
+                    </span>
                   </div>
                 )}
-
-                {activeNote.thesis && (
-                  <p className="text-sm font-mono text-[--ink] whitespace-pre-wrap">{activeNote.thesis}</p>
-                )}
-
-                {activeNote.image_url && (
-                  <img src={activeNote.image_url} alt="chart"
-                    className="rounded border border-[--rule] max-h-64 w-full object-contain cursor-pointer hover:border-[--at-accent]/30 transition"
-                    onClick={() => window.open(activeNote.image_url, "_blank")} />
-                )}
-
-                <div className="text-[9px] font-mono text-[--ink3]">
-                  Mis à jour : {new Date(activeNote.updated_at || activeNote.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </div>
-              </>
-            ) : (
-              <p className="text-[--ink3] text-xs font-mono text-center py-4">Aucune thèse enregistrée pour {ticker}</p>
-            )}
-          </div>
-        )}
-
-        {!loading && isEditing && (
-          <div className="p-4 border-t border-[--rule] space-y-3" onPaste={handleImagePaste}>
-            <textarea value={thesis} onChange={e => setThesis(e.target.value)}
-              placeholder="Ta thèse : pourquoi ce trade, quel setup, quel catalyseur..."
-              rows={4}
-              className="w-full bg-[--at-bg] border border-[--rule] rounded px-3 py-2 text-sm font-mono text-[--ink] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50 resize-none" />
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Target</label>
-                <input type="number" step="any" value={targetPrice} onChange={e => setTargetPrice(e.target.value)}
-                  placeholder="0.00" className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-pos] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50" />
               </div>
-              <div>
-                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Stop Loss</label>
-                <input type="number" step="any" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
-                  placeholder="0.00" className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-neg] placeholder:text-[--ink3] focus:outline-none focus:border-[--at-accent]/50" />
-              </div>
-              <div>
-                <label className="text-[9px] font-mono text-[--ink3] uppercase mb-1 block">Horizon</label>
-                <select value={horizon} onChange={e => setHorizon(e.target.value)}
-                  className="w-full bg-[--at-surface] border border-[--rule] rounded px-2 py-1.5 text-xs font-mono text-[--at-accent] focus:outline-none focus:border-[--at-accent]/50">
-                  <option value="">—</option>
-                  <option value="swing">Swing</option>
-                  <option value="position">Position</option>
-                  <option value="long-terme">Long terme</option>
-                </select>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 px-3 py-1.5 border border-[--rule] rounded text-[--ink2] hover:text-[--ink] hover:border-[--at-accent]/30 transition cursor-pointer font-mono text-[10px] uppercase tracking-wider">
-                <ImageIcon size={12} /> {imagePreview ? "Changer chart" : "Ajouter chart (Ctrl+V)"}
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-              </label>
-              {imagePreview && (
-                <div className="relative">
-                  <img src={imagePreview} alt="preview" className="h-16 rounded border border-[--rule]" />
-                  <button onClick={clearImage} className="absolute -top-1.5 -right-1.5 bg-[--at-neg] rounded-full p-0.5">
-                    <X size={10} className="text-[--at-bg]" />
+              <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+                onChange={e => {
+                  const files = Array.from(e.target.files || [])
+                  if (files.length > 0) addImageFiles(files)
+                  e.target.value = ""
+                }} />
+
+              {/* ── FOOTER ─────────────────────────────────── */}
+              <div style={{ borderTop: "1px dotted var(--rule)", marginTop: 20, paddingTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)" }}>
+                  {note?.updated_at || note?.created_at
+                    ? `Mis à jour : ${new Date(note.updated_at || note.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                    : "Nouvelle thèse"
+                  }
+                </span>
+                {dirty && (
+                  <button onClick={save} disabled={saving}
+                    style={{
+                      padding: "8px 20px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                      background: "var(--at-accent)", color: "var(--at-bg)", border: "none", borderRadius: 3,
+                      cursor: saving ? "wait" : "pointer", opacity: saving ? 0.5 : 1, transition: "opacity .15s",
+                    }}>
+                    {saving ? "…" : "Sauvegarder"}
                   </button>
+                )}
+              </div>
+
+              {/* ── TOAST ──────────────────────────────────── */}
+              {toast && (
+                <div style={{
+                  position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 100,
+                  background: "var(--ink)", color: "var(--at-bg)", padding: "8px 20px", borderRadius: 4,
+                  fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 0.5,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}>
+                  {toast}
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-2">
-              <label className="text-[9px] font-mono text-[--ink3] uppercase">Statut</label>
-              {(["active", "closed", "invalidated"] as const).map(s => (
-                <button key={s} onClick={() => setStatus(s)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase transition ${
-                    status === s
-                      ? s === "active" ? "bg-[--at-pos]/20 border border-[--at-pos]/30 text-[--at-pos]"
-                        : s === "closed" ? "bg-[--ink3]/20 border border-[--rule] text-[--ink2]"
-                        : "bg-[--at-neg]/20 border border-[--at-neg]/30 text-[--at-neg]"
-                      : "text-[--ink3] border border-transparent hover:border-[--rule]"
-                  }`}>
-                  {s === "active" ? "Active" : s === "closed" ? "Clôturée" : "Invalidée"}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button onClick={() => { setIsEditing(false); resetForm() }}
-                className="px-3 py-1.5 text-[--ink3] hover:text-[--ink] font-mono text-[10px] uppercase tracking-wider transition">
-                Annuler
-              </button>
-              <button onClick={saveNote} disabled={saving}
-                className="px-4 py-1.5 bg-[--at-accent]/20 border border-[--at-accent]/40 text-[--at-accent] hover:bg-[--at-accent]/30 transition rounded font-mono text-[10px] uppercase tracking-wider disabled:opacity-40">
-                {saving ? "..." : editingNoteId ? "Modifier" : "Sauvegarder"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!loading && !isEditing && (
-          <div className="p-4 border-t border-[--rule] flex gap-2">
-            <button onClick={() => { prefillFromNote(activeNote); setIsEditing(true) }}
-              className="px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-[10px] uppercase tracking-wider">
-              {activeNote ? "Modifier" : "Écrire ma thèse"}
-            </button>
-            {activeNote && (
-              <button onClick={() => { resetForm(); setIsEditing(true) }}
-                className="px-3 py-1.5 border border-[--rule] text-[--ink3] hover:text-[--ink] transition rounded font-mono text-[10px] uppercase tracking-wider">
-                Nouvelle note
-              </button>
-            )}
-          </div>
-        )}
-
-        {allNotes.length > 1 && (
-          <div className="p-4 border-t border-[--rule]">
-            <h4 className="text-[10px] font-mono text-[--ink3] uppercase tracking-wider mb-2">
-              Historique · {allNotes.length - 1} note{allNotes.length > 2 ? "s" : ""} précédente{allNotes.length > 2 ? "s" : ""}
-            </h4>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {allNotes.slice(1).map((note: any) => (
-                <div key={note.id} className="border border-[--rule] rounded p-2 text-xs font-mono">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[9px] uppercase ${
-                      note.status === "active" ? "text-[--at-pos]" : note.status === "closed" ? "text-[--ink3]" : "text-[--at-neg]"
-                    }`}>{note.status}</span>
-                    <span className="text-[--ink3] text-[9px]">
-                      {new Date(note.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
-                    </span>
-                  </div>
-                  {note.thesis && <p className="text-[--ink2] mt-1 line-clamp-2">{note.thesis}</p>}
-                  {note.image_url && <img src={note.image_url} alt="chart" className="mt-1 h-20 rounded object-contain" />}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* ── LIGHTBOX ─────────────────────────────────────────── */}
+      {lightboxIdx !== null && images[lightboxIdx] && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(26,24,20,0.92)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setLightboxIdx(null)}>
+          <button onClick={() => setLightboxIdx(null)}
+            style={{ position: "absolute", top: 20, right: 20, background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
+            <X size={24} />
+          </button>
+          {lightboxIdx > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i !== null ? i - 1 : null) }}
+              style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
+              <ChevronLeft size={32} />
+            </button>
+          )}
+          {lightboxIdx < images.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i !== null ? i + 1 : null) }}
+              style={{ position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", zIndex: 1 }}>
+              <ChevronRight size={32} />
+            </button>
+          )}
+          <img src={images[lightboxIdx]} alt="graphe" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 4 }} />
+        </div>
+      )}
+
+      {/* ── HOVER STYLE FOR DELETE BUTTONS ────────────────────── */}
+      <style>{`
+        div:hover > .img-delete-btn { opacity: 1 !important; }
+      `}</style>
+    </>
   )
 }

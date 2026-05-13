@@ -859,6 +859,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       position_id: z.string().uuid().nullable().optional(),
       thesis: z.string().nullable().optional(),
       image_url: z.string().nullable().optional(),
+      images: z.array(z.string()).optional(),
       target_price: z.number().nullable().optional(),
       stop_loss: z.number().nullable().optional(),
       horizon: z.enum(["swing", "position", "long-terme"]).nullable().optional(),
@@ -880,6 +881,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     const schema = z.object({
       thesis: z.string().nullable().optional(),
       image_url: z.string().nullable().optional(),
+      images: z.array(z.string()).optional(),
       target_price: z.number().nullable().optional(),
       stop_loss: z.number().nullable().optional(),
       horizon: z.enum(["swing", "position", "long-terme"]).nullable().optional(),
