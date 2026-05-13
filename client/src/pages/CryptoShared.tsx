@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { Bitcoin, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
+import AllocBar from "@/components/AllocBar"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 
 const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 
-const CRYPTO_SECTOR: Record<string, string> = {
+const CRYPTO_CATEGORY: Record<string, string> = {
   "BTC": "Store of Value",
   "ETH": "L1 / Smart Contracts",
   "HYPE": "DeFi / DEX",
@@ -30,6 +31,27 @@ const CRYPTO_SECTOR: Record<string, string> = {
   "USDe": "Stablecoin",
 }
 
+interface Position {
+  id: string
+  account_id: string
+  ticker: string
+  name: string
+  quantity: string | number
+  avg_cost: string | number
+  market_price: string | number
+  market_price_usd?: string | number
+  ownership_pct?: string | number
+  currency: string
+}
+
+interface Account {
+  id: string
+  label: string
+  broker: string
+  currency_base?: string
+  capital_invested?: string | number
+}
+
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -39,52 +61,56 @@ async function authFetch(url: string, options: RequestInit = {}) {
   })
 }
 
+function fmtUsd(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
+}
+
+function fmtUsdPrice(n: number) {
+  if (Math.abs(n) < 1) return `$${n.toFixed(6)}`
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n)
+}
+
 function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
-function fmtUsd(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n)
+function fmtQty(n: number) {
+  if (n < 1) return n.toFixed(6)
+  if (n < 100) return n.toFixed(4)
+  return n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
 }
 
-function calcStatsTotal(pos: any[]) {
-  const value = pos.reduce((s, p) => s + Number(p.quantity) * Number(p.market_price), 0)
-  const valueUsd = pos.reduce((s, p) => s + Number(p.quantity) * (Number(p.market_price_usd) || 0), 0)
-  return { value, valueUsd }
-}
-
-function calcStatsPart(pos: any[]) {
-  const value = pos.reduce((s, p) => {
-    const own = (Number(p.ownership_pct) || 100) / 100
-    return s + Number(p.quantity) * Number(p.market_price) * own
-  }, 0)
-  const valueUsd = pos.reduce((s, p) => {
-    const own = (Number(p.ownership_pct) || 100) / 100
-    return s + Number(p.quantity) * (Number(p.market_price_usd) || 0) * own
-  }, 0)
-  return { value, valueUsd }
+const tooltipStyle = {
+  background: "var(--at-surface)",
+  border: "1px solid var(--rule)",
+  borderRadius: 8,
+  fontFamily: "'Geist Mono', monospace",
+  fontSize: 12,
+  color: "var(--ink)",
 }
 
 export default function CryptoShared() {
-  const [account, setAccount] = useState<any>(null)
-  const [data, setData] = useState<any>(null)
+  const [account, setAccount] = useState<Account | null>(null)
+  const [data, setData] = useState<{ positions: Position[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPosition, setSelectedPosition] = useState<any>(null)
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
     try {
       const r = await authFetch("/api/accounts")
       const { accounts } = await r.json()
-      const crypto = accounts?.find((a: any) => a.broker === "Crypto")
+      const crypto = accounts?.find((a: Account) => a.broker === "Crypto")
       if (!crypto) { setLoading(false); return }
       setAccount(crypto)
       const r2 = await authFetch(`/api/accounts/${crypto.id}/portfolio`)
       setData(await r2.json())
-    } catch (e: any) { setError(String(e.message || e)) }
-    finally { setLoading(false) }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+    } finally { setLoading(false) }
   }
 
   useEffect(() => { loadData() }, [])
@@ -99,240 +125,359 @@ export default function CryptoShared() {
         setError(`Échec : ${result.failedTickers.join(", ")} — vérifie les coingecko_id`)
       }
       await loadData()
-    } catch (e: any) { setError(String(e.message || e)) }
-    finally { setRefreshing(false) }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+    } finally { setRefreshing(false) }
   }
 
   if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
-  if (!account) return <div className="p-8 text-[--ink3] font-mono">Aucun compte Crypto</div>
 
-  const positions = (data?.positions || []).filter((p: any) => {
-    const qty = Number(p.quantity)
-    const price = Number(p.market_price)
-    return qty !== 0 && price !== 0
-  })
-  const sharedPositions = positions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
-  const totalStats = calcStatsTotal(sharedPositions)
-  const partStats = calcStatsPart(sharedPositions)
-
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
-        <div>
-          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
-            <Bitcoin size={14} /> Crypto R+F
+  if (!account) {
+    return (
+      <div style={{ padding: "28px 32px" }}>
+        <div style={{ borderBottom: "2px solid var(--ink)", paddingBottom: 14 }}>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Crypto R+F &middot; 50/50
           </div>
-          <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-[--at-accent]">Crypto </span>
-            <span className="text-[--at-accent]">R+F</span>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            Le sac partagé.
           </h1>
         </div>
-        <button onClick={refreshPrices} disabled={refreshing}
-          className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
-          <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          {refreshing ? "Sync..." : "Refresh cours"}
-        </button>
+        <div style={{ marginTop: 28, border: "1px solid var(--rule)", background: "var(--at-surface)", borderRadius: 4, padding: 48, textAlign: "center" }}>
+          <p style={{ color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Aucun compte Crypto configuré</p>
+        </div>
       </div>
+    )
+  }
 
-      {error && <div className="border border-[--at-neg]/30 bg-[--at-neg]/10 text-[--at-neg] p-3 rounded font-mono text-xs">{error}</div>}
+  const positions: Position[] = (data?.positions || []).filter((p) => {
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price)
+    const own = Number(p.ownership_pct) || 100
+    return qty !== 0 && price !== 0 && own < 100
+  })
 
-      <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-        <div className="flex gap-8">
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 flex items-center">
-              Valeur totale portefeuille
-              <InfoTip text="Valeur totale du portefeuille partagé Raph+Fab (quantités réelles × cours). La part Fabien (50%) est affichée en dessous." />
-            </div>
-            <div className="text-3xl font-mono font-bold text-[--ink]">{fmtUsd(totalStats.valueUsd)}</div>
-            <div className="text-sm font-mono text-[--ink2] mt-1">Part Fabien (50%) : {fmtUsd(partStats.valueUsd)} / {fmtEur(partStats.value)}</div>
+  const totalUsd = positions.reduce((s, p) => s + Number(p.quantity) * (Number(p.market_price_usd) || 0), 0)
+  const totalEur = positions.reduce((s, p) => s + Number(p.quantity) * Number(p.market_price), 0)
+  const myPartUsd = totalUsd / 2
+  const myPartEur = totalEur / 2
+
+  const capitalInvested = Number(account.capital_invested) || 0
+  const impliedCapital = capitalInvested || positions.reduce((s, p) => s + Number(p.quantity) * Number(p.avg_cost), 0)
+
+  const unrealizedPnl = positions.reduce((s, p) => {
+    const qty = Number(p.quantity)
+    const price = Number(p.market_price_usd) || 0
+    const cost = Number(p.avg_cost)
+    return s + qty * (price - cost)
+  }, 0)
+
+  const apportsCumules = impliedCapital
+  const pvCumulee = totalUsd - apportsCumules
+  const netLiquidation = totalUsd - Math.max(0, pvCumulee) * 0.30
+
+  const sortedPositions = [...positions].sort((a, b) =>
+    (Number(b.quantity) * (Number(b.market_price_usd) || 0)) - (Number(a.quantity) * (Number(a.market_price_usd) || 0))
+  )
+
+  const categoryMap: Record<string, number> = {}
+  for (const p of positions) {
+    const ticker = p.ticker.replace(/_R$/, "")
+    const cat = CRYPTO_CATEGORY[ticker] || "Autres"
+    const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
+    categoryMap[cat] = (categoryMap[cat] || 0) + value
+  }
+  const categoryData = Object.entries(categoryMap)
+    .map(([name, value]) => ({ name, value }))
+    .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+  const categoryTotal = categoryData.reduce((s, d) => s + d.value, 0)
+
+  return (
+    <div style={{ padding: "28px 32px" }}>
+
+      {/* ── MASTHEAD ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Crypto R+F &middot; 50/50
           </div>
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 flex items-center">Valeur EUR</div>
-            <div className="text-3xl font-mono font-bold text-[--ink]">{fmtEur(totalStats.value)}</div>
-          </div>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            Le sac partagé.
+          </h1>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <button onClick={refreshPrices} disabled={refreshing}
+            style={{
+              padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+              background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
+              cursor: refreshing ? "wait" : "pointer", opacity: refreshing ? 0.5 : 1,
+              display: "flex", alignItems: "center", gap: 6, transition: "opacity .15s",
+            }}>
+            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+            Sync prix
+          </button>
         </div>
       </div>
 
-      {(() => {
-        const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
-        const merged: Record<string, number> = {}
-        for (const p of sharedPositions) {
-          const ticker = p.ticker.replace(/_R$/, "")
-          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
-          merged[ticker] = (merged[ticker] || 0) + value
-        }
-        const allocationData = Object.entries(merged)
-          .map(([name, value]) => ({ name, value }))
-          .filter(d => d.value > 0)
-          .sort((a, b) => b.value - a.value)
+      {/* ── ERRORS ────────────────────────────────────────────── */}
+      {error && (
+        <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{error}</span>
+          <button onClick={() => setError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
+        </div>
+      )}
 
-        const allocTotal = allocationData.reduce((s, d) => s + d.value, 0)
-        const threshold = allocTotal * 0.02
-        const mainSlices = allocationData.filter(d => d.value >= threshold)
-        const othersValue = allocationData.filter(d => d.value < threshold).reduce((s, d) => s + d.value, 0)
-        if (othersValue > 0) mainSlices.push({ name: "Autres", value: othersValue })
-
-        const sectorMap: Record<string, number> = {}
-        for (const p of sharedPositions) {
-          const ticker = p.ticker.replace(/_R$/, "")
-          const sector = CRYPTO_SECTOR[ticker] || "Autres"
-          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
-          sectorMap[sector] = (sectorMap[sector] || 0) + value
-        }
-        const sectorData = Object.entries(sectorMap)
-          .map(([name, value]) => ({ name, value }))
-          .filter(d => d.value > 0)
-          .sort((a, b) => b.value - a.value)
-        const sectorTotal = sectorData.reduce((s, d) => s + d.value, 0)
-        const sectorThreshold = sectorTotal * 0.02
-        const sectorSlices = sectorData.filter(d => d.value >= sectorThreshold)
-        const sectorOthers = sectorData.filter(d => d.value < sectorThreshold).reduce((s, d) => s + d.value, 0)
-        if (sectorOthers > 0) sectorSlices.push({ name: "Autres", value: sectorOthers })
-
-        let cashUsd = 0, posUsd = 0
-        for (const p of sharedPositions) {
-          const ticker = p.ticker.replace(/_R$/, "")
-          const value = Number(p.quantity) * (Number(p.market_price_usd) || 0)
-          if (ticker.startsWith("USDT")) cashUsd += value
-          else posUsd += value
-        }
-        const cashVsPos = [
-          { name: "Positions", value: posUsd },
-          { name: "Cash USDT", value: cashUsd },
-        ].filter(d => d.value > 0)
-        const CASH_COLORS = ["#7d2b1d", "#cfb88f"]
-
-        if (allocationData.length === 0) return null
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Allocation</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {mainSlices.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-[--ink2]">{d.name}</span>
-                    <span className="text-[--ink] ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Par secteur</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={sectorSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {sectorSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {sectorSlices.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
-                    <span className="text-[--ink2]">{d.name}</span>
-                    <span className="text-[--ink] ml-auto">{((d.value / sectorTotal) * 100).toFixed(1)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Cash vs Positions</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={cashVsPos} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {cashVsPos.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtUsd(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {cashVsPos.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i] }} />
-                    <span className={i === 0 ? "text-[--at-accent] font-bold" : "text-[--at-accent] font-bold"}>{d.name}</span>
-                    <span className="text-[--ink2] ml-auto">{fmtUsd(d.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* ── KPI ROW ───────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+        {/* Valeur totale */}
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Valeur totale
+            <InfoTip text="Valeur totale du portefeuille partagé (quantités réelles × cours CoinGecko)." />
           </div>
-        )
-      })()}
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
+            {fmtUsd(totalUsd)}
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            {fmtEur(totalEur)}
+          </div>
+        </div>
 
-      {sharedPositions.length === 0 ? (
-        <div className="text-[--ink3] font-mono text-sm text-center py-8">Aucune position partagée</div>
-      ) : (
-        <div className="border border-[--rule] rounded bg-[--at-surface]">
-          <div className="border-b border-[--rule] p-4 flex items-center justify-between">
+        {/* Ma part (50%) */}
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Ma part (50 %)
+            <InfoTip text="Quote-part Florent = Valeur totale × 50 %." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--at-accent)", marginTop: 6, letterSpacing: -0.5 }}>
+            {fmtUsd(myPartUsd)}
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            {fmtEur(myPartEur)}
+          </div>
+        </div>
+
+        {/* P&L latent */}
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+            P&L latent
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: unrealizedPnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
+            {unrealizedPnl >= 0 ? "+" : ""}{fmtUsd(unrealizedPnl)}
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            total portefeuille
+          </div>
+        </div>
+
+        {/* Apports cumulés */}
+        <div style={{ padding: "16px 22px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Apports cumulés
+            <InfoTip text="Capital total investi par les deux associés. Sert de base au calcul de la PV." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
+            {impliedCapital > 0 ? fmtUsd(apportsCumules) : "—"}
+          </div>
+          {impliedCapital > 0 && (
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+              {fmtUsd(apportsCumules / 2)} chacun
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── GRID 2:1 — TABLE + DONUT ─────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "2.1fr 1fr", gap: 28, alignItems: "start" }}>
+
+        {/* LEFT — Positions table */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
+              Positions ouvertes
+            </span>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+              {positions.length} lignes &middot; valeurs réelles (100 %)
+            </span>
+          </div>
+
+          {positions.length === 0 ? (
+            <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              Aucune position partagée
+            </div>
+          ) : (
+            <div style={{ maxHeight: 520, overflowY: "auto", border: "1px solid var(--rule)", borderRadius: 4 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
+                    {["Ticker", "Nom", "Catégorie", "Poids", "Qté", "PRU", "Cours", "Valeur", "Ma part", "Var 24h", "P&L"].map((h, i) => (
+                      <th key={h} style={{
+                        padding: "10px 12px",
+                        textAlign: i < 4 ? "left" : "right",
+                        fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                        borderBottom: "1px solid var(--rule)",
+                      }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedPositions.map((p) => {
+                    const qty = Number(p.quantity)
+                    const priceUsd = Number(p.market_price_usd) || 0
+                    const pru = Number(p.avg_cost)
+                    const valueUsd = qty * priceUsd
+                    const myPart = valueUsd / 2
+                    const pnl = pru > 0 ? qty * (priceUsd - pru) : 0
+                    const pnlPct = pru > 0 ? ((priceUsd - pru) / pru) * 100 : 0
+                    const weight = totalUsd > 0 ? (valueUsd / totalUsd) * 100 : 0
+                    const ticker = p.ticker.replace(/_R$/, "")
+                    const cat = CRYPTO_CATEGORY[ticker] || "Autres"
+
+                    return (
+                      <tr key={p.id}
+                        onClick={() => setSelectedPosition(p)}
+                        style={{ borderBottom: "1px dotted var(--rule)", cursor: "pointer", transition: "background .15s" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in srgb, var(--at-accent) 5%, transparent)" }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+                        <td style={{ padding: "9px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>
+                          {ticker}
+                        </td>
+                        <td style={{ padding: "9px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim() || "—"}
+                        </td>
+                        <td style={{ padding: "9px 12px", fontSize: 10, color: "var(--ink2)" }}>
+                          {cat}
+                        </td>
+                        <td style={{ padding: "9px 12px" }}>
+                          <AllocBar value={weight} />
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                          {fmtQty(qty)}
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>
+                          {pru > 0 ? fmtUsdPrice(pru) : "—"}
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                          {fmtUsdPrice(priceUsd)}
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                          {fmtUsd(valueUsd)}
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--at-accent)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                          {fmtUsd(myPart)}
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ink3)" }}>
+                          —
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {pru > 0 ? (
+                            <>
+                              <span style={{ color: pnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", fontWeight: 600 }}>
+                                {pnl >= 0 ? "+" : ""}{fmtUsd(pnl)}
+                              </span>
+                              <span style={{ color: "var(--ink3)", marginLeft: 6, fontSize: 10 }}>
+                                {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ color: "var(--ink3)" }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — Category allocation donut */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>
+              Allocation
+            </span>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+              Par catégorie
+            </span>
+          </div>
+
+          {categoryData.length > 0 && (
+            <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    outerRadius={70} innerRadius={48} strokeWidth={1.5} stroke="var(--at-bg)">
+                    {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "var(--ink)" }} labelStyle={{ color: "var(--ink2)" }}
+                    formatter={(value: number, name: string) => [fmtUsd(value), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                {categoryData.map((d, i) => (
+                  <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
+                    <span style={{ fontFamily: "var(--font-serif)", color: "var(--ink2)", flex: 1 }}>{d.name}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                      {((d.value / categoryTotal) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── QUOTE-PART FLORENT ────────────────────────────────── */}
+      {impliedCapital > 0 && (
+        <div style={{
+          marginTop: 28, border: "1px solid var(--rule)", background: "var(--at-surface)",
+          borderRadius: 4, padding: 16,
+        }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", marginBottom: 14 }}>
+            Suivi de la quote-part
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             <div>
-              <h2 className="text-sm font-mono font-bold uppercase tracking-widest text-[--at-accent] flex items-center">
-                Raph + Fab
-                <InfoTip text="Portefeuille partagé Raph+Fab. Valeurs réelles affichées (quantités et cours non pondérés). La part Fabien (50%) est calculée uniquement sur la page Home." />
-              </h2>
-              <p className="text-[10px] text-[--ink3] font-mono mt-0.5">Valeurs réelles du portefeuille commun</p>
-            </div>
-            <div className="flex gap-6 text-right">
-              <div>
-                <div className="text-[10px] text-[--ink3] font-mono uppercase">Valeur USD</div>
-                <div className="text-base font-mono font-bold text-[--at-accent]">{fmtUsd(totalStats.valueUsd)}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-[--ink3] font-mono uppercase">Valeur EUR</div>
-                <div className="text-base font-mono font-bold text-[--ink2]">{fmtEur(totalStats.value)}</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink2)" }}>Apports Florent</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600, color: "var(--ink)", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+                {fmtUsd(apportsCumules / 2)}
               </div>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="text-left p-3">Coin</th>
-                  <th className="text-right p-3">Qté</th>
-                  <th className="text-right p-3">Cours ($)</th>
-                  <th className="text-right p-3">Valeur ($)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...sharedPositions].sort((a: any, b: any) => {
-                  return (Number(b.quantity) * (Number(b.market_price_usd) || 0)) - (Number(a.quantity) * (Number(a.market_price_usd) || 0))
-                }).map((p: any) => {
-                  const qty = Number(p.quantity)
-                  const priceUsd = Number(p.market_price_usd) || 0
-                  const valueUsd = qty * priceUsd
-                  return (
-                    <tr key={p.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 cursor-pointer transition"
-                      onClick={() => setSelectedPosition(p)}>
-                      <td className="p-3">
-                        <div className="text-[--at-accent] font-bold">{p.ticker.replace(/_R$/, "")}</div>
-                        <div className="text-[--ink3] text-[10px] truncate max-w-[200px]">{(p.name || "").replace(/\s*\([^)]+\)\s*/g, "").trim()}</div>
-                      </td>
-                      <td className="p-3 text-right text-[--ink]">{qty.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
-                      <td className="p-3 text-right text-[--at-accent]">{priceUsd < 1 ? `$${priceUsd.toFixed(6)}` : fmtUsd(priceUsd)}</td>
-                      <td className="p-3 text-right text-[--ink]">{fmtUsd(valueUsd)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+            <div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink2)" }}>Apports Romain</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600, color: "var(--ink)", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+                {fmtUsd(apportsCumules / 2)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink2)" }}>Plus-value cumulée</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600, color: pvCumulee >= 0 ? "var(--at-pos)" : "var(--at-neg)", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+                {pvCumulee >= 0 ? "+" : ""}{fmtUsd(pvCumulee)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink2)" }}>Net si liquidation</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600, color: "var(--ink)", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+                {fmtUsd(netLiquidation)}
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)", marginTop: 2 }}>
+                PFU 30 %
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* ── POSITION NOTE MODAL ───────────────────────────────── */}
       {selectedPosition && (
         <PositionNoteModal
           isOpen={!!selectedPosition}
@@ -340,7 +485,7 @@ export default function CryptoShared() {
           ticker={selectedPosition.ticker.replace(/_R$/, "")}
           accountId={selectedPosition.account_id}
           positionId={selectedPosition.id}
-          currency="EUR"
+          currency="USD"
         />
       )}
     </div>
