@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -79,17 +77,29 @@ function MetricHint({ label, children }: { label: ReactNode; children: ReactNode
     <Hint delayDuration={150}>
       <HintTrigger asChild>
         <span
-          className="relative z-20 inline-flex cursor-help items-center gap-1 border-b border-dotted border-[--ink3]/40 text-left underline-offset-2 hover:border-[--at-accent]/60"
+          style={{
+            position: "relative", zIndex: 20, display: "inline-flex", cursor: "help",
+            alignItems: "center", gap: 4, borderBottom: "1px dotted color-mix(in srgb, var(--ink3) 40%, transparent)",
+            textAlign: "left",
+          }}
           tabIndex={0}
         >
           {label}
-          <HelpCircle className="h-3 w-3 shrink-0 text-[--ink3]" aria-hidden />
+          <HelpCircle style={{ width: 12, height: 12, flexShrink: 0, color: "var(--ink3)" }} aria-hidden />
         </span>
       </HintTrigger>
       <HintContent
         side="top"
         sideOffset={8}
-        className="z-[9999] min-w-[260px] max-w-[420px] rounded-xl border border-[--rule] bg-[--at-surface] px-4 py-3 text-left text-[12px] font-medium font-cyber normal-case leading-relaxed tracking-normal text-[--ink] shadow-md"
+        className="z-[9999]"
+        style={{
+          minWidth: 260, maxWidth: 420, borderRadius: 0,
+          border: "1px solid var(--rule)", background: "var(--at-surface)",
+          padding: "12px 16px", textAlign: "left", fontSize: 12,
+          fontFamily: "var(--font-serif)", fontWeight: 500, lineHeight: 1.6,
+          letterSpacing: "normal", textTransform: "none", color: "var(--ink)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+        }}
       >
         {children}
       </HintContent>
@@ -336,7 +346,7 @@ export default function TradingDashboard() {
   async function handleUpdateTrade() {
     if (!editData) return;
     setLoading(true);
-    
+
     // Convert back to numbers before saving
     const dataToSave = {
       ...editData,
@@ -469,80 +479,85 @@ export default function TradingDashboard() {
 
   if (loading && !trades.length)
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--at-bg)" }}>
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
         >
-          <Loader2 className="h-12 w-12 text-[--at-accent]" />
+          <Loader2 style={{ width: 48, height: 48, color: "var(--at-accent)" }} />
         </motion.div>
       </div>
     );
 
   if (!user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background font-cyber overflow-hidden">
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--at-bg)", overflow: "hidden" }}>
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md p-0.5 bg-[--at-accent]/10 border border-[--at-accent]/20 rounded-2xl"
+          style={{ width: "100%", maxWidth: 420 }}
         >
-          <Card className="cyber-card border-none bg-[--at-surface] rounded-2xl">
-            <CardHeader className="text-center pt-8">
-              <div className="w-16 h-16 bg-[--at-accent]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[--at-accent]/20">
-                <Hexagon className="h-8 w-8 text-[--at-accent]" />
+          <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 0 }}>
+            <div style={{ padding: "36px 32px 0 32px", textAlign: "center" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)", marginBottom: 6 }}>
+                Trading actif
               </div>
-              <CardTitle className="font-arcade text-xl text-[--at-accent] tracking-widest">
-                TRADING TERMINAL
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pb-8">
-              <form onSubmit={handleLogin} className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-[--at-accent] font-arcade text-[9px] uppercase tracking-wider">
+              <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", lineHeight: 1.2 }}>
+                Connexion
+              </h1>
+            </div>
+            <div style={{ padding: "28px 32px 36px 32px" }}>
+              <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)" }}>
                     Email
                   </Label>
                   <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-[--at-bg] border-[--rule] focus:border-[--at-accent] transition-all rounded-xl h-12"
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 13, border: "1px solid var(--rule)", background: "var(--at-bg)", color: "var(--ink)", borderRadius: 0, height: 44, padding: "0 12px" }}
                     placeholder="Enter your email"
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[--at-accent] font-arcade text-[9px] uppercase tracking-wider">
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)" }}>
                     Password
                   </Label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-[--at-bg] border-[--rule] focus:border-[--at-accent] transition-all rounded-xl h-12"
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 13, border: "1px solid var(--rule)", background: "var(--at-bg)", color: "var(--ink)", borderRadius: 0, height: 44, padding: "0 12px" }}
                     placeholder="••••••••"
                     required
                   />
                 </div>
-                <div className="flex flex-col gap-3 pt-4">
-                  <Button
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12 }}>
+                  <button
                     type="submit"
-                    className="w-full bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]"
+                    style={{
+                      width: "100%", padding: "14px 0", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                      background: "var(--ink)", border: "1px solid var(--ink)", color: "var(--at-bg)", cursor: "pointer", transition: "opacity .15s",
+                    }}
                   >
                     CONNECT
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
-                    variant="ghost"
                     onClick={handleSignUp}
-                    className="w-full text-[--ink3] hover:text-[--ink] font-arcade text-[10px] h-10 transition-all"
+                    style={{
+                      width: "100%", padding: "12px 0", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                      background: "transparent", border: "1px solid var(--rule)", color: "var(--ink2)", cursor: "pointer", transition: "color .15s",
+                    }}
                   >
                     SIGN UP
-                  </Button>
+                  </button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       </div>
     );
@@ -815,7 +830,7 @@ export default function TradingDashboard() {
   // Calculate Sharpe Ratio
   const returns = filteredTrades.map(t => Number(t.profit));
   const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
-  const variance = returns.length > 1 
+  const variance = returns.length > 1
     ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / (returns.length - 1)
     : 0;
   const stdDev = Math.sqrt(variance);
@@ -958,1369 +973,1022 @@ export default function TradingDashboard() {
 
   const timeframes = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W", "1M"];
 
-  const sectionTitleStyle =
-    "font-serif text-sm font-bold text-[--at-accent] tracking-[0.15em] uppercase";
-
   const goalProgress = (totalProfit / profitGoal) * 100;
 
+  /* ── Atelier style constants ────────────────────────────── */
+  const tooltipStyle: React.CSSProperties = {
+    backgroundColor: "var(--at-surface)", border: "1px solid var(--rule)",
+    borderRadius: 0, fontSize: 12, fontFamily: "var(--font-mono)", boxShadow: "none",
+  };
+  const thStyle: React.CSSProperties = {
+    position: "sticky", top: 0, background: "var(--at-surface)",
+    padding: "10px 14px", fontSize: 9, fontFamily: "var(--font-mono)",
+    letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)",
+    fontWeight: 600, textAlign: "left", borderBottom: "1.5px solid var(--ink)",
+    whiteSpace: "nowrap",
+  };
+  const inputStyle: React.CSSProperties = {
+    fontFamily: "var(--font-mono)", fontSize: 13, padding: "8px 12px",
+    border: "1px solid var(--rule)", background: "var(--at-surface)",
+    color: "var(--ink)", width: "100%", outline: "none",
+  };
+
+  const btnStd: React.CSSProperties = {
+    fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+    border: "1px solid var(--rule)", background: "var(--at-surface)", color: "var(--ink)",
+    padding: "8px 16px", cursor: "pointer", transition: "background .15s", display: "inline-flex", alignItems: "center", gap: 6,
+  };
+  const btnAccent: React.CSSProperties = {
+    fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+    border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--at-bg)",
+    padding: "8px 16px", cursor: "pointer", transition: "opacity .15s", display: "inline-flex", alignItems: "center", gap: 6,
+  };
+
   return (
-    <div className="min-h-screen font-cyber pb-20 selection:bg-[--at-accent]/30">
-      <div className="mx-auto max-w-7xl p-4 lg:p-8 space-y-10">
-        <header className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-[--rule] pb-10">
-          <div className="flex items-center gap-5">
-            <div className="p-4 bg-[--at-accent]/10 rounded-2xl border border-[--at-accent]/20">
-              <Hexagon className="h-8 w-8 text-[--at-accent]" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-arcade text-[--at-accent] leading-tight tracking-wider uppercase">
-                Trading Terminal
-              </h1>
-            </div>
+    <div style={{ padding: "28px 32px", minHeight: "100vh", paddingBottom: 80 }}>
+      {/* ── MASTHEAD ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Trading actif &middot; tous comptes
           </div>
-          <div className="flex flex-wrap justify-center gap-4">
-            <div className="flex bg-[--at-bg] p-1 rounded-xl border border-[--rule]">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={exportJSON}
-                className="text-[--ink2] hover:text-[--ink] hover:bg-[--at-accent]/5 rounded-lg px-4"
-              >
-                <Download className="mr-2 h-4 w-4" /> EXPORT
-              </Button>
-              <div className="w-px h-4 bg-[--rule] my-auto mx-1" />
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="text-[--ink2] hover:text-[--ink] hover:bg-[--at-accent]/5 rounded-lg px-4"
-              >
-                <label className="cursor-pointer">
-                  <Upload className="mr-2 h-4 w-4" /> IMPORT
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".json"
-                    onChange={importJSON}
-                  />
-                </label>
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="border-[--at-accent]/20 text-[--at-accent]/70 hover:text-[--at-accent] hover:bg-[--at-accent]/10 hover:border-[--at-accent]/40 rounded-xl px-4 transition-all"
-            >
-              <LogOut className="mr-2 h-4 w-4" /> DISCONNECT
-            </Button>
-          </div>
-        </header>
-
-        {/* TABS */}
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-[--at-bg] border border-[--rule] p-1 rounded-2xl h-14">
-            <TabsTrigger
-              value="dashboard"
-              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-[--at-accent] data-[state=active]:text-[--at-bg] transition-all"
-            >
-              <Activity className="mr-2 h-4 w-4" />
-              DASHBOARD
-            </TabsTrigger>
-            <TabsTrigger
-              value="analytics"
-              className="rounded-xl font-arcade text-[10px] data-[state=active]:bg-[--at-accent] data-[state=active]:text-[--at-bg] transition-all"
-            >
-              <LineChartIcon className="mr-2 h-4 w-4" />
-              ANALYTICS
-            </TabsTrigger>
-          </TabsList>
-
-        <TabsContent value="dashboard" className="space-y-12 mt-10">
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                  Profit
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-[--at-neg]" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-3xl font-bold font-cyber ${globalProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                >
-                  {globalProfit >= 0 ? "+" : "-"}$
-                  {Math.abs(globalProfit).toLocaleString()}
-                </div>
-                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                  Overall net performance
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                  Win Rate
-                </CardTitle>
-                <Target className="h-4 w-4 text-[--at-pos]" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-[--at-pos] font-cyber">
-                  {globalWinRate}%
-                </div>
-                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                  {globalCount} trades executed
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                  Profit Goal
-                </CardTitle>
-                <Zap className="h-4 w-4 text-[--at-accent]" />
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-end justify-between">
-                  <div
-                    className="text-3xl font-bold text-[--at-accent] font-cyber cursor-pointer group flex items-center gap-2"
-                    onClick={() => setShowGoalInput(true)}
-                  >
-                    {goalProgress.toFixed(1)}%
-                    <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <div className="text-[10px] text-[--ink3] font-mono">
-                    / ${profitGoal.toLocaleString()}
-                  </div>
-                </div>
-                <div className="h-1.5 w-full bg-[--at-bg] rounded-full overflow-hidden border border-[--rule]">
-                  <motion.div
-                    className="h-full bg-[--at-accent]"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(goalProgress, 100)}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                  <MetricHint label="R-multiple">
-                    Sum of R values: each trade result divided by max loss
-                    (risk). The total shows how many risk units were gained or
-                    lost overall.
-                  </MetricHint>
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-[--at-pos]" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-3xl font-bold font-cyber ${globalTotalR >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                >
-                  {formatR(globalTotalR)}
-                </div>
-                <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                  Total R-multiple generated
-                </p>
-              </CardContent>
-            </Card>
-          </section>
-
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <Plus className="h-5 w-5 text-[--at-neg]" />
-                <h2 className={sectionTitleStyle}>Add New Trade</h2>
-              </div>
-              <Card className="cyber-card border-[--rule] bg-[--at-surface] rounded-2xl">
-                <CardContent className="p-8">
-                  <form
-                    onSubmit={addTrade}
-                    className="grid gap-8 md:grid-cols-2 lg:grid-cols-4"
-                  >
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Calendar className="h-4 w-4 text-[--at-pos]" /> Date
-                      </Label>
-                      <Input
-                        name="date"
-                        type="date"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        defaultValue={new Date().toISOString().split("T")[0]}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Clock className="h-4 w-4 text-[--at-accent]" /> Entry Time
-                      </Label>
-                      <Input
-                        name="entry_time"
-                        type="time"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        value={entryTime}
-                        onChange={(e) => setEntryTime(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Target className="h-4 w-4 text-[--at-neg]" /> Asset
-                        (Actif)
-                      </Label>
-                      <Input
-                        name="actif"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        placeholder="e.g. BTC/USD"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Clock className="h-4 w-4 text-[--at-pos]" /> Timeframe
-                      </Label>
-                      <Select name="timeframe" defaultValue="1H">
-                        <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11 text-[--ink]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                          {timeframes.map((tf) => (
-                            <SelectItem
-                              key={tf}
-                              value={tf}
-                              className="hover:bg-[--at-accent]/20 focus:bg-[--at-accent]/20"
-                            >
-                              {tf}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Activity className="h-4 w-4 text-[--at-neg]" /> Type
-                      </Label>
-                      <Select name="type" defaultValue="long">
-                        <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11 text-[--ink]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                          <SelectItem value="long" className="text-[--at-pos]">
-                            Long
-                          </SelectItem>
-                          <SelectItem
-                            value="short"
-                            className="text-[--at-neg]"
-                          >
-                            Short
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <TrendingUp className="h-4 w-4 text-[--at-pos]" /> Result
-                        ($)
-                      </Label>
-                      <Input
-                        name="profit"
-                        type="number"
-                        step="0.01"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        placeholder="0.00"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <ShieldAlert className="h-4 w-4 text-[--at-neg]" /> Max
-                        Loss ($)
-                      </Label>
-                      <Input
-                        name="risk"
-                        type="number"
-                        step="0.01"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        placeholder="100.00"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Wallet className="h-4 w-4 text-[--at-pos]" /> Account
-                      </Label>
-                      <Input
-                        name="compte"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        placeholder="e.g. Main"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] flex items-center gap-3 uppercase font-semibold">
-                        <Layers className="h-4 w-4 text-[--at-neg]" /> Strategy
-                      </Label>
-                      <Input
-                        name="strategie"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] rounded-xl focus:ring-[--at-accent]/20 h-11"
-                        placeholder="e.g. Trend Follow"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-4 md:col-span-2 lg:col-span-4">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] uppercase font-semibold">
-                        Observations
-                      </Label>
-                      <Textarea
-                        name="observations"
-                        className="bg-[--at-bg] border-[--rule] text-[--ink] min-h-[120px] rounded-2xl p-4 focus:ring-[--at-accent]/20"
-                        placeholder="Analyze market behavior, emotional state, and core learnings..."
-                      />
-                      <p className="text-[8px] text-[--ink3] font-arcade tracking-wider mt-2 uppercase">
-                        CTRL+V TO PASTE SCREENSHOTS
-                      </p>
-                    </div>
-                    <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                      <Label className="font-arcade text-[10px] text-[--ink] tracking-[0.1em] uppercase font-semibold">
-                        Photos (Max 3)
-                      </Label>
-                      <div className="flex flex-wrap gap-5 mt-2">
-                        {selectedPhotos.map((url, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ scale: 0, rotate: -10 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            className="relative w-28 h-28 border border-[--rule] rounded-2xl overflow-hidden group"
-                          >
-                            <img
-                              src={url}
-                              className="w-full h-full object-cover"
-                              alt="Intel"
-                            />
-                            <div className="absolute inset-0 bg-[--at-surface] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedPhotos(
-                                    selectedPhotos.filter(
-                                      (_, idx) => idx !== i,
-                                    ),
-                                  )
-                                }
-                                className="p-2 bg-[--at-accent]/80 text-[--ink] rounded-xl hover:bg-[--at-accent] transition-colors"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))}
-                        {selectedPhotos.length < 3 && (
-                          <Label className="flex flex-col items-center justify-center w-28 h-28 border-2 border-dashed border-[--rule] rounded-2xl cursor-pointer hover:border-[--at-accent]/50 hover:bg-[--at-accent]/5 transition-all group">
-                            {uploading ? (
-                              <Loader2 className="animate-spin h-6 w-6 text-[--at-accent]" />
-                            ) : (
-                              <Plus className="h-7 w-7 text-[--ink3] group-hover:text-[--at-accent] group-hover:scale-110 transition-transform" />
-                            )}
-                            <span className="text-[8px] mt-2 text-[--ink3] group-hover:text-[--at-accent] font-arcade uppercase tracking-tighter">
-                              Upload
-                            </span>
-                            <Input
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={handlePhotoUpload}
-                              disabled={uploading}
-                            />
-                          </Label>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-end lg:col-start-4">
-                      <Button
-                        type="submit"
-                        className="w-full bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[11px] h-14 rounded-2xl transition-all active:scale-[0.98]"
-                        disabled={uploading}
-                      >
-                        Save Trade
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </motion.section>
-
-            <section className="space-y-6">
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <History className="h-5 w-5 text-[--at-accent]" />
-                <h2 className={sectionTitleStyle}>Recent Trades</h2>
-              </div>
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="relative overflow-x-auto">
-                    <table className="w-full text-left text-[12px] font-cyber">
-                      <thead>
-                        <tr className="border-b border-[--rule] bg-[--at-surface] text-[--at-pos] font-bold font-arcade text-[9px] tracking-[0.2em]">
-                          <th className="py-6 px-6">Date</th>
-                          <th className="py-6 px-6">Hour</th>
-                          <th className="py-6 px-6">Asset</th>
-                          <th className="py-6 px-6">Timeframe</th>
-                          <th className="py-6 px-6">Type</th>
-                          <th className="py-6 px-6">Result</th>
-                          <th className="py-6 px-6">R-Ratio</th>
-                          <th className="py-6 px-6">Visuals</th>
-                          <th className="py-6 px-6 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <AnimatePresence>
-                          {filteredTrades.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={9}
-                                className="py-20 text-center text-[--ink3] font-arcade text-[10px] tracking-widest uppercase"
-                              >
-                                No trades found
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredTrades.map((trade, i) => {
-                              const r = getR(
-                                Number(trade.profit),
-                                Number(trade.risk),
-                              );
-                              return (
-                                <motion.tr
-                                  key={trade.id}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: i * 0.05 }}
-                                  className="border-b border-[--rule] hover:bg-[--at-accent]/5 transition-all group cursor-pointer relative"
-                                  onClick={() => setSelectedTrade(trade)}
-                                >
-                                  <td className="py-6 px-6 text-[--ink] font-mono tracking-tighter">
-                                    {new Date(trade.date).toLocaleDateString()}
-                                  </td>
-                                  <td className="py-6 px-6 text-[--ink2] font-mono tracking-tighter">
-                                    {formatTradeTime(trade.date)}
-                                  </td>
-                                  <td className="py-6 px-6 text-[--ink] font-bold">
-                                    {trade.actif}
-                                  </td>
-                                  <td className="py-6 px-6 text-[--ink2]">
-                                    {trade.timeframe}
-                                  </td>
-                                  <td
-                                    className={`py-6 px-6 font-bold uppercase text-[10px] ${trade.type === "long" ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                                  >
-                                    {trade.type === "long" ? "Long" : "Short"}
-                                  </td>
-                                  <td
-                                    className={`py-6 px-6 font-bold ${Number(trade.profit) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                                  >
-                                    {Number(trade.profit) >= 0 ? "+" : "-"}$
-                                    {Math.abs(
-                                      Number(trade.profit),
-                                    ).toLocaleString()}
-                                  </td>
-                                  <td
-                                    className={`py-6 px-6 font-bold ${getR(Number(trade.profit), Number(trade.risk)) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                                  >
-                                    {formatR(
-                                      getR(
-                                        Number(trade.profit),
-                                        Number(trade.risk),
-                                      ),
-                                    )}
-                                  </td>
-                                  <td className="py-6 px-6">
-                                    <div className="flex -space-x-2 group-hover:space-x-1 transition-all duration-300">
-                                      {trade.photos?.map(
-                                        (url: string, i: number) => (
-                                          <img
-                                            key={i}
-                                            src={url}
-                                            className="w-8 h-8 object-cover rounded-lg border border-[--rule] transition-transform hover:scale-110 hover:z-10"
-                                            alt="Trade Snapshot"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setPreviewPhoto({
-                                                url,
-                                                index: i,
-                                                photos: trade.photos,
-                                              });
-                                            }}
-                                          />
-                                        ),
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-6 px-6 text-right">
-                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-[--ink3] hover:text-[--ink] hover:bg-[--at-accent]/10 rounded-lg"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedTrade(trade);
-                                          setIsEditing(true);
-                                          setEditData({ ...trade });
-                                        }}
-                                      >
-                                        <Edit2 className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) =>
-                                          deleteTrade(trade.id, e)
-                                        }
-                                        className="text-[--ink3] hover:text-[--at-neg] hover:bg-[--at-accent]/10 rounded-lg"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </motion.tr>
-                              );
-                            })
-                          )}
-                        </AnimatePresence>
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-10 mt-10">
-            {/* Filters */}
-            <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Filter className="h-4 w-4 text-[--at-accent]" />
-                  <h3 className="font-arcade text-[9px] text-[--ink2] uppercase tracking-wider">
-                    Filters
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="ml-auto text-[--ink3] hover:text-[--ink] h-7 px-3 font-arcade text-[8px]"
-                  >
-                    <RefreshCw className="h-3 w-3 mr-2" /> RESET
-                  </Button>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
-                      Strategy
-                    </Label>
-                    <Select
-                      value={filterStrategy}
-                      onValueChange={setFilterStrategy}
-                    >
-                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                        <SelectItem value="all">All Strategies</SelectItem>
-                        {strategies.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
-                      Account
-                    </Label>
-                    <Select
-                      value={filterAccount}
-                      onValueChange={setFilterAccount}
-                    >
-                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                        <SelectItem value="all">All Accounts</SelectItem>
-                        {accounts.map((a) => (
-                          <SelectItem key={a} value={a}>
-                            {a}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
-                      Type
-                    </Label>
-                    <Select value={filterType} onValueChange={setFilterType}>
-                      <SelectTrigger className="bg-[--at-bg] border-[--rule] h-9 rounded-xl text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="long">Long</SelectItem>
-                        <SelectItem value="short">Short</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-2 lg:col-span-1">
-                    <Label className="font-arcade text-[8px] text-[--ink3] uppercase">
-                      Time Range
-                    </Label>
-                    <div className="grid grid-cols-4 gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={filterRange === "24h" ? "default" : "ghost"}
-                        onClick={() => setFilterRange("24h")}
-                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
-                      >
-                        24H
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={filterRange === "7d" ? "default" : "ghost"}
-                        onClick={() => setFilterRange("7d")}
-                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
-                      >
-                        7D
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={filterRange === "30d" ? "default" : "ghost"}
-                        onClick={() => setFilterRange("30d")}
-                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
-                      >
-                        30D
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={filterRange === "all" ? "default" : "ghost"}
-                        onClick={() => setFilterRange("all")}
-                        className="h-9 rounded-xl px-0 text-[11px] font-cyber tracking-wide"
-                      >
-                        ALL
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                {(filterStrategy !== "all" ||
-                  filterAccount !== "all" ||
-                  filterType !== "all" ||
-                  filterRange !== "all") && (
-                  <div className="mt-4 text-[9px] text-[--at-accent] font-arcade uppercase">
-                    Showing {filteredTrades.length} of {trades.length} trades
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Equity Curve */}
-            {equityCurve.length > 0 && (
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="space-y-6"
-              >
-                <div className="mb-2 flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <Activity className="h-5 w-5 text-[--at-accent]" />
-                    <div className="flex flex-col gap-0.5">
-                      <h2 className={sectionTitleStyle}>Equity Curve</h2>
-                      <span className="font-cyber text-[11px] tracking-wide text-[--ink3]">
-                        Solde reel = capital initial + P/L cumule (trades filtres)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <Label
-                      htmlFor="starting-balance"
-                      className="whitespace-nowrap font-arcade text-[8px] uppercase text-[--ink3]"
-                    >
-                      Capital initial ($)
-                    </Label>
-                    <Input
-                      id="starting-balance"
-                      type="number"
-                      min={0}
-                      step={100}
-                      className="h-9 w-[7.5rem] rounded-xl border-[--rule] bg-[--at-bg] text-sm"
-                      value={startingBalance}
-                      onChange={(e) =>
-                        setStartingBalance(Number(e.target.value) || 0)
-                      }
-                      onBlur={() => {
-                        if (user) {
-                          localStorage.setItem(
-                            `startingBalance_${user.id}`,
-                            String(startingBalance),
-                          );
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardContent className="p-8">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={equityCurve}>
-                        <defs>
-                          <linearGradient
-                            id="colorBalance"
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop
-                              offset="5%"
-                              stopColor="#7d2b1d"
-                              stopOpacity={0.3}
-                            />
-                            <stop
-                              offset="95%"
-                              stopColor="#7d2b1d"
-                              stopOpacity={0}
-                            />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="rgba(0,0,0,0.08)"
-                        />
-                        <XAxis
-                          dataKey="date"
-                          stroke="rgba(0,0,0,0.15)"
-                          style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "#4a4540" }}
-                        />
-                        <YAxis
-                          stroke="rgba(0,0,0,0.15)"
-                          style={{ fontSize: "10px", fontFamily: "monospace" }}
-                          tick={{ fill: "#4a4540" }}
-                          tickFormatter={(value) =>
-                            `$${value.toLocaleString()}`
-                          }
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#fbf8f1",
-                            border: "1px solid #d9d3c4",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontFamily: "monospace",
-                            boxShadow: "none",
-                          }}
-                          labelStyle={{ color: "#7d2b1d", fontWeight: "bold" }}
-                          formatter={(value: any) => [
-                            `$${Number(value).toLocaleString()}`,
-                            "Solde",
-                          ]}
-                        />
-                        <Area
-                          type="stepAfter"
-                          dataKey="balance"
-                          stroke="#7d2b1d"
-                          strokeWidth={2}
-                          fill="url(#colorBalance)"
-                          animationDuration={2000}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.section>
-            )}
-
-            {/* Performance Metrics */}
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                    Profit
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-[--at-neg]" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"} `}
-                  >
-                    {totalProfit >= 0 ? "+" : "-"}$
-                    {Math.abs(totalProfit).toLocaleString()}
-                  </div>
-                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                    Net performance
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                    Win Rate
-                  </CardTitle>
-                  <Target className="h-4 w-4 text-[--at-pos]" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-[--at-pos] font-cyber ">
-                    {winRate}%
-                  </div>
-                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                    {filteredTrades.length} trades
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                    Profit Goal
-                  </CardTitle>
-                  <Zap className="h-4 w-4 text-[--at-accent]" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-end justify-between">
-                    <div
-                      className="text-3xl font-bold text-[--at-accent] font-cyber cursor-pointer group flex items-center gap-2"
-                      onClick={() => setShowGoalInput(true)}
-                    >
-                      {goalProgress.toFixed(1)}%
-                      <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="text-[10px] text-[--ink3] font-mono">
-                      / ${profitGoal.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full bg-[--at-bg] rounded-full overflow-hidden border border-[--rule]">
-                    <motion.div
-                      className="h-full bg-[--at-accent]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(goalProgress, 100)}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl transition-all">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="font-arcade text-[10px] text-[--ink3] uppercase tracking-widest">
-                    <MetricHint label="R-multiple">
-                      Idem que le ratio R : somme des (profit ÷ risque) sur
-                      les trades correspondant aux filtres. Compare la
-                      performance en multiples de risque, pas seulement en
-                      dollars.
-                    </MetricHint>
-                  </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-[--at-pos]" />
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className={`text-3xl font-bold font-cyber ${totalR >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                  >
-                    {formatR(totalR)}
-                  </div>
-                  <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase tracking-tighter">
-                    Total R-multiple
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-
-            {/* Advanced Stats */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-3 mb-2 px-2">
-                <Activity className="h-5 w-5 text-[--at-neg]" />
-                <h2 className={sectionTitleStyle}>Advanced Analytics</h2>
-              </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      <MetricHint label="Max drawdown">
-                        Largest equity decline from a previous peak (starting
-                        balance + cumulative P/L on filtered trades). Measures
-                        worst capital pullback.
-                      </MetricHint>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
-                      -${maxDrawdown.toLocaleString()}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Largest capital decline
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Best Trade
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {bestTrade ? (
-                      <>
-                        <div className="text-2xl font-bold text-[--at-pos] font-cyber">
-                          +${Number(bestTrade.profit).toLocaleString()}
-                        </div>
-                        <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                          {bestTrade.actif} •{" "}
-                          {new Date(bestTrade.date).toLocaleDateString()}
-                        </p>
-                      </>
-                    ) : (
-                      <div className="text-[--ink3] font-arcade text-[9px]">
-                        No data
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Worst Trade
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {worstTrade ? (
-                      <>
-                        <div className="text-2xl font-bold text-[--at-neg] font-cyber">
-                          ${Number(worstTrade.profit).toLocaleString()}
-                        </div>
-                        <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                          {worstTrade.actif} •{" "}
-                          {new Date(worstTrade.date).toLocaleDateString()}
-                        </p>
-                      </>
-                    ) : (
-                      <div className="text-[--ink3] font-arcade text-[9px]">
-                        No data
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Win Streak
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-[--at-pos] font-cyber">
-                      {bestStreak}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Consecutive wins
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Loss Streak
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
-                      {Math.abs(worstStreak)}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Consecutive losses
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Current Streak
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div
-                      className={`text-2xl font-bold font-cyber ${currentStreak >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                    >
-                      {currentStreak > 0 ? "+" : ""}
-                      {currentStreak}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      {currentStreak > 0
-                        ? "Winning"
-                        : currentStreak < 0
-                          ? "Losing"
-                          : "Neutral"}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      <MetricHint label="Sharpe ratio">
-                        Here: average P/L divided by P/L standard deviation
-                        (filtered series). Higher means better return relative
-                        to variability. This is not an annualized institutional
-                        Sharpe.
-                      </MetricHint>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${sharpeRatio >= 1 ? 'text-[--at-pos]' : sharpeRatio >= 0 ? 'text-[--at-accent]' : 'text-[--at-neg]'}`}>
-                      {sharpeRatio.toFixed(2)}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">Risk-adjusted return</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Average Loss
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-[--at-neg] font-cyber">
-                      -${Math.abs(avgLoss).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Mean loser size
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Average RRR
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${averageRRR >= 1 ? "text-[--at-pos]" : "text-[--at-accent]"}`}>
-                      {averageRRR.toFixed(2)}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Avg win / avg loss
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Expectancy
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${expectancy >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
-                      {expectancy >= 0 ? "+" : "-"}$
-                      {Math.abs(expectancy).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Expected value per trade
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="font-arcade text-[9px] text-[--ink3] uppercase tracking-wider">
-                      Profit Factor
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold font-cyber ${profitFactor >= 1 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
-                      {profitFactor.toFixed(2)}
-                    </div>
-                    <p className="text-[9px] text-[--ink3] mt-2 font-arcade uppercase">
-                      Gross profit / gross loss
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-
-            {/* Monthly Performance with weekly precision */}
-            {monthlyPerformanceDetailedData.length > 0 && (
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="space-y-6"
-              >
-                <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-[--at-pos]" />
-                    <h2 className={sectionTitleStyle}>Monthly Performance</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setPerformanceYear((y) => y - 1)}
-                      className="h-8 w-8 rounded-lg border border-[--rule]"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="min-w-[90px] text-center text-[11px] font-arcade uppercase tracking-wider text-[--ink2]">
-                      {performanceYear}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setPerformanceYear((y) => y + 1)}
-                      className="h-8 w-8 rounded-lg border border-[--rule]"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                  <CardContent className="p-8">
-                    <ResponsiveContainer width="100%" height={340}>
-                      <BarChart
-                        data={monthlyPerformanceDetailedData}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="rgba(0,0,0,0.08)"
-                        />
-                        <XAxis
-                          dataKey="monthLabel"
-                          stroke="rgba(0,0,0,0.15)"
-                          style={{ fontSize: "11px", fontFamily: "monospace" }}
-                          tick={{ fill: "#4a4540" }}
-                        />
-                        <YAxis
-                          stroke="rgba(0,0,0,0.15)"
-                          style={{ fontSize: "11px", fontFamily: "monospace" }}
-                          tick={{ fill: "#4a4540" }}
-                          tickFormatter={(value) =>
-                            `$${value.toLocaleString()}`
-                          }
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#fbf8f1",
-                            border: "1px solid #d9d3c4",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontFamily: "monospace",
-                            boxShadow: "none",
-                          }}
-                          formatter={(value: any, _name: any, item: any) => {
-                            const payload = item?.payload;
-                            return [
-                              `$${Number(value).toLocaleString()} • YTD: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trade${(payload?.trades ?? 0) > 1 ? "s" : ""} • ${formatR(payload?.r ?? 0)}`,
-                              "Month result",
-                            ];
-                          }}
-                          labelStyle={{ color: "#7d2b1d", fontWeight: "bold" }}
-                        />
-                        <Bar
-                          dataKey="pnl"
-                          maxBarSize={52}
-                          radius={[12, 12, 0, 0]}
-                          animationDuration={1500}
-                        >
-                          {monthlyPerformanceDetailedData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.pnl >= 0 ? "#3a6e3f" : "#7d2b1d"}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.section>
-            )}
-
-            {/* Calendar View - Monthly */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="space-y-6"
-            >
-              <div className="mb-2 flex flex-col gap-3 px-2 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-[--at-accent]" />
-                  <h2 className={sectionTitleStyle}>Trading Calendar</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setCalendarMonth(
-                        new Date(
-                          calendarMonth.getFullYear(),
-                          calendarMonth.getMonth() - 1,
-                          1,
-                        ),
-                      )
-                    }
-                    className="h-8 w-8 rounded-lg border border-[--rule]"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <div className="min-w-[150px] text-center text-[11px] font-arcade uppercase tracking-wider text-[--ink2]">
-                    {monthStart.toLocaleDateString("en-US", {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setCalendarMonth(
-                        new Date(
-                          calendarMonth.getFullYear(),
-                          calendarMonth.getMonth() + 1,
-                          1,
-                        ),
-                      )
-                    }
-                    className="h-8 w-8 rounded-lg border border-[--rule]"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <Card className="cyber-card bg-[--at-surface] border-[--rule] rounded-2xl">
-                <CardContent className="p-4 md:p-6">
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[980px] space-y-2">
-                      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_220px] gap-2">
-                        {weekdayLabels.map((label) => (
-                          <div
-                            key={label}
-                            className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-[--ink3]"
-                          >
-                            {label}
-                          </div>
-                        ))}
-                        <div className="py-1 text-center text-[10px] font-cyber uppercase tracking-wider text-[--ink3]">
-                          Weekly Summary
-                        </div>
-                      </div>
-                      {calendarRows.map((row, rowIndex) => {
-                        const week = monthWeekSummaries[rowIndex];
-                        return (
-                          <div
-                            key={`week-row-${rowIndex}`}
-                            className="grid grid-cols-[repeat(7,minmax(0,1fr))_220px] gap-2"
-                          >
-                            {row.map((day, i) => {
-                          if (!day) {
-                            return (
-                              <div
-                                key={`empty-${rowIndex}-${i}`}
-                                className="aspect-square rounded-lg border border-[--rule] bg-[--at-surface]"
-                              />
-                            );
-                          }
-                          const intensity = day.count
-                            ? Math.min(Math.abs(day.profit) / 500, 1)
-                            : 0;
-                          const colorClass =
-                            day.count === 0
-                              ? "bg-[--at-surface]"
-                              : day.profit >= 0
-                                ? "bg-[--at-pos]/40"
-                                : "bg-[--at-neg]/40";
-                              return (
-                                <div
-                                  key={day.key}
-                                  className={`relative aspect-square rounded-lg border border-[--rule] ${colorClass} p-1.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
-                                  style={{
-                                    opacity: day.count === 0 ? 0.35 : 0.62 + intensity * 0.3,
-                                  }}
-                                  title={`${new Date(day.key + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L: ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR: ${formatR(day.dayR)}`}
-                                >
-                                  <div className="absolute left-1.5 top-1 text-[10px] font-bold text-[--ink]">
-                                    {day.dayNumber}
-                                  </div>
-                                  {day.count > 0 && (
-                                    <div className="absolute inset-x-1.5 top-[24%] bottom-1.5 rounded-md bg-[--at-surface] p-1 text-center flex flex-col items-center justify-center gap-1">
-                                      <div className="text-[11px] font-bold text-[--ink]">
-                                        {day.count} trade{day.count > 1 ? "s" : ""}
-                                      </div>
-                                      <div className="text-[11px] font-mono text-[--ink]">
-                                        {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
-                                      </div>
-                                      <div className="text-[11px] font-mono text-[--at-accent]">
-                                        {formatR(day.dayR)}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            <div className="rounded-xl border border-[--rule] bg-[--at-surface] px-3 py-2">
-                              <div className="text-[9px] font-arcade uppercase text-[--ink3]">
-                                Week {week.week} • {week.rangeLabel}
-                              </div>
-                              <div className="mt-1 text-[12px] text-[--ink]">
-                                {week.pnl >= 0 ? "+" : "-"}${Math.abs(week.pnl).toLocaleString()}
-                              </div>
-                              <div className="text-[11px] text-[--at-accent]">{formatR(week.r)}</div>
-                              <div className="text-[11px] text-[--ink2]">
-                                {week.trades} trade{week.trades > 1 ? "s" : ""}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.section>
-          </TabsContent>
-        </Tabs>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            Le journal.
+          </h1>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={exportJSON} style={btnStd}>
+            <Download size={12} /> Export
+          </button>
+          <label style={{ ...btnStd, cursor: "pointer" }}>
+            <Upload size={12} /> Import
+            <input type="file" style={{ display: "none" }} accept=".json" onChange={importJSON} />
+          </label>
+          <button onClick={handleLogout} style={{ ...btnStd, color: "var(--ink2)", borderColor: "var(--rule)" }}>
+            <LogOut size={12} /> Disconnect
+          </button>
+        </div>
       </div>
 
+      {/* ── TABS ──────────────────────────────────────────────── */}
+      <Tabs defaultValue="dashboard" className="w-full">
+        <TabsList className="bg-transparent rounded-none p-0 h-auto" style={{ display: "flex", gap: 24, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+          <TabsTrigger
+            value="dashboard"
+            className="bg-transparent rounded-none p-0 h-auto data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink2)", paddingBottom: 10, borderBottom: "2px solid transparent", transition: "all .15s" }}
+          >
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger
+            value="analytics"
+            className="bg-transparent rounded-none p-0 h-auto data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink2)", paddingBottom: 10, borderBottom: "2px solid transparent", transition: "all .15s" }}
+          >
+            Analytics
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/*  DASHBOARD TAB                                          */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <TabsContent value="dashboard" style={{ marginTop: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+
+          {/* Dashboard KPI Row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)" }}>
+            {/* Profit */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Profit
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: globalProfit >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
+                {globalProfit >= 0 ? "+" : "-"}${Math.abs(globalProfit).toLocaleString()}
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                Overall net performance
+              </div>
+            </div>
+
+            {/* Win Rate */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Win Rate
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--at-pos)", marginTop: 6, letterSpacing: -0.5 }}>
+                {globalWinRate}%
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                {globalCount} trades executed
+              </div>
+            </div>
+
+            {/* Profit Goal */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Profit Goal
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+                <div
+                  style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--at-accent)", letterSpacing: -0.5, cursor: "pointer" }}
+                  onClick={() => setShowGoalInput(true)}
+                >
+                  {goalProgress.toFixed(1)}%
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>
+                  / ${profitGoal.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ height: 3, width: "100%", background: "var(--at-bg)", overflow: "hidden", border: "1px solid var(--rule)", marginTop: 8 }}>
+                <motion.div
+                  style={{ height: "100%", background: "var(--at-accent)" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(goalProgress, 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+
+            {/* R-multiple */}
+            <div style={{ padding: "16px 22px" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                <MetricHint label="R-multiple">
+                  Sum of R values: each trade result divided by max loss
+                  (risk). The total shows how many risk units were gained or
+                  lost overall.
+                </MetricHint>
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: globalTotalR >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
+                {formatR(globalTotalR)}
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                Total R-multiple generated
+              </div>
+            </div>
+          </div>
+
+          {/* ── Add New Trade ──────────────────────────────────── */}
+          <section>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Add New Trade</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Saisie manuelle</span>
+            </div>
+            <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 28 }}>
+              <form
+                onSubmit={addTrade}
+                style={{ display: "grid", gap: 24, gridTemplateColumns: "repeat(4, 1fr)" }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Calendar size={12} style={{ color: "var(--ink3)" }} /> Date
+                  </Label>
+                  <Input
+                    name="date"
+                    type="date"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    defaultValue={new Date().toISOString().split("T")[0]}
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Clock size={12} style={{ color: "var(--ink3)" }} /> Entry Time
+                  </Label>
+                  <Input
+                    name="entry_time"
+                    type="time"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    value={entryTime}
+                    onChange={(e) => setEntryTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Target size={12} style={{ color: "var(--ink3)" }} /> Asset (Actif)
+                  </Label>
+                  <Input
+                    name="actif"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    placeholder="e.g. BTC/USD"
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Clock size={12} style={{ color: "var(--ink3)" }} /> Timeframe
+                  </Label>
+                  <Select name="timeframe" defaultValue="1H">
+                    <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 38 }}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                      {timeframes.map((tf) => (
+                        <SelectItem key={tf} value={tf}>{tf}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Activity size={12} style={{ color: "var(--ink3)" }} /> Type
+                  </Label>
+                  <Select name="type" defaultValue="long">
+                    <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 38 }}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                      <SelectItem value="long">Long</SelectItem>
+                      <SelectItem value="short">Short</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <TrendingUp size={12} style={{ color: "var(--ink3)" }} /> Result ($)
+                  </Label>
+                  <Input
+                    name="profit"
+                    type="number"
+                    step="0.01"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <ShieldAlert size={12} style={{ color: "var(--ink3)" }} /> Max Loss ($)
+                  </Label>
+                  <Input
+                    name="risk"
+                    type="number"
+                    step="0.01"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    placeholder="100.00"
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Wallet size={12} style={{ color: "var(--ink3)" }} /> Account
+                  </Label>
+                  <Input
+                    name="compte"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    placeholder="e.g. Main"
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Layers size={12} style={{ color: "var(--ink3)" }} /> Strategy
+                  </Label>
+                  <Input
+                    name="strategie"
+                    style={{ ...inputStyle, borderRadius: 0 }}
+                    placeholder="e.g. Trend Follow"
+                    required
+                  />
+                </div>
+                <div style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)" }}>
+                    Observations
+                  </Label>
+                  <Textarea
+                    name="observations"
+                    style={{ ...inputStyle, minHeight: 100, borderRadius: 0, resize: "vertical" }}
+                    placeholder="Analyze market behavior, emotional state, and core learnings..."
+                  />
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginTop: 2 }}>
+                    CTRL+V TO PASTE SCREENSHOTS
+                  </span>
+                </div>
+                <div style={{ gridColumn: "span 3", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Label style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)" }}>
+                    Photos (Max 3)
+                  </Label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 4 }}>
+                    {selectedPhotos.map((url, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ scale: 0, rotate: -10 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        style={{ position: "relative", width: 80, height: 80, border: "1px solid var(--rule)", overflow: "hidden" }}
+                      >
+                        <img src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="Intel" />
+                        <div style={{ position: "absolute", inset: 0, background: "var(--at-surface)", opacity: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity .15s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhotos(selectedPhotos.filter((_, idx) => idx !== i))}
+                            style={{ padding: 6, background: "var(--at-accent)", color: "var(--ink)", border: "none", cursor: "pointer" }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                    {selectedPhotos.length < 3 && (
+                      <Label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 80, height: 80, border: "2px dashed var(--rule)", cursor: "pointer", transition: "border-color .15s" }}>
+                        {uploading ? (
+                          <Loader2 style={{ animation: "spin 1s linear infinite", width: 20, height: 20, color: "var(--at-accent)" }} />
+                        ) : (
+                          <Plus style={{ width: 22, height: 22, color: "var(--ink3)" }} />
+                        )}
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 8, marginTop: 4, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)" }}>Upload</span>
+                        <Input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                          disabled={uploading}
+                        />
+                      </Label>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end" }}>
+                  <button
+                    type="submit"
+                    disabled={uploading}
+                    style={{ ...btnAccent, width: "100%", padding: "14px 0", justifyContent: "center" }}
+                  >
+                    Save Trade
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          {/* ── Recent Trades ──────────────────────────────────── */}
+          <section>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Recent Trades</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>
+                {filteredTrades.length} entries
+              </span>
+            </div>
+            <div style={{ border: "1px solid var(--rule)", overflow: "hidden" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Date</th>
+                      <th style={thStyle}>Hour</th>
+                      <th style={thStyle}>Asset</th>
+                      <th style={thStyle}>Timeframe</th>
+                      <th style={thStyle}>Type</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Result</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>R-Ratio</th>
+                      <th style={thStyle}>Visuals</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <AnimatePresence>
+                      {filteredTrades.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            style={{ padding: "60px 0", textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase" }}
+                          >
+                            No trades found
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredTrades.map((trade, i) => {
+                          const r = getR(
+                            Number(trade.profit),
+                            Number(trade.risk),
+                          );
+                          return (
+                            <motion.tr
+                              key={trade.id}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.05 }}
+                              style={{ borderBottom: "1px dotted var(--rule)", cursor: "pointer", transition: "background .15s" }}
+                              onClick={() => setSelectedTrade(trade)}
+                              onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in srgb, var(--at-accent) 5%, transparent)"; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                            >
+                              <td style={{ padding: "10px 14px", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                                {new Date(trade.date).toLocaleDateString()}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "var(--ink2)", fontVariantNumeric: "tabular-nums" }}>
+                                {formatTradeTime(trade.date)}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "var(--ink)", fontFamily: "var(--font-serif)", fontWeight: 700 }}>
+                                {trade.actif}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "var(--ink2)" }}>
+                                {trade.timeframe}
+                              </td>
+                              <td style={{ padding: "10px 14px", fontWeight: 700, textTransform: "uppercase", fontSize: 10, color: trade.type === "long" ? "var(--at-pos)" : "var(--at-neg)" }}>
+                                {trade.type === "long" ? "Long" : "Short"}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: Number(trade.profit) >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                                {Number(trade.profit) >= 0 ? "+" : "-"}${Math.abs(Number(trade.profit)).toLocaleString()}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: r >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                                {formatR(r)}
+                              </td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {trade.photos?.map((url: string, pi: number) => (
+                                    <img
+                                      key={pi}
+                                      src={url}
+                                      style={{ width: 28, height: 28, objectFit: "cover", border: "1px solid var(--rule)" }}
+                                      alt="Trade Snapshot"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewPhoto({ url, index: pi, photos: trade.photos });
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                                  <button
+                                    style={{ background: "none", border: "none", color: "var(--ink3)", cursor: "pointer", padding: 4 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedTrade(trade);
+                                      setIsEditing(true);
+                                      setEditData({ ...trade });
+                                    }}
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    style={{ background: "none", border: "none", color: "var(--ink3)", cursor: "pointer", padding: 4 }}
+                                    onClick={(e) => deleteTrade(trade.id, e)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </motion.tr>
+                          );
+                        })
+                      )}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          </div>
+        </TabsContent>
+
+        {/* ════════════════════════════════════════════════════════ */}
+        {/*  ANALYTICS TAB                                          */}
+        {/* ════════════════════════════════════════════════════════ */}
+        <TabsContent value="analytics" style={{ marginTop: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
+
+          {/* ── Filters ───────────────────────────────────────── */}
+          <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <Filter size={14} style={{ color: "var(--ink3)" }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)" }}>Filters</span>
+              <button onClick={resetFilters} style={{ ...btnStd, marginLeft: "auto", padding: "4px 10px", fontSize: 10 }}>
+                <RefreshCw size={10} /> Reset
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(4, 1fr)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Strategy</Label>
+                <Select value={filterStrategy} onValueChange={setFilterStrategy}>
+                  <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 34, fontSize: 12 }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                    <SelectItem value="all">All Strategies</SelectItem>
+                    {strategies.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Account</Label>
+                <Select value={filterAccount} onValueChange={setFilterAccount}>
+                  <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 34, fontSize: 12 }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {accounts.map((a) => (
+                      <SelectItem key={a} value={a}>{a}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Type</Label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 34, fontSize: 12 }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="long">Long</SelectItem>
+                    <SelectItem value="short">Short</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Time Range</Label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                  {(["24h", "7d", "30d", "all"] as const).map((range) => (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => setFilterRange(range)}
+                      style={{
+                        padding: "6px 0", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                        border: filterRange === range ? "1px solid var(--ink)" : "1px solid var(--rule)",
+                        background: filterRange === range ? "var(--ink)" : "var(--at-surface)",
+                        color: filterRange === range ? "var(--at-bg)" : "var(--ink2)",
+                        cursor: "pointer", transition: "all .15s",
+                      }}
+                    >
+                      {range === "all" ? "ALL" : range.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {(filterStrategy !== "all" || filterAccount !== "all" || filterType !== "all" || filterRange !== "all") && (
+              <div style={{ marginTop: 12, fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--at-accent)" }}>
+                Showing {filteredTrades.length} of {trades.length} trades
+              </div>
+            )}
+          </div>
+
+          {/* ── Equity Curve ──────────────────────────────────── */}
+          {equityCurve.length > 0 && (
+            <section>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Equity Curve</span>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", marginTop: 2 }}>
+                    Solde reel = capital initial + P/L cumule (trades filtres)
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Label
+                    htmlFor="starting-balance"
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", whiteSpace: "nowrap" }}
+                  >
+                    Capital initial ($)
+                  </Label>
+                  <Input
+                    id="starting-balance"
+                    type="number"
+                    min={0}
+                    step={100}
+                    style={{ ...inputStyle, width: 120, height: 32, borderRadius: 0 }}
+                    value={startingBalance}
+                    onChange={(e) => setStartingBalance(Number(e.target.value) || 0)}
+                    onBlur={() => {
+                      if (user) {
+                        localStorage.setItem(`startingBalance_${user.id}`, String(startingBalance));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 24 }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={equityCurve}>
+                    <defs>
+                      <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7d2b1d" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#7d2b1d" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
+                    <XAxis dataKey="date" stroke="rgba(0,0,0,0.15)" style={{ fontSize: "10px", fontFamily: "var(--font-mono)" }} tick={{ fill: "#4a4540" }} />
+                    <YAxis stroke="rgba(0,0,0,0.15)" style={{ fontSize: "10px", fontFamily: "var(--font-mono)" }} tick={{ fill: "#4a4540" }} tickFormatter={(value) => `$${value.toLocaleString()}`} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ color: "var(--ink)", fontWeight: "bold" }}
+                      formatter={(value: any) => [`$${Number(value).toLocaleString()}`, "Solde"]}
+                    />
+                    <Area type="stepAfter" dataKey="balance" stroke="#7d2b1d" strokeWidth={2} fill="url(#colorBalance)" animationDuration={2000} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          )}
+
+          {/* ── Analytics KPI Row ─────────────────────────────── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)" }}>
+            {/* Profit */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Profit
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: totalProfit >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
+                {totalProfit >= 0 ? "+" : "-"}${Math.abs(totalProfit).toLocaleString()}
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                Net performance
+              </div>
+            </div>
+
+            {/* Win Rate */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Win Rate
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--at-pos)", marginTop: 6, letterSpacing: -0.5 }}>
+                {winRate}%
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                {filteredTrades.length} trades
+              </div>
+            </div>
+
+            {/* Profit Goal */}
+            <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                Profit Goal
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+                <div
+                  style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--at-accent)", letterSpacing: -0.5, cursor: "pointer" }}
+                  onClick={() => setShowGoalInput(true)}
+                >
+                  {goalProgress.toFixed(1)}%
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>
+                  / ${profitGoal.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ height: 3, width: "100%", background: "var(--at-bg)", overflow: "hidden", border: "1px solid var(--rule)", marginTop: 8 }}>
+                <motion.div
+                  style={{ height: "100%", background: "var(--at-accent)" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(goalProgress, 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+
+            {/* R-multiple */}
+            <div style={{ padding: "16px 22px" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+                <MetricHint label="R-multiple">
+                  Idem que le ratio R : somme des (profit / risque) sur
+                  les trades correspondant aux filtres. Compare la
+                  performance en multiples de risque, pas seulement en
+                  dollars.
+                </MetricHint>
+              </div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: totalR >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
+                {formatR(totalR)}
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                Total R-multiple
+              </div>
+            </div>
+          </div>
+
+          {/* ── Advanced Stats ─────────────────────────────────── */}
+          <section>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Advanced Analytics</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Statistiques avancees</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", border: "1px solid var(--rule)" }}>
+              {/* Max Drawdown */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>
+                  <MetricHint label="Max drawdown">
+                    Largest equity decline from a previous peak (starting
+                    balance + cumulative P/L on filtered trades). Measures
+                    worst capital pullback.
+                  </MetricHint>
+                </div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-neg)" }}>
+                  -${maxDrawdown.toLocaleString()}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Largest capital decline
+                </div>
+              </div>
+
+              {/* Best Trade */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Best Trade</div>
+                {bestTrade ? (
+                  <>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-pos)" }}>
+                      +${Number(bestTrade.profit).toLocaleString()}
+                    </div>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                      {bestTrade.actif} &bull; {new Date(bestTrade.date).toLocaleDateString()}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>No data</div>
+                )}
+              </div>
+
+              {/* Worst Trade */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Worst Trade</div>
+                {worstTrade ? (
+                  <>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-neg)" }}>
+                      ${Number(worstTrade.profit).toLocaleString()}
+                    </div>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                      {worstTrade.actif} &bull; {new Date(worstTrade.date).toLocaleDateString()}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>No data</div>
+                )}
+              </div>
+
+              {/* Win Streak */}
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Win Streak</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-pos)" }}>
+                  {bestStreak}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Consecutive wins
+                </div>
+              </div>
+
+              {/* Loss Streak */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Loss Streak</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-neg)" }}>
+                  {Math.abs(worstStreak)}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Consecutive losses
+                </div>
+              </div>
+
+              {/* Current Streak */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Current Streak</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: currentStreak >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                  {currentStreak > 0 ? "+" : ""}{currentStreak}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  {currentStreak > 0 ? "Winning" : currentStreak < 0 ? "Losing" : "Neutral"}
+                </div>
+              </div>
+
+              {/* Sharpe Ratio */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>
+                  <MetricHint label="Sharpe ratio">
+                    Here: average P/L divided by P/L standard deviation
+                    (filtered series). Higher means better return relative
+                    to variability. This is not an annualized institutional
+                    Sharpe.
+                  </MetricHint>
+                </div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: sharpeRatio >= 1 ? "var(--at-pos)" : sharpeRatio >= 0 ? "var(--at-accent)" : "var(--at-neg)" }}>
+                  {sharpeRatio.toFixed(2)}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Risk-adjusted return
+                </div>
+              </div>
+
+              {/* Average Loss */}
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Average Loss</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-neg)" }}>
+                  -${Math.abs(avgLoss).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Mean loser size
+                </div>
+              </div>
+
+              {/* Average RRR */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Average RRR</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: averageRRR >= 1 ? "var(--at-pos)" : "var(--at-accent)" }}>
+                  {averageRRR.toFixed(2)}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Avg win / avg loss
+                </div>
+              </div>
+
+              {/* Expectancy */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Expectancy</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: expectancy >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                  {expectancy >= 0 ? "+" : "-"}${Math.abs(expectancy).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Expected value per trade
+                </div>
+              </div>
+
+              {/* Profit Factor */}
+              <div style={{ padding: "16px 18px", borderRight: "1px solid var(--rule)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 6 }}>Profit Factor</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: profitFactor >= 1 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                  {profitFactor.toFixed(2)}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", marginTop: 4 }}>
+                  Gross profit / gross loss
+                </div>
+              </div>
+
+              {/* Empty cell to complete the 4-col grid */}
+              <div style={{ padding: "16px 18px" }} />
+            </div>
+          </section>
+
+          {/* ── Monthly Performance ────────────────────────────── */}
+          {monthlyPerformanceDetailedData.length > 0 && (
+            <section>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Monthly Performance</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setPerformanceYear((y) => y - 1)}
+                    style={{ ...btnStd, padding: "4px 8px" }}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", minWidth: 70, textAlign: "center" }}>
+                    {performanceYear}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPerformanceYear((y) => y + 1)}
+                    style={{ ...btnStd, padding: "4px 8px" }}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+              <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 24 }}>
+                <ResponsiveContainer width="100%" height={340}>
+                  <BarChart data={monthlyPerformanceDetailedData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
+                    <XAxis dataKey="monthLabel" stroke="rgba(0,0,0,0.15)" style={{ fontSize: "11px", fontFamily: "var(--font-mono)" }} tick={{ fill: "#4a4540" }} />
+                    <YAxis stroke="rgba(0,0,0,0.15)" style={{ fontSize: "11px", fontFamily: "var(--font-mono)" }} tick={{ fill: "#4a4540" }} tickFormatter={(value) => `$${value.toLocaleString()}`} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(value: any, _name: any, item: any) => {
+                        const payload = item?.payload;
+                        return [
+                          `$${Number(value).toLocaleString()} • YTD: $${Number(payload?.cumPnl ?? 0).toLocaleString()} • ${payload?.trades ?? 0} trade${(payload?.trades ?? 0) > 1 ? "s" : ""} • ${formatR(payload?.r ?? 0)}`,
+                          "Month result",
+                        ];
+                      }}
+                      labelStyle={{ color: "var(--ink)", fontWeight: "bold" }}
+                    />
+                    <Bar dataKey="pnl" maxBarSize={52} radius={[0, 0, 0, 0]} animationDuration={1500}>
+                      {monthlyPerformanceDetailedData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? "#3a6e3f" : "#7d2b1d"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          )}
+
+          {/* ── Trading Calendar ───────────────────────────────── */}
+          <section>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Trading Calendar</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                  style={{ ...btnStd, padding: "4px 8px" }}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", minWidth: 130, textAlign: "center" }}>
+                  {monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                  style={{ ...btnStd, padding: "4px 8px" }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+            <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: "16px 20px" }}>
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: 980, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr)) 220px", gap: 6 }}>
+                    {weekdayLabels.map((label) => (
+                      <div key={label} style={{ padding: "4px 0", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>
+                        {label}
+                      </div>
+                    ))}
+                    <div style={{ padding: "4px 0", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>
+                      Weekly Summary
+                    </div>
+                  </div>
+                  {calendarRows.map((row, rowIndex) => {
+                    const week = monthWeekSummaries[rowIndex];
+                    return (
+                      <div key={`week-row-${rowIndex}`} style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr)) 220px", gap: 6 }}>
+                        {row.map((day, i) => {
+                          if (!day) {
+                            return (
+                              <div key={`empty-${rowIndex}-${i}`} style={{ aspectRatio: "1", border: "1px solid var(--rule)", background: "var(--at-surface)" }} />
+                            );
+                          }
+                          const intensity = day.count ? Math.min(Math.abs(day.profit) / 500, 1) : 0;
+                          const bgColor = day.count === 0
+                            ? "var(--at-surface)"
+                            : day.profit >= 0
+                              ? `color-mix(in srgb, var(--at-pos) ${Math.round(15 + intensity * 25)}%, var(--at-surface))`
+                              : `color-mix(in srgb, var(--at-neg) ${Math.round(15 + intensity * 25)}%, var(--at-surface))`;
+                          return (
+                            <div
+                              key={day.key}
+                              style={{
+                                position: "relative", aspectRatio: "1", border: "1px solid var(--rule)", background: bgColor,
+                                padding: 6, opacity: day.count === 0 ? 0.4 : 0.65 + intensity * 0.3,
+                              }}
+                              title={`${new Date(day.key + "T12:00:00").toLocaleDateString("fr-FR")}\n${day.count} trade(s)\nP/L: ${day.profit >= 0 ? "+" : ""}$${day.profit.toLocaleString()}\nR: ${formatR(day.dayR)}`}
+                            >
+                              <div style={{ position: "absolute", left: 6, top: 4, fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700, color: "var(--ink)" }}>
+                                {day.dayNumber}
+                              </div>
+                              {day.count > 0 && (
+                                <div style={{ position: "absolute", inset: "24% 6px 6px 6px", background: "var(--at-surface)", padding: 4, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>
+                                    {day.count} trade{day.count > 1 ? "s" : ""}
+                                  </div>
+                                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink)" }}>
+                                    {day.profit >= 0 ? "+" : ""}${Math.abs(day.profit).toLocaleString()}
+                                  </div>
+                                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--at-accent)" }}>
+                                    {formatR(day.dayR)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", padding: "8px 12px" }}>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>
+                            Week {week.week} &bull; {week.rangeLabel}
+                          </div>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)", marginTop: 4 }}>
+                            {week.pnl >= 0 ? "+" : "-"}${Math.abs(week.pnl).toLocaleString()}
+                          </div>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--at-accent)" }}>{formatR(week.r)}</div>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink2)" }}>
+                            {week.trades} trade{week.trades > 1 ? "s" : ""}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Goal Dialog ──────────────────────────────────────── */}
       <Dialog open={showGoalInput} onOpenChange={setShowGoalInput}>
-        <DialogContent className="max-w-md bg-[--at-surface] border-[--rule] text-[--ink] rounded-2xl">
+        <DialogContent className="rounded-none" style={{ maxWidth: 420, background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink)" }}>
           <DialogHeader>
-            <DialogTitle className="font-arcade text-[11px] uppercase tracking-wider">
+            <DialogTitle style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
               Edit Profit Goal
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>
               Goal Amount ($)
             </Label>
             <Input
@@ -2329,32 +1997,21 @@ export default function TradingDashboard() {
               step="1"
               value={profitGoal}
               onChange={(e) => setProfitGoal(Number(e.target.value) || 0)}
-              className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+              style={{ ...inputStyle, borderRadius: 0, height: 40 }}
             />
           </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="ghost"
-              onClick={() => setShowGoalInput(false)}
-              className="font-arcade text-[10px]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={saveGoal}
-              className="bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px]"
-            >
-              Save
-            </Button>
+          <DialogFooter style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <button onClick={() => setShowGoalInput(false)} style={btnStd}>Cancel</button>
+            <button onClick={saveGoal} style={btnAccent}>Save</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* PHOTO PREVIEW MODAL */}
+      {/* ── Photo Preview Modal ──────────────────────────────── */}
       <Dialog open={!!previewPhoto} onOpenChange={() => setPreviewPhoto(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-[--at-bg]/95 border-none shadow-none flex flex-col justify-center items-center">
+        <DialogContent className="rounded-none" style={{ maxWidth: "95vw", maxHeight: "95vh", padding: 0, background: "color-mix(in srgb, var(--at-bg) 95%, transparent)", border: "none", boxShadow: "none", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
           <motion.div
-            className="relative w-full h-full flex items-center justify-center p-8"
+            style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
@@ -2365,47 +2022,45 @@ export default function TradingDashboard() {
                 animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }}
                 src={previewPhoto?.url}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl"
+                style={{ maxWidth: "100%", maxHeight: "85vh", objectFit: "contain", boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
               />
             </AnimatePresence>
 
             {previewPhoto && previewPhoto.photos.length > 1 && (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/20 rounded-2xl border border-[--rule]"
+                <button
+                  style={{ position: "absolute", left: 32, top: "50%", transform: "translateY(-50%)", width: 48, height: 48, background: "var(--at-bg)", border: "1px solid var(--rule)", color: "var(--ink)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                   onClick={prevPhoto}
                 >
-                  <ChevronLeft className="h-10 w-10" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-10 top-1/2 -translate-y-1/2 w-16 h-16 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/20 rounded-2xl border border-[--rule]"
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  style={{ position: "absolute", right: 32, top: "50%", transform: "translateY(-50%)", width: 48, height: 48, background: "var(--at-bg)", border: "1px solid var(--rule)", color: "var(--ink)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                   onClick={nextPhoto}
                 >
-                  <ChevronRight className="h-10 w-10" />
-                </Button>
+                  <ChevronRight size={24} />
+                </button>
               </>
             )}
 
-            <DialogClose className="absolute top-10 right-10 p-4 bg-[--at-bg] text-[--ink] hover:bg-[--at-accent]/80 hover:text-[--ink] rounded-2xl border border-[--rule] transition-all active:scale-90">
-              <X className="h-8 w-8" />
+            <DialogClose style={{ position: "absolute", top: 32, right: 32, padding: 12, background: "var(--at-bg)", border: "1px solid var(--rule)", color: "var(--ink)", cursor: "pointer" }}>
+              <X size={20} />
             </DialogClose>
           </motion.div>
           {previewPhoto && previewPhoto.photos.length > 1 && (
-            <div className="p-8 flex justify-center gap-4 bg-[--at-surface] border-t border-[--rule] w-full">
+            <div style={{ padding: 24, display: "flex", justifyContent: "center", gap: 12, background: "var(--at-surface)", borderTop: "1px solid var(--rule)", width: "100%" }}>
               {previewPhoto.photos.map((url, i) => (
                 <motion.div
                   key={i}
                   whileHover={{ scale: 1.1 }}
-                  className={`w-20 h-20 border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${i === previewPhoto.index ? "border-[--at-accent] scale-110" : "border-transparent opacity-40"}`}
-                  onClick={() =>
-                    setPreviewPhoto({ ...previewPhoto, url, index: i })
-                  }
+                  style={{
+                    width: 60, height: 60, border: i === previewPhoto.index ? "2px solid var(--at-accent)" : "2px solid transparent",
+                    overflow: "hidden", cursor: "pointer", opacity: i === previewPhoto.index ? 1 : 0.4,
+                    transition: "all .15s",
+                  }}
+                  onClick={() => setPreviewPhoto({ ...previewPhoto, url, index: i })}
                 >
-                  <img src={url} className="w-full h-full object-cover" />
+                  <img src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </motion.div>
               ))}
             </div>
@@ -2413,7 +2068,7 @@ export default function TradingDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* TRADE DETAILS / EDIT MODAL */}
+      {/* ── Trade Details / Edit Modal ────────────────────────── */}
       <Dialog
         open={!!selectedTrade}
         onOpenChange={() => {
@@ -2422,35 +2077,25 @@ export default function TradingDashboard() {
           setEditData(null);
         }}
       >
-        <DialogContent className="flex max-h-[min(90vh,56rem)] w-[min(95vw,42rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-3xl border-[--rule] bg-[--at-surface] p-0 text-[--ink] cyber-card">
-          <div
-            className={`h-2 w-full shrink-0 bg-[--at-accent]`}
-          />
+        <DialogContent className="rounded-none" style={{ display: "flex", maxHeight: "min(90vh, 56rem)", width: "min(95vw, 42rem)", maxWidth: "42rem", flexDirection: "column", gap: 0, overflow: "hidden", border: "1px solid var(--rule)", background: "var(--at-surface)", padding: 0, color: "var(--ink)" }}>
+          <div style={{ height: 3, width: "100%", flexShrink: 0, background: "var(--at-accent)" }} />
 
-          <DialogHeader className="shrink-0 px-8 pb-2 pt-8">
-            <DialogTitle className="flex items-start gap-4 text-left font-cyber text-[--ink] sm:items-center">
-              <div
-                className={`shrink-0 rounded-xl border border-[--rule] bg-[--at-bg] p-2.5 ${isEditing ? "text-[--at-accent]" : "text-[--at-neg]"}`}
-              >
-                {isEditing ? (
-                  <Edit2 className="h-5 w-5" />
-                ) : (
-                  <Activity className="h-5 w-5" />
-                )}
+          <DialogHeader style={{ flexShrink: 0, padding: "28px 28px 8px 28px" }}>
+            <DialogTitle style={{ display: "flex", alignItems: "flex-start", gap: 14, textAlign: "left", fontFamily: "var(--font-serif)", color: "var(--ink)" }}>
+              <div style={{ flexShrink: 0, border: "1px solid var(--rule)", background: "var(--at-bg)", padding: 8, color: isEditing ? "var(--at-accent)" : "var(--ink2)" }}>
+                {isEditing ? <Edit2 size={18} /> : <Activity size={18} />}
               </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="font-arcade text-[10px] uppercase tracking-[0.22em] text-[--ink3]">
+              <div style={{ display: "flex", minWidth: 0, flex: 1, flexDirection: "column", gap: 4 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)" }}>
                   {isEditing ? "Edit trade" : "Trade details"}
                 </span>
                 {selectedTrade && (
                   <>
-                    <span className="truncate text-lg font-semibold tracking-wide text-[--ink]">
+                    <span style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {selectedTrade.actif}
                     </span>
-                    <span className="text-[11px] text-[--ink3]">
-                      {new Date(selectedTrade.date).toLocaleDateString("fr-FR")}{" "}
-                      · {formatTradeTime(selectedTrade.date)} ·{" "}
-                      {selectedTrade.timeframe}
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)" }}>
+                      {new Date(selectedTrade.date).toLocaleDateString("fr-FR")} &middot; {formatTradeTime(selectedTrade.date)} &middot; {selectedTrade.timeframe}
                     </span>
                   </>
                 )}
@@ -2460,360 +2105,245 @@ export default function TradingDashboard() {
 
           {selectedTrade && (
             <>
-              <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-8 py-4">
+              <div style={{ minHeight: 0, flex: 1, overflowY: "auto", padding: "16px 28px 16px 28px" }}>
               {isEditing ? (
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Date
-                    </Label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Date</Label>
                     <Input
                       type="date"
                       value={getDateInputValue(editData?.date)}
-                      onChange={(e) =>
-                        setEditData({
-                          ...editData,
-                          date: buildTradeDateTime(
-                            e.target.value,
-                            getTimeInputValue(editData?.date),
-                          ),
-                        })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      onChange={(e) => setEditData({ ...editData, date: buildTradeDateTime(e.target.value, getTimeInputValue(editData?.date)) })}
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Entry Time
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Entry Time</Label>
                     <Input
                       type="time"
                       value={getTimeInputValue(editData?.date)}
-                      onChange={(e) =>
-                        setEditData({
-                          ...editData,
-                          date: buildTradeDateTime(
-                            getDateInputValue(editData?.date),
-                            e.target.value,
-                          ),
-                        })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      onChange={(e) => setEditData({ ...editData, date: buildTradeDateTime(getDateInputValue(editData?.date), e.target.value) })}
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Asset
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Asset</Label>
                     <Input
                       value={editData?.actif}
-                      onChange={(e) =>
-                        setEditData({ ...editData, actif: e.target.value })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      onChange={(e) => setEditData({ ...editData, actif: e.target.value })}
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Timeframe
-                    </Label>
-                    <Select
-                      value={editData?.timeframe}
-                      onValueChange={(v) =>
-                        setEditData({ ...editData, timeframe: v })
-                      }
-                    >
-                      <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Timeframe</Label>
+                    <Select value={editData?.timeframe} onValueChange={(v) => setEditData({ ...editData, timeframe: v })}>
+                      <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 38 }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
-                        {timeframes.map((tf) => (
-                          <SelectItem key={tf} value={tf}>
-                            {tf}
-                          </SelectItem>
-                        ))}
+                      <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
+                        {timeframes.map((tf) => (<SelectItem key={tf} value={tf}>{tf}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Type
-                    </Label>
-                    <Select
-                      value={editData?.type}
-                      onValueChange={(v) => setEditData({ ...editData, type: v })}
-                    >
-                      <SelectTrigger className="bg-[--at-bg] border-[--rule] rounded-xl h-11">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Type</Label>
+                    <Select value={editData?.type} onValueChange={(v) => setEditData({ ...editData, type: v })}>
+                      <SelectTrigger className="rounded-none" style={{ ...inputStyle, height: 38 }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[--at-surface] border-[--rule] rounded-xl">
+                      <SelectContent className="rounded-none" style={{ background: "var(--at-surface)", border: "1px solid var(--rule)" }}>
                         <SelectItem value="long">Long</SelectItem>
                         <SelectItem value="short">Short</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Profit / Loss ($)
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Profit / Loss ($)</Label>
                     <Input
                       type="text"
                       value={editData?.profit}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === "" || val === "-" || !isNaN(Number(val))) {
-                          setEditData({
-                            ...editData,
-                            profit: val,
-                          });
+                          setEditData({ ...editData, profit: val });
                         }
                       }}
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Max Risk ($)
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Max Risk ($)</Label>
                     <Input
                       type="text"
                       value={editData?.risk}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === "" || val === "-" || !isNaN(Number(val))) {
-                          setEditData({
-                            ...editData,
-                            risk: val,
-                          });
+                          setEditData({ ...editData, risk: val });
                         }
                       }}
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Account
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Account</Label>
                     <Input
                       value={editData?.compte}
-                      onChange={(e) =>
-                        setEditData({ ...editData, compte: e.target.value })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      onChange={(e) => setEditData({ ...editData, compte: e.target.value })}
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Strategy
-                    </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Strategy</Label>
                     <Input
                       value={editData?.strategie}
-                      onChange={(e) =>
-                        setEditData({ ...editData, strategie: e.target.value })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl h-11"
+                      onChange={(e) => setEditData({ ...editData, strategie: e.target.value })}
+                      style={{ ...inputStyle, borderRadius: 0, height: 38 }}
                     />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Observations
-                    </Label>
+                  <div style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Observations</Label>
                     <Textarea
                       value={editData?.observations}
-                      onChange={(e) =>
-                        setEditData({
-                          ...editData,
-                          observations: e.target.value,
-                        })
-                      }
-                      className="bg-[--at-bg] border-[--rule] rounded-xl min-h-[100px]"
+                      onChange={(e) => setEditData({ ...editData, observations: e.target.value })}
+                      style={{ ...inputStyle, minHeight: 90, borderRadius: 0, resize: "vertical" }}
                     />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="font-arcade text-[9px] text-[--ink3] uppercase">
-                      Photos (Max 3)
-                    </Label>
-                    <div className="flex flex-wrap gap-4 mt-2">
+                  <div style={{ gridColumn: "span 2", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Label style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)" }}>Photos (Max 3)</Label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
                       {editData.photos?.map((url: string, i: number) => (
-                        <div
-                          key={i}
-                          className="relative w-20 h-20 border border-[--rule] rounded-xl overflow-hidden group"
-                        >
-                          <img
-                            src={url}
-                            className="w-full h-full object-cover"
-                          />
+                        <div key={i} style={{ position: "relative", width: 64, height: 64, border: "1px solid var(--rule)", overflow: "hidden" }}>
+                          <img src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditData({
-                                ...editData,
-                                photos: editData.photos.filter(
-                                  (_: any, idx: number) => idx !== i,
-                                ),
-                              })
-                            }
-                            className="absolute inset-0 bg-[--at-accent]/80 opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                            onClick={() => setEditData({ ...editData, photos: editData.photos.filter((_: any, idx: number) => idx !== i) })}
+                            style={{ position: "absolute", inset: 0, background: "color-mix(in srgb, var(--at-accent) 80%, transparent)", opacity: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", transition: "opacity .15s" }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       ))}
                       {editData.photos?.length < 3 && (
-                        <Label className="flex items-center justify-center w-20 h-20 border-2 border-dashed border-[--rule] rounded-xl cursor-pointer hover:border-[--at-accent] transition-all">
+                        <Label style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, border: "2px dashed var(--rule)", cursor: "pointer", transition: "border-color .15s" }}>
                           {uploading ? (
-                            <Loader2 className="animate-spin h-5 w-5" />
+                            <Loader2 style={{ animation: "spin 1s linear infinite", width: 18, height: 18 }} />
                           ) : (
-                            <Plus className="h-5 w-5 text-[--ink3]" />
+                            <Plus style={{ width: 18, height: 18, color: "var(--ink3)" }} />
                           )}
-                          <Input
-                            type="file"
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handlePhotoUpload}
-                            disabled={uploading}
-                          />
+                          <Input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} />
                         </Label>
                       )}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-8">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Calendar className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Date
-                        </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Calendar size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Date</span>
                       </div>
-                      <p className="font-cyber text-sm font-medium">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
                         {new Date(selectedTrade.date).toLocaleDateString()}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Target className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Asset
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Target size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Asset</span>
                       </div>
-                      <p className="font-cyber text-sm font-bold text-[--at-pos] tracking-wide">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                         {selectedTrade.actif}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Clock className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Time
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Clock size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Time</span>
                       </div>
-                      <p className="font-cyber text-sm font-medium">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
                         {formatTradeTime(selectedTrade.date)}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Clock className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Timeframe
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Clock size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Timeframe</span>
                       </div>
-                      <p className="font-cyber text-sm font-medium">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
                         {selectedTrade.timeframe}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Layers className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Strategy
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Layers size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Strategy</span>
                       </div>
-                      <p className="font-cyber text-sm font-medium">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
                         {selectedTrade.strategie}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <Wallet className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Account
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <Wallet size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Account</span>
                       </div>
-                      <p className="font-cyber text-sm font-medium">
+                      <span style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
                         {selectedTrade.compte}
-                      </p>
+                      </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[--ink3]">
-                        <ShieldAlert className="h-3 w-3" />
-                        <span className="font-arcade text-[8px] uppercase tracking-widest">
-                          Profit / R
-                        </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ink3)" }}>
+                        <ShieldAlert size={10} />
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase" }}>Profit / R</span>
                       </div>
-                      <div className="flex flex-col">
-                        <span
-                          className={`font-cyber text-lg font-bold ${Number(selectedTrade.profit) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}
-                        >
-                          {Number(selectedTrade.profit) >= 0 ? "+" : ""}$
-                          {Number(selectedTrade.profit).toLocaleString()}
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: Number(selectedTrade.profit) >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                          {Number(selectedTrade.profit) >= 0 ? "+" : ""}${Number(selectedTrade.profit).toLocaleString()}
                         </span>
-                        <span
-                          className={`text-[10px] font-bold ${getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "text-[--at-pos]/50" : "text-[--at-neg]/50"}`}
-                        >
-                          (
-                          {formatR(
-                            getR(
-                              Number(selectedTrade.profit),
-                              Number(selectedTrade.risk),
-                            ),
-                          )}
-                          )
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700, color: getR(Number(selectedTrade.profit), Number(selectedTrade.risk)) >= 0 ? "var(--at-pos)" : "var(--at-neg)", opacity: 0.6 }}>
+                          ({formatR(getR(Number(selectedTrade.profit), Number(selectedTrade.risk)))})
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {selectedTrade.observations && (
-                    <div className="space-y-3 p-6 bg-[--at-surface] rounded-2xl border border-[--rule]">
-                      <div className="font-arcade text-[8px] text-[--ink3] tracking-[0.2em] uppercase">
+                    <div style={{ padding: 20, background: "var(--at-bg)", border: "1px solid var(--rule)" }}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 8 }}>
                         Observations
                       </div>
-                      <p className="text-sm text-[--ink] leading-relaxed font-cyber whitespace-pre-wrap">
+                      <p style={{ fontFamily: "var(--font-serif)", fontSize: 13, lineHeight: 1.6, color: "var(--ink)", whiteSpace: "pre-wrap" }}>
                         {selectedTrade.observations}
                       </p>
                     </div>
                   )}
 
                   {selectedTrade.photos?.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="font-arcade text-[8px] text-[--ink3] tracking-[0.2em] uppercase">
+                    <div>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 10 }}>
                         Photos
                       </div>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                         {selectedTrade.photos.map((url: string, i: number) => (
                           <motion.div
                             key={i}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            className="relative aspect-video rounded-xl overflow-hidden border border-[--rule] cursor-zoom-in group"
-                            onClick={() =>
-                              setPreviewPhoto({
-                                url,
-                                index: i,
-                                photos: selectedTrade.photos,
-                              })
-                            }
+                            style={{ position: "relative", aspectRatio: "16/9", overflow: "hidden", border: "1px solid var(--rule)", cursor: "zoom-in" }}
+                            onClick={() => setPreviewPhoto({ url, index: i, photos: selectedTrade.photos })}
                           >
-                            <img
-                              src={url}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-[--at-accent]/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                              <Maximize2 className="text-[--ink] h-5 w-5" />
+                            <img src={url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <div
+                              style={{ position: "absolute", inset: 0, background: "color-mix(in srgb, var(--at-accent) 20%, transparent)", opacity: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity .15s" }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0"; }}
+                            >
+                              <Maximize2 style={{ color: "var(--ink)", width: 18, height: 18 }} />
                             </div>
                           </motion.div>
                         ))}
@@ -2824,47 +2354,39 @@ export default function TradingDashboard() {
               )}
               </div>
 
-              <DialogFooter className="shrink-0 flex-col gap-4 border-t border-[--rule] bg-[--at-surface] px-8 py-4 sm:flex-row">
+              <div style={{ flexShrink: 0, display: "flex", gap: 12, borderTop: "1px solid var(--rule)", background: "var(--at-surface)", padding: "14px 28px" }}>
                 {isEditing ? (
                   <>
-                    <Button
-                      variant="ghost"
-                      className="flex-1 font-arcade text-[10px] h-12 rounded-xl text-[--ink3] hover:text-[--ink]"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditData(null);
-                      }}
+                    <button
+                      style={{ ...btnStd, flex: 1, justifyContent: "center", padding: "10px 0" }}
+                      onClick={() => { setIsEditing(false); setEditData(null); }}
                     >
                       CANCEL
-                    </Button>
-                    <Button
-                      className="flex-1 bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl transition-all active:scale-[0.98]"
+                    </button>
+                    <button
+                      style={{ ...btnAccent, flex: 1, justifyContent: "center", padding: "10px 0" }}
                       onClick={handleUpdateTrade}
                     >
-                      <Save className="mr-2 h-4 w-4" /> SAVE CHANGES
-                    </Button>
+                      <Save size={14} /> SAVE CHANGES
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Button
-                      variant="outline"
-                      className="flex-1 border-[--at-accent]/20 text-[--at-neg]/70 hover:bg-[--at-accent]/10 font-arcade text-[10px] h-12 rounded-xl"
+                    <button
+                      style={{ ...btnStd, flex: 1, justifyContent: "center", padding: "10px 0", color: "var(--at-neg)" }}
                       onClick={() => deleteTrade(selectedTrade.id)}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" /> DELETE
-                    </Button>
-                    <Button
-                      className="flex-1 bg-[--at-accent] hover:bg-[--at-accent]/80 text-[--at-bg] font-arcade text-[10px] h-12 rounded-xl"
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditData({ ...selectedTrade });
-                      }}
+                      <Trash2 size={14} /> DELETE
+                    </button>
+                    <button
+                      style={{ ...btnAccent, flex: 1, justifyContent: "center", padding: "10px 0" }}
+                      onClick={() => { setIsEditing(true); setEditData({ ...selectedTrade }); }}
                     >
-                      <Edit2 className="mr-2 h-4 w-4" /> EDIT
-                    </Button>
+                      <Edit2 size={14} /> EDIT
+                    </button>
                   </>
                 )}
-              </DialogFooter>
+              </div>
             </>
           )}
         </DialogContent>
