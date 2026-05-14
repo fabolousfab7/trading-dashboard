@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { Coins, RefreshCw, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { RefreshCw, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { Link } from "wouter"
 import InfoTip from "@/components/InfoTip"
 import { useToast } from "@/hooks/use-toast"
@@ -9,6 +9,15 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
 const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 const CASH_COLORS = ["#7d2b1d", "#cfb88f"]
 const STABLECOINS = ["USDT", "USDC", "DAI", "BUSD", "TUSD", "UST"]
+
+const tooltipStyle = {
+  background: "var(--at-surface)",
+  border: "1px solid var(--rule)",
+  borderRadius: 4,
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  color: "var(--ink)",
+}
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -97,15 +106,14 @@ export default function Kraken() {
 
   useEffect(() => { fetchPortfolio() }, [])
 
-  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
-  if (error) return <div className="p-8 text-[--at-neg] font-mono text-sm">Erreur : {error}</div>
+  if (loading) return <div style={{ padding: "28px 32px", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Chargement…</div>
+  if (error) return <div style={{ padding: "28px 32px", color: "var(--at-neg)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Erreur : {error}</div>
   if (!portfolio?.account) {
     return (
-      <div className="p-8">
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-6 text-center max-w-md mx-auto mt-12">
-          <Coins size={32} className="mx-auto text-[--at-accent] mb-3" />
-          <h2 className="text-sm font-serif font-bold text-[--ink] mb-2">Aucun compte Kraken</h2>
-          <p className="text-xs text-[--ink3] font-mono">
+      <div style={{ padding: "28px 32px", display: "flex", justifyContent: "center", paddingTop: 80 }}>
+        <div style={{ border: "1px solid var(--rule)", background: "var(--at-surface)", borderRadius: 4, padding: 24, textAlign: "center", maxWidth: 400 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>Aucun compte Kraken</div>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)" }}>
             Créez un compte avec le broker "Kraken" dans les paramètres pour activer cette page.
           </p>
         </div>
@@ -129,103 +137,117 @@ export default function Kraken() {
   const pnl = capital > 0 ? nlv - capital : 0
   const perf = capital > 0 ? (pnl / capital) * 100 : 0
 
-  const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
-
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
+    <div style={{ padding: "28px 32px" }}>
+
+      {/* ── MASTHEAD ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
         <div>
-          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
-            <Coins size={14} /> Kraken Business
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Société FHF &middot; Kraken Business
           </div>
-          <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-[--at-accent]">Crypto </span>
-            <span className="text-[--at-accent]">FHF</span>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            Le carnet Kraken.
           </h1>
-          <p className="text-[10px] text-[--ink3] font-mono uppercase tracking-wider mt-1">
-            Compte 512200 · Spot
-            {portfolio.lastSyncedAt && <> · Sync {new Date(portfolio.lastSyncedAt).toLocaleString("fr-FR")}</>}
-          </p>
+          {portfolio.lastSyncedAt && (
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+              Sync {new Date(portfolio.lastSyncedAt).toLocaleString("fr-FR")} &middot; Compte 512200 &middot; Spot
+            </div>
+          )}
         </div>
         <button onClick={handleSync} disabled={syncing || !portfolio.hasCredentials}
-          className="px-4 py-2 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] hover:bg-[--at-accent]/20 transition rounded font-mono text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50">
-          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-          {syncing ? "Sync..." : "Sync Kraken"}
+          style={{
+            padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+            background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
+            cursor: syncing ? "wait" : "pointer", opacity: (syncing || !portfolio.hasCredentials) ? 0.5 : 1,
+            display: "flex", alignItems: "center", gap: 6, transition: "opacity .15s",
+          }}>
+          <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+          {syncing ? "Sync…" : "Sync Kraken"}
         </button>
       </div>
 
-      {/* Config Panel */}
-      <div className="border border-[--rule] bg-[--at-surface] rounded">
+      {/* ── CONFIG PANEL ──────────────────────────────────────── */}
+      <div style={{ border: "1px solid var(--rule)", borderRadius: 4, background: "var(--at-surface)", marginBottom: 28 }}>
         <button onClick={() => setShowConfig(!showConfig)}
-          className="w-full flex items-center justify-between p-3 text-xs font-mono uppercase tracking-wider text-[--ink2] hover:text-[--at-accent] transition">
+          style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: 12, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase",
+            color: "var(--ink2)", background: "none", border: "none", cursor: "pointer",
+          }}>
           <span>Configuration API</span>
           {showConfig ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
         {showConfig && (
-          <div className="px-4 pb-4 space-y-3 border-t border-[--rule]">
-            <p className="text-[10px] text-[--ink3] font-mono mt-3">
+          <div style={{ padding: "0 16px 16px", borderTop: "1px dotted var(--rule)" }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)", marginTop: 12, marginBottom: 12 }}>
               Créez une API key read-only sur kraken.com/u/security/api. Permissions requises : Query Funds.
             </p>
-            <div>
-              <label className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 block">API Key</label>
-              <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)}
-                className="w-full bg-[--at-bg] border border-[--rule] rounded px-3 py-2 text-xs font-mono text-[--ink] focus:outline-none focus:border-[--at-accent]"
-                placeholder="Votre API key Kraken" />
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>API Key</label>
+              <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Votre API key Kraken"
+                style={{ width: "100%", boxSizing: "border-box", background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)", outline: "none" }} />
             </div>
-            <div>
-              <label className="text-[10px] font-mono uppercase tracking-wider text-[--ink3] mb-1 block">API Secret</label>
-              <input type="password" value={apiSecret} onChange={e => setApiSecret(e.target.value)}
-                className="w-full bg-[--at-bg] border border-[--rule] rounded px-3 py-2 text-xs font-mono text-[--ink] focus:outline-none focus:border-[--at-accent]"
-                placeholder="Votre API secret (base64)" />
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>API Secret</label>
+              <input type="password" value={apiSecret} onChange={e => setApiSecret(e.target.value)} placeholder="Votre API secret (base64)"
+                style={{ width: "100%", boxSizing: "border-box", background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 3, padding: "8px 12px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)", outline: "none" }} />
             </div>
             <button onClick={saveConfig} disabled={savingConfig || !apiKey || !apiSecret}
-              className="px-4 py-2 bg-[--at-accent] text-white rounded font-mono text-xs uppercase tracking-wider hover:bg-[--at-accent]/90 disabled:opacity-50">
-              {savingConfig ? "..." : "Sauvegarder"}
+              style={{
+                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
+                background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
+                cursor: (savingConfig || !apiKey || !apiSecret) ? "wait" : "pointer", opacity: (savingConfig || !apiKey || !apiSecret) ? 0.5 : 1,
+              }}>
+              {savingConfig ? "…" : "Sauvegarder"}
             </button>
           </div>
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">
-            NLV KRAKEN<InfoTip text="Net Liquidation Value = Cash fiat + Valeur marchande des crypto en EUR." />
+      {/* ── KPI ROW ───────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            NLV Kraken<InfoTip text="Net Liquidation Value = Cash fiat + Valeur marchande des crypto en EUR." />
           </div>
-          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(nlv)}</div>
-          <div className="text-xs font-mono mt-1">
-            <span className="text-[--at-accent]">Crypto {fmtEur(positionsValue)}</span>
-            <span className="text-[--ink3] mx-1">·</span>
-            <span className="text-[--at-accent]">Fiat {fmtEur(cashValue)}</span>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
+            {fmtEur(nlv)}
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            Crypto {fmtEur(positionsValue)} &middot; Fiat {fmtEur(cashValue)}
           </div>
         </div>
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">
-            CAPITAL INVESTI<InfoTip text="Montant total viré vers Kraken (compte comptable 512200)." />
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Capital investi<InfoTip text="Montant total viré vers Kraken (compte comptable 512200)." />
           </div>
-          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(capital)}</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
+            {fmtEur(capital)}
+          </div>
         </div>
-        <div className={`border ${pnl >= 0 ? "border-[--at-pos]/30" : "border-[--at-neg]/30"} bg-[--at-surface] rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">
-            P&L TOTAL<InfoTip text="NLV actuelle − Capital investi. Inclut gains réalisés + latents." />
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            P&L total<InfoTip text="NLV actuelle − Capital investi. Inclut gains réalisés + latents." />
           </div>
-          <div className={`text-2xl font-mono font-bold ${pnl >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {pnl >= 0 ? "+" : ""}{fmtEur(pnl)}
           </div>
         </div>
-        <div className={`border ${perf >= 0 ? "border-[--at-pos]/30" : "border-[--at-neg]/30"} bg-[--at-surface] rounded p-4`}>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2">PERF TOTALE</div>
-          <div className={`text-2xl font-mono font-bold ${perf >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+        <div style={{ padding: "16px 22px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>
+            Perf totale
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: perf >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {perf >= 0 ? "+" : ""}{perf.toFixed(2)}%
           </div>
-          <div className="text-[10px] font-mono text-[--ink3] mt-1">
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
             P&L / Capital investi
           </div>
         </div>
       </div>
 
-      {/* Charts + Positions */}
+      {/* ── CHARTS — 3 donuts ─────────────────────────────────── */}
       {positions.length > 0 && (() => {
         const allocationData = positions
           .map((p: any) => {
@@ -260,99 +282,36 @@ export default function Kraken() {
         ].filter(d => d.value > 0)
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Allocation</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={mainSlices} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {mainSlices.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {mainSlices.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-[--ink2]">{d.name}</span>
-                    <span className="text-[--ink] ml-auto">{((d.value / allocTotal) * 100).toFixed(1)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Stables vs Crypto</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={stableData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {stableData.map((_: any, i: number) => <Cell key={i} fill={CASH_COLORS[i % CASH_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {stableData.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CASH_COLORS[i % CASH_COLORS.length] }} />
-                    <span className="text-[--ink2]">{d.name}</span>
-                    <span className="text-[--ink] ml-auto">{fmtEur(d.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Fiat vs Crypto</h2>
-              <ResponsiveContainer width="100%" height={170}>
-                <PieChart>
-                  <Pie data={cryptoVsFiat} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    outerRadius={65} innerRadius={28} strokeWidth={1} stroke="#fbf8f1">
-                    {cryptoVsFiat.map((_: any, i: number) => <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#1a1814" }} labelStyle={{ color: "#4a4540" }} formatter={(value: number, name: string) => [fmtEur(value), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
-                {cryptoVsFiat.map((d: any, i: number) => (
-                  <div key={d.name} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[(i + 2) % COLORS.length] }} />
-                    <span className="text-[--ink2]">{d.name}</span>
-                    <span className="text-[--ink] ml-auto">{fmtEur(d.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 28, marginBottom: 28 }}>
+            <DonutCard title="Allocation" subtitle="Par actif" data={mainSlices} colors={COLORS} total={allocTotal} showPct />
+            <DonutCard title="Stables vs Crypto" subtitle="Répartition" data={stableData} colors={CASH_COLORS} total={0} />
+            <DonutCard title="Fiat vs Crypto" subtitle="Liquidité" data={cryptoVsFiat} colors={[COLORS[2], COLORS[3]]} total={0} />
           </div>
         )
       })()}
 
-      {/* Positions Table */}
-      <div className="border border-[--rule] rounded bg-[--at-surface]">
-        <div className="border-b border-[--rule] p-3">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
-            Positions · {positions.length}
-          </h2>
+      {/* ── POSITIONS TABLE ───────────────────────────────────── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+          <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Positions</span>
+          <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{positions.length} lignes</span>
         </div>
         {positions.length === 0 ? (
-          <div className="p-6 text-center text-[--ink3] text-xs font-mono">
+          <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
             {portfolio.hasCredentials ? "Aucune position · Lancez un sync" : "Configurez vos API keys puis lancez un sync"}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="text-left p-3">Ticker</th>
-                  <th className="text-left p-3">Nom</th>
-                  <th className="text-right p-3">Quantité</th>
-                  <th className="text-right p-3">Prix (USD)</th>
-                  <th className="text-right p-3">Valeur (EUR)</th>
-                  <th className="text-right p-3">P&L (EUR)</th>
-                  <th className="text-right p-3">% alloc</th>
+          <div style={{ maxHeight: 520, overflowY: "auto", border: "1px solid var(--rule)", borderRadius: 4 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <thead>
+                <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
+                  {["Ticker", "Nom", "Quantité", "Prix (USD)", "Valeur (EUR)", "P&L (EUR)", "% alloc"].map((h, i) => (
+                    <th key={h} style={{
+                      padding: "10px 12px", textAlign: i < 2 ? "left" : "right",
+                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                      borderBottom: "1px solid var(--rule)",
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -368,16 +327,20 @@ export default function Kraken() {
                   const pnlEur = (price - pru) * qty * fx
                   const allocPct = positionsValue > 0 ? (valueEur / (positionsValue + cashValue)) * 100 : 0
                   return (
-                    <tr key={p.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 transition">
-                      <td className="p-3 text-[--at-accent] font-bold">{p.ticker}</td>
-                      <td className="p-3 text-[--ink2] truncate max-w-[180px]">{p.name}</td>
-                      <td className="p-3 text-right text-[--ink]">{qty < 1 ? qty.toFixed(6) : qty < 100 ? qty.toFixed(4) : qty.toFixed(2)}</td>
-                      <td className="p-3 text-right text-[--at-accent]">{fmtUsd(price)}</td>
-                      <td className="p-3 text-right text-[--ink]">{fmtEur(valueEur)}</td>
-                      <td className={`p-3 text-right ${pnlEur >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+                    <tr key={p.id} style={{ borderBottom: "1px dotted var(--rule)", transition: "background .15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in srgb, var(--at-accent) 5%, transparent)" }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+                      <td style={{ padding: "9px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{p.ticker}</td>
+                      <td style={{ padding: "9px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                        {qty < 1 ? qty.toFixed(6) : qty < 100 ? qty.toFixed(4) : qty.toFixed(2)}
+                      </td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>{fmtUsd(price)}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtEur(valueEur)}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: pnlEur >= 0 ? "var(--at-pos)" : "var(--at-neg)", fontWeight: 600 }}>
                         {pnlEur >= 0 ? "+" : ""}{fmtEur(pnlEur)}
                       </td>
-                      <td className="p-3 text-right text-[--ink3]">{allocPct.toFixed(1)}%</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>{allocPct.toFixed(1)}%</td>
                     </tr>
                   )
                 })}
@@ -387,21 +350,24 @@ export default function Kraken() {
         )}
       </div>
 
-      {/* Cash Balances */}
+      {/* ── CASH BALANCES ─────────────────────────────────────── */}
       {cashBalances.length > 0 && (
-        <div className="border border-[--rule] rounded bg-[--at-surface]">
-          <div className="border-b border-[--rule] p-3">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">
-              Cash · {cashBalances.length} devises
-            </h2>
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Cash</span>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{cashBalances.length} devises</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="text-left p-3">Devise</th>
-                  <th className="text-right p-3">Montant</th>
-                  <th className="text-right p-3">Équivalent EUR</th>
+          <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <thead>
+                <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
+                  {["Devise", "Montant", "Équivalent EUR"].map((h, i) => (
+                    <th key={h} style={{
+                      padding: "10px 12px", textAlign: i === 0 ? "left" : "right",
+                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                      borderBottom: "1px solid var(--rule)",
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -409,10 +375,10 @@ export default function Kraken() {
                   const fx = Number(c.fx_rate_to_base) || 1
                   const eurValue = Number(c.amount) * fx
                   return (
-                    <tr key={c.id || c.currency} className="border-t border-[--rule]">
-                      <td className="p-3 text-[--at-accent] font-bold">{c.currency}</td>
-                      <td className="p-3 text-right text-[--ink]">{Number(c.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
-                      <td className="p-3 text-right text-[--ink]">{fmtEur(eurValue)}</td>
+                    <tr key={c.id || c.currency} style={{ borderBottom: "1px dotted var(--rule)" }}>
+                      <td style={{ padding: "9px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{c.currency}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{Number(c.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtEur(eurValue)}</td>
                     </tr>
                   )
                 })}
@@ -422,19 +388,50 @@ export default function Kraken() {
         </div>
       )}
 
-      {/* Trading Actif link */}
-      <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-1">Trading Actif</h2>
-            <p className="text-[10px] text-[--ink3] font-mono">
-              Les trades court terme Kraken sont suivis dans la page Trading Actif.
-            </p>
+      {/* ── TRADING ACTIF LINK ────────────────────────────────── */}
+      <div style={{ borderTop: "1px dotted var(--rule)", paddingTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Trading Actif</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
+            Les trades court terme Kraken sont suivis dans la page Trading Actif.
           </div>
-          <Link href="/analytics" className="flex items-center gap-1 text-xs font-mono text-[--at-accent] hover:underline">
-            Voir <ExternalLink size={12} />
-          </Link>
         </div>
+        <Link href="/analytics" style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--at-accent)", textDecoration: "none" }}>
+          Voir <ExternalLink size={12} />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function DonutCard({ title, subtitle, data, colors, total, showPct }: {
+  title: string; subtitle: string; data: { name: string; value: number }[]; colors: string[]; total: number; showPct?: boolean
+}) {
+  return (
+    <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>{title}</span>
+        <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{subtitle}</span>
+      </div>
+      <ResponsiveContainer width="100%" height={160}>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%"
+            outerRadius={65} innerRadius={38} strokeWidth={1.5} stroke="var(--at-bg)">
+            {data.map((_: any, i: number) => <Cell key={i} fill={colors[i % colors.length]} />)}
+          </Pie>
+          <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [fmtEur(value), name]} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+        {data.map((d: any, i: number) => (
+          <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: colors[i % colors.length], flexShrink: 0 }} />
+            <span style={{ fontFamily: "var(--font-serif)", color: "var(--ink2)", flex: 1 }}>{d.name}</span>
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+              {showPct && total > 0 ? `${((d.value / total) * 100).toFixed(1)}%` : fmtEur(d.value)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
