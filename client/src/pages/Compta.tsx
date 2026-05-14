@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
-import { Receipt, Upload, FileText, RefreshCw, X, Check, AlertTriangle, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus, Briefcase, Bitcoin } from "lucide-react"
+import { Upload, FileText, RefreshCw, X, Check, Eye, Pencil, Trash2, Link2Off, Ban, UserMinus, Briefcase, Bitcoin } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import InfoTip from "@/components/InfoTip"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
@@ -12,6 +12,7 @@ const CATEGORIES = [
   { code: "617000", label: "FTMO" },
   { code: "626100", label: "Télécom" },
   { code: "627000", label: "Frais bancaires" },
+  { code: "627100", label: "Frais d'actes" },
   { code: "606300", label: "Fournitures" },
   { code: "625100", label: "Déplacements" },
   { code: "625600", label: "Missions" },
@@ -30,6 +31,21 @@ const IS_NON_CHARGE = (cat: string) => NON_CHARGE_CATS.includes(cat)
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.code, c.label]))
 const VAT_RATES = [0, 5.5, 10, 20]
 const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+
+const tooltipStyle = {
+  background: "var(--at-surface)",
+  border: "1px solid var(--rule)",
+  borderRadius: 4,
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  color: "var(--ink)",
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", boxSizing: "border-box",
+  background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 3,
+  padding: "6px 8px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)", outline: "none",
+}
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -341,7 +357,6 @@ export default function Compta() {
   function updateModalField(field: string, value: any) {
     setModalData((prev: any) => {
       const next = { ...prev, [field]: value }
-
       if (field === "category" && IS_NON_CHARGE(value)) {
         next.direction = "expense"
         next.vat_deductible = false
@@ -351,7 +366,6 @@ export default function Compta() {
         next.vat_reverse_charge = false
         return next
       }
-
       if (field === "category" && IS_NON_CHARGE(prev.category) && !IS_NON_CHARGE(value)) {
         next.vat_rate = 20
         const ht = Number(next.amount_ht) || 0
@@ -359,26 +373,21 @@ export default function Compta() {
         next.amount_ttc = Math.round((ht + next.amount_vat) * 100) / 100
         next.vat_deductible = true
       }
-
       const isCCA = IS_NON_CHARGE(next.category)
-
       if ((field === "amount_ht" || field === "vat_rate") && !isCCA) {
         const ht = field === "amount_ht" ? Number(value) : Number(prev.amount_ht)
         const rate = field === "vat_rate" ? Number(value) : Number(prev.vat_rate)
         next.amount_vat = Math.round(ht * rate) / 100
         next.amount_ttc = Math.round((ht + next.amount_vat) * 100) / 100
       }
-
       if (field === "amount_ht" && isCCA) {
         next.amount_vat = 0
         next.amount_ttc = Number(value) || 0
       }
-
       if (field === "amount_ttc" && isCCA) {
         next.amount_ht = Number(value) || 0
         next.amount_vat = 0
       }
-
       if (field === "party_country") {
         next.vat_reverse_charge = value !== "FR"
       }
@@ -386,7 +395,6 @@ export default function Compta() {
     })
   }
 
-  // Build reconciliation rows
   type Row = { id: string; date: string; counterparty: string; amount: number; type: "bank" | "invoice"; status: string; original: any; linkedInvoice?: any }
   const rows: Row[] = []
   for (const tx of bankTxs) {
@@ -405,331 +413,278 @@ export default function Compta() {
   const unmatchedCount = rows.filter(r => r.status === "unmatched" || r.status === "pending_payment").length
   const matchedCount = rows.filter(r => r.status === "matched" || r.status === "settled_cca").length
 
-  const tooltipStyle = { background: "#fbf8f1", border: "1px solid #d9d3c4", borderRadius: 8, fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "#1a1814" }
-
-  // Unreconciled invoices for manual matching dropdown
   const unreconciledInvoices = invoices.filter(i => !i.bank_transaction_id)
 
-  // VAT for selected month
   const vatMonth = selectedMonth || `${currentYear}-${String(currentMonthIdx + 1).padStart(2, "0")}`
   const vatData = vatSummary?.months?.find((m: any) => m.month === vatMonth)
 
-  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
+  if (loading) return <div style={{ padding: "28px 32px", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Chargement…</div>
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[--rule] pb-4">
+    <div style={{ padding: "28px 32px" }}>
+
+      {/* ── MASTHEAD ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
         <div>
-          <div className="flex items-center gap-2 text-[--at-accent] text-xs font-mono uppercase tracking-widest">
-            <Receipt size={14} /> Comptabilité
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
+            Société FHF &middot; Rapprochement & TVA
           </div>
-          <h1 className="text-3xl font-mono font-bold tracking-wider mt-1">
-            <span className="text-[--at-accent]">Comptabilité </span>
-            <span className="text-[--at-accent]">FHF</span>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 30, fontWeight: 700, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>
+            Comptabilité, en clair.
           </h1>
-          <p className="text-[10px] text-[--ink3] font-mono uppercase tracking-wider mt-1">
-            Rapprochement bancaire · TVA · Pilotage
-          </p>
         </div>
-        <select
-          value={selectedMonth}
-          onChange={e => setSelectedMonth(e.target.value)}
-          className="bg-[--at-surface] border border-[--rule] text-[--ink] rounded px-3 py-1.5 font-mono text-xs"
-        >
+        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+          style={{ ...inputStyle, width: "auto", padding: "6px 12px", background: "var(--at-surface)" }}>
           <option value="">Tous les mois</option>
           {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </div>
 
       {error && (
-        <div className="border border-[--at-neg]/30 bg-[--at-neg]/10 text-[--at-neg] p-3 rounded font-mono text-xs flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-[--at-neg] hover:text-red-300">✕</button>
+        <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{error}</span>
+          <button onClick={() => setError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">CHARGES HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." /></div>
-          <div className="text-2xl font-mono font-bold text-[--at-accent]">{fmtEur(stats?.charges_ht_ytd || 0)}</div>
+      {/* ── KPI ROW ───────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Charges HT YTD<InfoTip text="Total des factures dépenses HT de l'année en cours. Exclut les mouvements bilan (CCA 455000, IBKR 512100, Kraken 512200, Capital 101000)." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>{fmtEur(stats?.charges_ht_ytd || 0)}</div>
         </div>
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">TVA DÉDUCTIBLE YTD<InfoTip text="TVA payée sur les achats pro (logiciels, abonnements, matériel). Récupérable via la déclaration CA3 mensuelle. Source : factures avec vat_deductible = true." /></div>
-          <div className="text-2xl font-mono font-bold text-[--at-accent]">
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            TVA déductible YTD<InfoTip text="TVA payée sur les achats pro (logiciels, abonnements, matériel). Récupérable via la déclaration CA3 mensuelle. Source : factures avec vat_deductible = true." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
             {fmtEur((vatSummary?.months || []).reduce((s: number, m: any) => s + m.tva_deductible_fr + m.tva_autoliquidee_intracom, 0))}
           </div>
         </div>
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2">FACTURES</div>
-          <div className="text-2xl font-mono font-bold text-[--ink]">
-            {stats?.reconciled_count || 0} <span className="text-[--ink3]">/ {stats?.invoices_count || 0}</span>
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Factures</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
+            {stats?.reconciled_count || 0} <span style={{ color: "var(--ink3)" }}>/ {stats?.invoices_count || 0}</span>
           </div>
-          <div className="text-[10px] font-mono text-[--ink3] mt-1">rapprochées</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>rapprochées</div>
         </div>
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">COMPTE COURANT ASSOCIE<InfoTip text="Compte Courant Associé 455000. Positif = FHF doit à Fabien. Calculé depuis les factures catégorie 455000." /></div>
-          <div className={`text-2xl font-mono font-bold ${(stats?.cca_balance || 0) >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Compte courant associé<InfoTip text="Compte Courant Associé 455000. Positif = FHF doit à Fabien. Calculé depuis les factures catégorie 455000." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: (stats?.cca_balance || 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {fmtEur(Math.abs(stats?.cca_balance || 0))}
           </div>
-          <div className="text-[10px] font-mono text-[--ink3] mt-1">
-            {(stats?.cca_balance || 0) >= 0 ? "FHF te doit" : "Tu dois a FHF"}
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            {(stats?.cca_balance || 0) >= 0 ? "FHF te doit" : "Tu dois à FHF"}
           </div>
         </div>
-        <div className="border border-[--rule] bg-[--at-surface] rounded p-4">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-[--ink3] mb-2 flex items-center">SOLDE QONTO<InfoTip text="Solde calculé depuis les relevés CSV importés. Entrées − Sorties depuis la 1ère transaction. Dernier mouvement importé affiché en dessous." /></div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-2xl font-bold tracking-tight">
+        <div style={{ padding: "16px 22px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
+            Solde Qonto<InfoTip text="Solde calculé depuis les relevés CSV importés. Entrées − Sorties depuis la 1ère transaction. Dernier mouvement importé affiché en dessous." />
+          </div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 700, color: "var(--ink)", marginTop: 6, letterSpacing: -0.5 }}>
             {bankBalance ? fmtEur(bankBalance.balance) : "—"}
           </div>
-          <div className="text-[10px] italic text-[--ink3] mt-0.5" style={{ fontFamily: "var(--font-serif)" }}>
-            {bankBalance?.lastDate
-              ? `Relevé au ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")}`
-              : "Aucun relevé importé"}
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>
+            {bankBalance?.lastDate ? `Relevé au ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")}` : "Aucun relevé importé"}
           </div>
         </div>
       </div>
 
-      {/* Upload zones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left: Invoice upload */}
-        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3 flex items-center gap-2">
-            <FileText size={14} /> Upload facture
-          </h2>
-          <div
-            onDragOver={e => e.preventDefault()}
-            onDrop={handleInvoiceDrop}
-            className="border-2 border-dashed border-[--rule] rounded-lg p-8 text-center cursor-pointer hover:border-[--at-accent]/40 transition"
-          >
+      {/* ── UPLOAD ZONES ──────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 28 }}>
+        {/* Invoice upload */}
+        <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <FileText size={14} style={{ color: "var(--ink2)" }} />
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Upload facture</span>
+          </div>
+          <div onDragOver={e => e.preventDefault()} onDrop={handleInvoiceDrop}
+            style={{ border: "2px dashed var(--rule)", borderRadius: 4, padding: 32, textAlign: "center", cursor: "pointer", transition: "border .15s" }}>
             {ocrLoading ? (
-              <div className="flex items-center justify-center gap-2 text-[--at-accent] font-mono text-sm">
-                <RefreshCw size={16} className="animate-spin" /> Analyse OCR en cours...
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--at-accent)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                <RefreshCw size={16} className="animate-spin" /> Analyse OCR en cours…
               </div>
             ) : (
               <>
-                <Upload size={24} className="mx-auto text-[--ink3] mb-2" />
-                <p className="text-[--ink3] font-mono text-xs">Glissez une facture (image/PDF)</p>
-                <label className="mt-3 inline-block px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase cursor-pointer hover:bg-[--at-accent]/10 transition">
+                <Upload size={24} style={{ color: "var(--ink3)", margin: "0 auto 8px" }} />
+                <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Glissez une facture (image/PDF)</p>
+                <label style={{ display: "inline-block", marginTop: 12, padding: "6px 16px", background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--at-accent)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
                   Sélectionner un fichier
-                  <input type="file" accept="image/*,application/pdf" onChange={handleInvoiceDrop} className="hidden" />
+                  <input type="file" accept="image/*,application/pdf" onChange={handleInvoiceDrop} style={{ display: "none" }} />
                 </label>
               </>
             )}
           </div>
-          <button
-            onClick={() => { setEditingId(null); setModalData({ direction: "expense", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
-            className="mt-3 w-full px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase hover:bg-[--at-accent]/20 transition"
-          >
+          <button onClick={() => { setEditingId(null); setModalData({ direction: "expense", party_name: "", invoice_number: "", invoice_date: new Date().toISOString().slice(0, 10), amount_ht: 0, amount_vat: 0, amount_ttc: 0, vat_rate: 20, party_vat_number: "", party_country: "FR", vat_reverse_charge: false, vat_deductible: true, category: "618100", description: "", notes: "" }); setModalOpen(true) }}
+            style={{ width: "100%", marginTop: 12, padding: "8px 16px", background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--at-accent)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
             + Saisie manuelle
           </button>
         </div>
 
-        {/* Right: CSV upload */}
-        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3 flex items-center gap-2">
-            <Receipt size={14} /> Import relevé Qonto
-          </h2>
-          <div
-            onDragOver={e => e.preventDefault()}
-            onDrop={handleCsvDrop}
-            className="border-2 border-dashed border-[--rule] rounded-lg p-8 text-center cursor-pointer hover:border-[--at-accent]/40 transition"
-          >
-            <Upload size={24} className="mx-auto text-[--ink3] mb-2" />
-            <p className="text-[--ink3] font-mono text-xs">Glissez un export CSV Qonto</p>
-            <label className="mt-3 inline-block px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase cursor-pointer hover:bg-[--at-accent]/20 transition">
+        {/* CSV upload */}
+        <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <Upload size={14} style={{ color: "var(--ink2)" }} />
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Import relevé Qonto</span>
+          </div>
+          <div onDragOver={e => e.preventDefault()} onDrop={handleCsvDrop}
+            style={{ border: "2px dashed var(--rule)", borderRadius: 4, padding: 32, textAlign: "center", cursor: "pointer", transition: "border .15s" }}>
+            <Upload size={24} style={{ color: "var(--ink3)", margin: "0 auto 8px" }} />
+            <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Glissez un export CSV Qonto</p>
+            <label style={{ display: "inline-block", marginTop: 12, padding: "6px 16px", background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--at-accent)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
               Sélectionner un CSV
-              <input type="file" accept=".csv" onChange={handleCsvDrop} className="hidden" />
+              <input type="file" accept=".csv" onChange={handleCsvDrop} style={{ display: "none" }} />
             </label>
           </div>
-          <div className="text-[10px] text-[--ink3] mt-2" style={{ fontFamily: "var(--font-serif)" }}>
-            {bankBalance?.lastDate
-              ? `Dernier mouvement importé : ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")} · ${bankBalance.nbTransactions} transactions`
-              : "Aucun relevé importé"}
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 8 }}>
+            {bankBalance?.lastDate ? `Dernier mouvement importé : ${new Date(bankBalance.lastDate).toLocaleDateString("fr-FR")} · ${bankBalance.nbTransactions} transactions` : "Aucun relevé importé"}
           </div>
-          {importResult && <div className="mt-3 text-[--at-pos] font-mono text-xs">{importResult}</div>}
-          <button
-            onClick={handleReconcile}
-            className="mt-3 w-full px-3 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs uppercase hover:bg-[--at-accent]/10 transition flex items-center justify-center gap-2"
-          >
+          {importResult && <div style={{ marginTop: 8, color: "var(--at-pos)", fontFamily: "var(--font-mono)", fontSize: 12 }}>{importResult}</div>}
+          <button onClick={handleReconcile}
+            style={{ width: "100%", marginTop: 12, padding: "8px 16px", background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--at-accent)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             <RefreshCw size={12} /> Lancer le rapprochement
           </button>
-          {reconcileResult && <div className="mt-2 text-[--at-accent] font-mono text-xs">{reconcileResult}</div>}
+          {reconcileResult && <div style={{ marginTop: 8, color: "var(--at-accent)", fontFamily: "var(--font-mono)", fontSize: 12 }}>{reconcileResult}</div>}
         </div>
       </div>
 
-      {/* Match suggestions */}
+      {/* ── MATCH SUGGESTIONS ─────────────────────────────────── */}
       {suggestions.length > 0 && (
-        <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3">
-            Suggestions de rapprochement · {suggestions.length}
-          </h2>
-          <div className="space-y-2">
-            {suggestions.map(s => (
-              <div key={`${s.invoice_id}-${s.bank_tx_id}`} className="flex items-center gap-3 border border-[--rule] rounded p-2.5 hover:bg-[--at-accent]/5 transition">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs font-mono">
-                    <span className="text-[--at-accent]">Facture</span>
-                    <span className="text-[--ink] truncate">{s.invoice_party}</span>
-                    <span className="text-[--ink3]">({fmtEur(s.invoice_amount)}, {fmtDate(s.invoice_date)})</span>
-                    <span className="text-[--ink3] mx-1">↔</span>
-                    <span className="text-[--at-accent]">Banque</span>
-                    <span className="text-[--ink] truncate">{s.bank_counterparty}</span>
-                    <span className="text-[--ink3]">({fmtEur(s.bank_amount)}, {fmtDate(s.bank_date)})</span>
-                  </div>
-                  {s.confidence === "approx" && (
-                    <div className="text-[10px] font-mono text-amber-400 mt-0.5">
-                      écart {fmtEur(s.amount_diff)} (valeur facture conservée)
-                    </div>
-                  )}
-                  {s.confidence === "exact" && (
-                    <div className="text-[10px] font-mono text-[--at-pos] mt-0.5">montant exact</div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id && x.bank_tx_id !== s.bank_tx_id)); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
-                    className="px-2.5 py-1 bg-green-500/10 border border-[--at-pos]/30 text-[--at-pos] rounded font-mono text-[10px] uppercase hover:bg-green-500/20 transition"
-                  >
-                    Valider
-                  </button>
-                  <button
-                    onClick={() => setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id || x.bank_tx_id !== s.bank_tx_id))}
-                    className="px-2.5 py-1 border border-[--rule] text-[--ink3] rounded font-mono text-[10px] uppercase hover:bg-[--at-accent]/5 transition"
-                  >
-                    Ignorer
-                  </button>
-                </div>
-              </div>
-            ))}
+        <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)", marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Suggestions de rapprochement</span>
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{suggestions.length}</span>
           </div>
+          {suggestions.map(s => (
+            <div key={`${s.invoice_id}-${s.bank_tx_id}`} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--rule)", borderRadius: 4, padding: 10, marginBottom: 8, transition: "background .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in srgb, var(--at-accent) 5%, transparent)" }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--at-accent)" }}>Facture</span>
+                  <span style={{ color: "var(--ink)" }}>{s.invoice_party}</span>
+                  <span style={{ color: "var(--ink3)" }}>({fmtEur(s.invoice_amount)}, {fmtDate(s.invoice_date)})</span>
+                  <span style={{ color: "var(--ink3)" }}>↔</span>
+                  <span style={{ color: "var(--at-accent)" }}>Banque</span>
+                  <span style={{ color: "var(--ink)" }}>{s.bank_counterparty}</span>
+                  <span style={{ color: "var(--ink3)" }}>({fmtEur(s.bank_amount)}, {fmtDate(s.bank_date)})</span>
+                </div>
+                {s.confidence === "approx" && <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "#c08a4d", marginTop: 2 }}>écart {fmtEur(s.amount_diff)} (valeur facture conservée)</div>}
+                {s.confidence === "exact" && <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--at-pos)", marginTop: 2 }}>montant exact</div>}
+              </div>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button onClick={async () => { await handleManualMatch(s.invoice_id, s.bank_tx_id); setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id && x.bank_tx_id !== s.bank_tx_id)); toast({ title: "Rapproché", description: `${s.invoice_party} ↔ ${s.bank_counterparty}` }) }}
+                  style={{ padding: "4px 10px", background: "color-mix(in srgb, var(--at-pos) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-pos) 30%, transparent)", color: "var(--at-pos)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
+                  Valider
+                </button>
+                <button onClick={() => setSuggestions(prev => prev.filter(x => x.invoice_id !== s.invoice_id || x.bank_tx_id !== s.bank_tx_id))}
+                  style={{ padding: "4px 10px", border: "1px solid var(--rule)", color: "var(--ink3)", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", background: "none" }}>
+                  Ignorer
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Reconciliation table */}
-      <div className="border border-[--rule] rounded bg-[--at-surface]">
-        <div className="border-b border-[--rule] p-3 flex items-center gap-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent]">Rapprochement</h2>
-          <div className="flex gap-1 ml-auto">
-            {([["all", "Tout", rows.length], ["unmatched", `À traiter`, unmatchedCount], ["matched", "Rapprochés", matchedCount]] as const).map(([t, label, count]) => (
+      {/* ── RECONCILIATION TABLE ──────────────────────────────── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+          <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Rapprochement</span>
+          <div style={{ display: "flex", gap: 4 }}>
+            {([["all", "Tout", rows.length], ["unmatched", "À traiter", unmatchedCount], ["matched", "Rapprochés", matchedCount]] as const).map(([t, label, count]) => (
               <button key={t} onClick={() => setTab(t)}
-                className={`px-3 py-1 rounded font-mono text-xs transition ${tab === t ? "bg-[--at-accent]/10 text-[--at-accent] border border-[--rule]" : "text-[--ink3] hover:text-[--ink]"}`}>
+                style={{
+                  padding: "4px 10px", borderRadius: 3, fontFamily: "var(--font-mono)", fontSize: 11, cursor: "pointer", transition: "all .15s",
+                  background: tab === t ? "var(--at-accent)" : "transparent",
+                  color: tab === t ? "var(--at-bg)" : "var(--ink3)",
+                  border: tab === t ? "1px solid var(--at-accent)" : "1px solid transparent",
+                }}>
                 {label} ({count})
               </button>
             ))}
           </div>
         </div>
         {filteredRows.length === 0 ? (
-          <div className="p-6 text-center text-[--ink3] text-xs font-mono">Aucune donnée</div>
+          <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Aucune donnée</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead className="bg-[--at-surface] text-[--ink3] uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Contrepartie</th>
-                  <th className="text-right p-3">Montant TTC</th>
-                  <th className="text-center p-3">Type</th>
-                  <th className="text-center p-3">Statut</th>
-                  <th className="text-left p-3">Facture liée</th>
-                  <th className="text-right p-3">Actions</th>
+          <div style={{ maxHeight: 600, overflowY: "auto", border: "1px solid var(--rule)", borderRadius: 4 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <thead>
+                <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
+                  {["Date", "Contrepartie", "Montant TTC", "Type", "Statut", "Facture liée", "Actions"].map((h, i) => (
+                    <th key={h} style={{
+                      padding: "10px 12px", textAlign: [2, 6].includes(i) ? "right" : [3, 4].includes(i) ? "center" : "left",
+                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                      borderBottom: "1px solid var(--rule)",
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map(row => (
-                  <tr key={row.id} className="border-t border-[--rule] hover:bg-[--at-accent]/5 transition">
-                    <td className="p-3 text-[--ink]">{fmtDate(row.date)}</td>
-                    <td className="p-3 text-[--ink] truncate max-w-[200px]">{row.counterparty}</td>
-                    <td className={`p-3 text-right ${row.type === "bank" && row.original.side === "credit" ? "text-[--at-pos]" : "text-[--ink]"}`}>
+                  <tr key={row.id} style={{ borderBottom: "1px dotted var(--rule)", transition: "background .15s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in srgb, var(--at-accent) 5%, transparent)" }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
+                    <td style={{ padding: "9px 12px", color: "var(--ink)" }}>{fmtDate(row.date)}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--ink)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.counterparty}</td>
+                    <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: row.type === "bank" && row.original.side === "credit" ? "var(--at-pos)" : "var(--ink)" }}>
                       {row.type === "bank" && row.original.side === "credit" ? "+" : "-"}{fmtEur(row.amount)}
                     </td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${row.type === "bank" ? "bg-[--at-accent]/10 text-[--at-accent]" : "bg-[--at-accent]/20 text-[--at-accent]"}`}>
+                    <td style={{ padding: "9px 12px", textAlign: "center" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "color-mix(in srgb, var(--at-accent) 10%, transparent)", color: "var(--at-accent)" }}>
                         {row.type === "bank" ? "Banque" : "Facture"}
                       </span>
                     </td>
-                    <td className="p-3 text-center">
-                      {row.status === "matched" && row.linkedInvoice?.category === "455000" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
-                      )}
-                      {row.status === "matched" && row.linkedInvoice?.category === "512100" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[--at-accent]/10 text-[--at-accent] border border-[--rule]">IBKR</span>
-                      )}
-                      {row.status === "matched" && row.linkedInvoice?.category === "512200" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">KRK</span>
-                      )}
-                      {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span className="text-[--at-pos]">✅</span>}
-                      {row.status === "settled_cca" && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">CCA</span>
-                      )}
-                      {row.status === "unmatched" && <span className="text-amber-400">⚠️</span>}
-                      {row.status === "pending_payment" && <span className="text-[--ink2]">📄</span>}
-                      {row.status === "ignored" && <span className="text-[--ink3]">🔕</span>}
+                    <td style={{ padding: "9px 12px", textAlign: "center" }}>
+                      {row.status === "matched" && row.linkedInvoice?.category === "455000" && <span style={{ padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "color-mix(in srgb, #c08a4d 15%, transparent)", color: "#c08a4d", border: "1px solid color-mix(in srgb, #c08a4d 30%, transparent)" }}>CCA</span>}
+                      {row.status === "matched" && row.linkedInvoice?.category === "512100" && <span style={{ padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "color-mix(in srgb, var(--at-accent) 10%, transparent)", color: "var(--at-accent)", border: "1px solid var(--rule)" }}>IBKR</span>}
+                      {row.status === "matched" && row.linkedInvoice?.category === "512200" && <span style={{ padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "color-mix(in srgb, #9a988f 15%, transparent)", color: "#9a988f", border: "1px solid color-mix(in srgb, #9a988f 30%, transparent)" }}>KRK</span>}
+                      {row.status === "matched" && !NON_CHARGE_CATS.includes(row.linkedInvoice?.category) && <span style={{ color: "var(--at-pos)" }}>✓</span>}
+                      {row.status === "settled_cca" && <span style={{ padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "color-mix(in srgb, #c08a4d 15%, transparent)", color: "#c08a4d", border: "1px solid color-mix(in srgb, #c08a4d 30%, transparent)" }}>CCA</span>}
+                      {row.status === "unmatched" && <span style={{ color: "#c08a4d" }}>●</span>}
+                      {row.status === "pending_payment" && <span style={{ color: "var(--ink3)" }}>○</span>}
+                      {row.status === "ignored" && <span style={{ color: "var(--ink3)", fontSize: 10 }}>ignoré</span>}
                     </td>
-                    <td className="p-3 text-[--ink3] text-[10px] truncate max-w-[150px]">
+                    <td style={{ padding: "9px 12px", color: "var(--ink3)", fontSize: 10, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.linkedInvoice && <span>{row.linkedInvoice.party_name} — {row.linkedInvoice.invoice_number || "N/A"}</span>}
                     </td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center gap-1 justify-end">
-                        {/* Bank tx: unmatched → match or ignore */}
+                    <td style={{ padding: "9px 12px", textAlign: "right" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
                         {row.type === "bank" && row.status === "unmatched" && (
                           <>
                             {matchingTxId === row.original.id ? (
-                              <select
-                                className="bg-[--at-bg] border border-[--rule] text-[--ink] rounded px-1 py-0.5 text-[10px] font-mono max-w-[120px]"
-                                onChange={e => { if (e.target.value) handleManualMatch(e.target.value, row.original.id) }}
-                                defaultValue=""
-                              >
-                                <option value="">Choisir facture...</option>
+                              <select style={{ ...inputStyle, width: "auto", maxWidth: 120, fontSize: 10, padding: "2px 4px" }}
+                                onChange={e => { if (e.target.value) handleManualMatch(e.target.value, row.original.id) }} defaultValue="">
+                                <option value="">Choisir facture…</option>
                                 {unreconciledInvoices.map(inv => (
                                   <option key={inv.id} value={inv.id}>{inv.party_name} — {fmtEur(Number(inv.amount_ttc))}</option>
                                 ))}
                               </select>
                             ) : (
-                              <button onClick={() => setMatchingTxId(row.original.id)} className="text-[--at-accent] hover:text-[--at-accent] p-1" title="Matcher">
-                                <Check size={12} />
-                              </button>
+                              <button onClick={() => setMatchingTxId(row.original.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-accent)", padding: 4 }} title="Matcher"><Check size={12} /></button>
                             )}
-                            <button onClick={() => handleQuickCategory(row.original, "455000", "Dépense personnelle — avance CCA", "Apport personnel — CCA")} className="text-amber-500 hover:text-amber-400 p-1" title="Opération perso — compte courant associé (455000)">
-                              <UserMinus size={12} />
-                            </button>
-                            <button onClick={() => handleQuickCategory(row.original, "512100", "Virement vers Interactive Brokers", "Rapatriement depuis Interactive Brokers")} className="text-cyan-500 hover:text-[--at-accent] p-1" title="Virement IBKR (512100)">
-                              <Briefcase size={12} />
-                            </button>
-                            <button onClick={() => handleQuickCategory(row.original, "512200", "Virement vers Kraken Pro Futures", "Rapatriement depuis Kraken Pro Futures")} className="text-purple-500 hover:text-purple-400 p-1" title="Virement Kraken (512200)">
-                              <Bitcoin size={12} />
-                            </button>
-                            <button onClick={() => handleIgnore(row.original.id)} className="text-[--ink3] hover:text-[--ink] p-1" title="Ignorer">
-                              <Ban size={12} />
-                            </button>
+                            <button onClick={() => handleQuickCategory(row.original, "455000", "Dépense personnelle — avance CCA", "Apport personnel — CCA")} style={{ background: "none", border: "none", cursor: "pointer", color: "#c08a4d", padding: 4 }} title="CCA (455000)"><UserMinus size={12} /></button>
+                            <button onClick={() => handleQuickCategory(row.original, "512100", "Virement vers Interactive Brokers", "Rapatriement depuis Interactive Brokers")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-accent)", padding: 4 }} title="IBKR (512100)"><Briefcase size={12} /></button>
+                            <button onClick={() => handleQuickCategory(row.original, "512200", "Virement vers Kraken Pro Futures", "Rapatriement depuis Kraken Pro Futures")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink2)", padding: 4 }} title="Kraken (512200)"><Bitcoin size={12} /></button>
+                            <button onClick={() => handleIgnore(row.original.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }} title="Ignorer"><Ban size={12} /></button>
                           </>
                         )}
-                        {/* Bank tx: matched → unmatch */}
                         {row.type === "bank" && row.status === "matched" && row.linkedInvoice && (
-                          <button onClick={() => handleUnmatch(row.linkedInvoice.id)} className="text-[--ink3] hover:text-[--at-neg] p-1" title="Défaire">
-                            <Link2Off size={12} />
-                          </button>
+                          <button onClick={() => handleUnmatch(row.linkedInvoice.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }} title="Défaire"><Link2Off size={12} /></button>
                         )}
-                        {/* Bank tx: ignored → unignore */}
                         {row.type === "bank" && row.status === "ignored" && (
-                          <button onClick={() => handleUnignore(row.original.id)} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Restaurer">
-                            <RefreshCw size={12} />
-                          </button>
+                          <button onClick={() => handleUnignore(row.original.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }} title="Restaurer"><RefreshCw size={12} /></button>
                         )}
-                        {/* Invoice actions */}
                         {row.type === "invoice" && (
                           <>
-                            {row.original.attachment_url && (
-                              <button onClick={() => window.open(row.original.attachment_url, "_blank")} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Voir">
-                                <Eye size={12} />
-                              </button>
-                            )}
-                            <button onClick={() => openEditModal(row.original)} className="text-[--ink3] hover:text-[--at-accent] p-1" title="Modifier">
-                              <Pencil size={12} />
-                            </button>
-                            <button onClick={() => handleDeleteInvoice(row.original.id)} className="text-[--ink3] hover:text-[--at-neg] p-1" title="Supprimer">
-                              <Trash2 size={12} />
-                            </button>
+                            {row.original.attachment_url && <button onClick={() => window.open(row.original.attachment_url, "_blank")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }} title="Voir"><Eye size={12} /></button>}
+                            <button onClick={() => openEditModal(row.original)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }} title="Modifier"><Pencil size={12} /></button>
+                            <button onClick={() => handleDeleteInvoice(row.original.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-neg)", padding: 4 }} title="Supprimer"><Trash2 size={12} /></button>
                           </>
                         )}
                       </div>
@@ -742,83 +697,89 @@ export default function Compta() {
         )}
       </div>
 
-      {/* VAT block */}
-      <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-3">
-          TVA — {monthOptions.find(m => m.value === vatMonth)?.label || vatMonth}
-        </h2>
+      {/* ── TVA ────────────────────────────────────────────────── */}
+      <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)", marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+          <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>TVA</span>
+          <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+            {monthOptions.find(m => m.value === vatMonth)?.label || vatMonth}
+          </span>
+        </div>
         {vatData ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             <div>
-              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA déductible (FR)</div>
-              <div className="text-lg font-mono font-bold text-[--at-accent]">{fmtEur(vatData.tva_deductible_fr)}</div>
-              <div className="text-[10px] font-mono text-[--ink3]">Base HT : {fmtEur(vatData.base_ht_achats_fr)}</div>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>TVA déductible (FR)</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(vatData.tva_deductible_fr)}</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)", marginTop: 2 }}>Base HT : {fmtEur(vatData.base_ht_achats_fr)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA autoliquidée (intracom)</div>
-              <div className="text-lg font-mono font-bold text-[--at-accent]">{fmtEur(vatData.tva_autoliquidee_intracom)}</div>
-              <div className="text-[10px] font-mono text-[--ink3]">Base HT : {fmtEur(vatData.base_ht_achats_intracom)}</div>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>TVA autoliquidée (intracom)</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(vatData.tva_autoliquidee_intracom)}</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)", marginTop: 2 }}>Base HT : {fmtEur(vatData.base_ht_achats_intracom)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA collectée (ventes)</div>
-              <div className="text-lg font-mono font-bold text-[--ink]">{fmtEur(vatData.tva_collectee)}</div>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>TVA collectée (ventes)</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(vatData.tva_collectee)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-mono text-[--ink3] uppercase">TVA nette</div>
-              <div className={`text-lg font-mono font-bold ${vatData.tva_nette >= 0 ? "text-[--at-neg]" : "text-[--at-pos]"}`}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>TVA nette</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: vatData.tva_nette >= 0 ? "var(--at-neg)" : "var(--at-pos)", marginTop: 4 }}>
                 {vatData.tva_nette >= 0 ? "" : "Crédit "}{fmtEur(Math.abs(vatData.tva_nette))}
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-[--ink3] font-mono text-xs">Aucune donnée TVA pour ce mois</div>
+          <div style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Aucune donnée TVA pour ce mois</div>
         )}
-        <p className="text-[10px] font-mono text-[--ink3] mt-3">Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</p>
+        <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 12 }}>Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</div>
       </div>
 
-      {/* Charts */}
+      {/* ── CHARTS ─────────────────────────────────────────────── */}
       {stats && (stats.charges_by_category?.length > 0 || stats.monthly_by_category?.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Pie: charges by category */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginBottom: 28 }}>
           {stats.charges_by_category?.length > 0 && (
-            <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Charges par catégorie (YTD)</h2>
-              <ResponsiveContainer width="100%" height={200}>
+            <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Charges par catégorie</span>
+                <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>YTD</span>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie data={stats.charges_by_category} dataKey="total_ht" nameKey="category" cx="50%" cy="50%"
-                    outerRadius={70} innerRadius={30} strokeWidth={1} stroke="#09090b">
+                    outerRadius={70} innerRadius={40} strokeWidth={1.5} stroke="var(--at-bg)">
                     {stats.charges_by_category.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }}
-                    formatter={(value: number, name: string) => [fmtEur(value), CAT_LABEL[name] || name]} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [fmtEur(value), CAT_LABEL[name] || name]} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-col gap-1">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
                 {stats.charges_by_category.map((d: any, i: number) => (
-                  <div key={d.category} className="flex items-center gap-2 text-xs font-mono">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-[--ink2]">{CAT_LABEL[d.category] || d.category}</span>
-                    <span className="text-[--ink] ml-auto">{fmtEur(d.total_ht)}</span>
+                  <div key={d.category} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
+                    <span style={{ fontFamily: "var(--font-serif)", color: "var(--ink2)", flex: 1 }}>{CAT_LABEL[d.category] || d.category}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{fmtEur(d.total_ht)}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Bar: monthly charges */}
           {stats.monthly_by_category?.length > 0 && (() => {
             const usedCats: string[] = Array.from(new Set(stats.monthly_by_category.flatMap((m: any) => Object.keys(m).filter((k: string) => k !== "month"))))
             return (
-              <div className="border border-[--rule] rounded bg-[--at-surface] p-4">
-                <h2 className="text-xs font-mono uppercase tracking-widest text-[--at-accent] mb-2">Charges mensuelles (YTD)</h2>
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+                  <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Charges mensuelles</span>
+                  <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>YTD</span>
+                </div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={stats.monthly_by_category}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--rule)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
                       tickFormatter={(v: string) => { const [, m] = v.split("-"); return MONTH_NAMES[parseInt(m) - 1]?.slice(0, 3) || v }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }} axisLine={false} tickLine={false}
+                    <YAxis tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
                       tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))} />
-                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: "#ffffff" }} labelStyle={{ color: "#a1a1aa" }}
+                    <Tooltip contentStyle={tooltipStyle}
                       formatter={(value: number, name: string) => [fmtEur(value), CAT_LABEL[name] || name]}
                       labelFormatter={(label: string) => { const [, m] = label.split("-"); return MONTH_NAMES[parseInt(m) - 1] || label }} />
                     {usedCats.map((cat: string, i: number) => (
@@ -832,156 +793,141 @@ export default function Compta() {
         </div>
       )}
 
-      {/* Invoice modal */}
+      {/* ── INVOICE MODAL ─────────────────────────────────────── */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[--at-bg]/70" onClick={() => setModalOpen(false)}>
-          <div className="bg-[--at-surface] border border-[--rule] rounded-lg w-[600px] max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-mono font-bold text-[--at-accent] uppercase tracking-widest">
-                {editingId ? "Modifier facture" : "Nouvelle facture"}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="text-[--ink3] hover:text-[--ink]"><X size={16} /></button>
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,24,20,0.5)" }} onClick={() => setModalOpen(false)}>
+          <div style={{ background: "var(--at-bg)", border: "1px solid var(--rule)", borderRadius: 6, width: 600, maxHeight: "90vh", overflowY: "auto", padding: 24 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "2px solid var(--ink)", paddingBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
+                  {editingId ? "Modifier facture" : "Nouvelle facture"}
+                </div>
+              </div>
+              <button onClick={() => setModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", padding: 4 }}><X size={16} /></button>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Fournisseur</label>
-                  <input value={modalData.party_name || ""} onChange={e => updateModalField("party_name", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Fournisseur</label>
+                  <input value={modalData.party_name || ""} onChange={e => updateModalField("party_name", e.target.value)} style={inputStyle} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">N° facture</label>
-                  <input value={modalData.invoice_number || ""} onChange={e => updateModalField("invoice_number", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>N° facture</label>
+                  <input value={modalData.invoice_number || ""} onChange={e => updateModalField("invoice_number", e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Date facture</label>
-                  <input type="date" value={modalData.invoice_date || ""} onChange={e => updateModalField("invoice_date", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Date facture</label>
+                  <input type="date" value={modalData.invoice_date || ""} onChange={e => updateModalField("invoice_date", e.target.value)} style={inputStyle} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Date paiement</label>
-                  <input type="date" value={modalData.payment_date || ""} onChange={e => updateModalField("payment_date", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Date paiement</label>
+                  <input type="date" value={modalData.payment_date || ""} onChange={e => updateModalField("payment_date", e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               {modalData._fxInfo && (
-                <div className="bg-[--at-accent]/10 border border-[--rule] rounded p-2 text-xs font-mono text-fuchsia-300">
+                <div style={{ padding: 8, borderRadius: 4, background: "color-mix(in srgb, var(--at-accent) 8%, transparent)", border: "1px solid var(--rule)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--at-accent)" }}>
                   Taux BCE du {fmtDate(modalData._fxInfo.fx_date)} : 1 {modalData._fxInfo.original_currency} = {modalData._fxInfo.fx_rate.toFixed(4)} EUR
-                  <span className="text-[--ink3] ml-2">
-                    (original : {modalData._fxInfo.original_ht.toFixed(2)} {modalData._fxInfo.original_currency} HT)
-                  </span>
+                  <span style={{ color: "var(--ink3)", marginLeft: 8 }}>(original : {modalData._fxInfo.original_ht.toFixed(2)} {modalData._fxInfo.original_currency} HT)</span>
                 </div>
               )}
 
               {IS_NON_CHARGE(modalData.category) ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant (EUR)</label>
-                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                    <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Montant (EUR)</label>
+                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)} style={inputStyle} />
                   </div>
-                  <div className="flex items-end">
-                    <div className="text-[10px] font-mono text-[--ink3] pb-2">Pas de TVA ({CAT_LABEL[modalData.category] || "hors exploitation"})</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 8 }}>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>Pas de TVA ({CAT_LABEL[modalData.category] || "hors exploitation"})</span>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                   <div>
-                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant HT (EUR)</label>
-                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                    <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Montant HT (EUR)</label>
+                    <input type="number" step="0.01" value={modalData.amount_ht || 0} onChange={e => updateModalField("amount_ht", parseFloat(e.target.value) || 0)} style={inputStyle} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Taux TVA</label>
-                    <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))}
-                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
+                    <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Taux TVA</label>
+                    <select value={modalData.vat_rate} onChange={e => updateModalField("vat_rate", parseFloat(e.target.value))} style={inputStyle}>
                       {VAT_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-mono text-[--ink3] uppercase">Montant TTC</label>
-                    <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)}
-                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                    <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Montant TTC</label>
+                    <input type="number" step="0.01" value={modalData.amount_ttc || 0} onChange={e => updateModalField("amount_ttc", parseFloat(e.target.value) || 0)} style={inputStyle} />
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Direction</label>
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Direction</label>
                   {IS_NON_CHARGE(modalData.category) ? (
-                    <div className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink3] font-mono text-xs">Hors exploitation ({CAT_LABEL[modalData.category] || modalData.category})</div>
+                    <div style={{ ...inputStyle, color: "var(--ink3)" }}>Hors exploitation ({CAT_LABEL[modalData.category] || modalData.category})</div>
                   ) : (
-                    <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)}
-                      className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
+                    <select value={modalData.direction} onChange={e => updateModalField("direction", e.target.value)} style={inputStyle}>
                       <option value="expense">Charge</option>
                       <option value="revenue">Produit</option>
                     </select>
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Catégorie PCG</label>
-                  <select value={modalData.category || "471000"} onChange={e => updateModalField("category", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs">
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Catégorie PCG</label>
+                  <select value={modalData.category || "471000"} onChange={e => updateModalField("category", e.target.value)} style={inputStyle}>
                     {CATEGORIES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">Pays fournisseur</label>
-                  <input value={modalData.party_country || "FR"} onChange={e => updateModalField("party_country", e.target.value.toUpperCase())}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" maxLength={2} />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Pays fournisseur</label>
+                  <input value={modalData.party_country || "FR"} onChange={e => updateModalField("party_country", e.target.value.toUpperCase())} style={inputStyle} maxLength={2} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono text-[--ink3] uppercase">N° TVA intracom</label>
-                  <input value={modalData.party_vat_number || ""} onChange={e => updateModalField("party_vat_number", e.target.value)}
-                    className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                  <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>N° TVA intracom</label>
+                  <input value={modalData.party_vat_number || ""} onChange={e => updateModalField("party_vat_number", e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
               {!IS_NON_CHARGE(modalData.category) && (
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-xs font-mono text-[--ink2] cursor-pointer">
-                    <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)}
-                      className="rounded border-[--rule]" />
+                <div style={{ display: "flex", gap: 16 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink2)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={modalData.vat_reverse_charge || false} onChange={e => updateModalField("vat_reverse_charge", e.target.checked)} style={{ accentColor: "var(--at-accent)" }} />
                     Autoliquidation
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-mono text-[--ink2] cursor-pointer">
-                    <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)}
-                      className="rounded border-[--rule]" />
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink2)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={modalData.vat_deductible ?? true} onChange={e => updateModalField("vat_deductible", e.target.checked)} style={{ accentColor: "var(--at-accent)" }} />
                     TVA déductible
                   </label>
                 </div>
               )}
 
               <div>
-                <label className="text-[10px] font-mono text-[--ink3] uppercase">Description</label>
-                <input value={modalData.description || ""} onChange={e => updateModalField("description", e.target.value)}
-                  className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs" />
+                <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Description</label>
+                <input value={modalData.description || ""} onChange={e => updateModalField("description", e.target.value)} style={inputStyle} />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono text-[--ink3] uppercase">Notes</label>
+                <label style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", marginBottom: 4 }}>Notes</label>
                 <textarea value={modalData.notes || ""} onChange={e => updateModalField("notes", e.target.value)} rows={2}
-                  className="w-full bg-[--at-bg] border border-[--rule] rounded px-2 py-1.5 text-[--ink] font-mono text-xs resize-none" />
+                  style={{ ...inputStyle, resize: "none" }} />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-4">
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, borderTop: "1px dotted var(--rule)", paddingTop: 14 }}>
               <button onClick={() => setModalOpen(false)}
-                className="px-4 py-1.5 border border-[--rule] text-[--ink2] rounded font-mono text-xs hover:bg-[--at-accent]/5 transition">
+                style={{ padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3, cursor: "pointer" }}>
                 Annuler
               </button>
               <button onClick={handleSaveInvoice}
-                className="px-4 py-1.5 bg-[--at-accent]/10 border border-[--rule] text-[--at-accent] rounded font-mono text-xs hover:bg-[--at-accent]/20 transition">
+                style={{ padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3, cursor: "pointer" }}>
                 {editingId ? "Enregistrer" : "Valider"}
               </button>
             </div>
