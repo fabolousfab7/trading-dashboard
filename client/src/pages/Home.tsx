@@ -281,11 +281,11 @@ export default function Home() {
   }
 
   if (!user) return (
-    <div className="min-h-screen bg-[--at-bg] flex items-center justify-center">
-      <p className="text-[--ink3] font-mono">Connecte-toi sur <Link href="/analytics" className="text-[--at-accent] underline">/analytics</Link></p>
+    <div style={{ minHeight: "100vh", background: "var(--at-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Connecte-toi sur <Link href="/analytics" style={{ color: "var(--at-accent)", textDecoration: "underline" }}>/analytics</Link></p>
     </div>
   )
-  if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
+  if (loading) return <div style={{ padding: 28, color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Chargement...</div>
 
   // ── Computed values ──────────────────────────────────────────
   const tradingProfit = stats?.totalProfit || 0
@@ -466,27 +466,27 @@ export default function Home() {
       {/* ── 2. LEAD — Brut + Courbe ─────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold flex items-center">
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600, display: "flex", alignItems: "center" }}>
             Brut &middot; tous comptes
             <InfoTip text="FHF (IBKR + Kraken + Qonto) + PEA + Crypto Perso + Crypto R+F. Avant impôts, hors CCA." wide />
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 48, fontWeight: 700, letterSpacing: -2, lineHeight: 1.1, marginTop: 4 }} className="text-[--ink]">
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 48, fontWeight: 700, letterSpacing: -2, lineHeight: 1.1, marginTop: 4, color: "var(--ink)" }}>
             {fmtEur(patrimoineBrut)}
           </div>
           {chartData.length > 1 && (
-            <div style={{ fontFamily: "var(--font-mono)" }} className={`text-xs mt-1.5 tabular-nums ${chartVarAbs >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, marginTop: 6, fontVariantNumeric: "tabular-nums", color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
               {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {chartRange}j
             </div>
           )}
-          <div className="mt-4 p-3 bg-[--at-surface] border border-dotted border-[--rule] rounded">
-            <div className="text-[9px] tracking-[0.15em] text-[--ink2] uppercase font-semibold flex items-center">
+          <div style={{ marginTop: 16, padding: 12, background: "var(--at-surface)", border: "1px dotted var(--rule)" }}>
+            <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600, display: "flex", alignItems: "center" }}>
               Net après fiscalité estimée
               <InfoTip text="FHF equity (IS 15% + PS 17.2% sur PV) + PEA (30% sur PV) + Crypto (31.4% sur tout)." wide />
             </div>
-            <div style={{ fontFamily: "var(--font-serif)" }} className="text-xl font-bold mt-0.5 text-[--ink]">
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 20, fontWeight: 700, marginTop: 2, color: "var(--ink)" }}>
               {fmtEur(patrimoineNet)}
             </div>
-            <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
               IS société &middot; PFU crypto &middot; PS PEA sur PV
             </div>
           </div>
@@ -580,28 +580,28 @@ export default function Home() {
           total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoPctChange} href="/crypto" />
 
         {/* Trading Actif — card spéciale */}
-        <Link href="/analytics" className="block" style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
+        <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-          <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">Trading Actif</div>
-          <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">Journal tous comptes</div>
-          <div className="mt-3 space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-[--ink3]">P&L</span>
-              <span style={{ fontFamily: "var(--font-mono)" }} className={`tabular-nums font-semibold ${tradingProfit >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600 }}>Trading Actif</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>Journal tous comptes</div>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <span style={{ color: "var(--ink3)" }}>P&L</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: tradingProfit >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
                 {fmtEur(tradingProfit)}
               </span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-[--ink3]">Trades</span>
-              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{tradingCount}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <span style={{ color: "var(--ink3)" }}>Trades</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{tradingCount}</span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-[--ink3]">Win rate</span>
-              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{tradingWinRate.toFixed(0)}%</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+              <span style={{ color: "var(--ink3)" }}>Win rate</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{tradingWinRate.toFixed(0)}%</span>
             </div>
           </div>
-          <div className="mt-3 text-[--ink3] text-sm" style={{ fontFamily: "var(--font-mono)" }}>—</div>
+          <div style={{ marginTop: 12, color: "var(--ink3)", fontSize: 13, fontFamily: "var(--font-mono)" }}>—</div>
         </Link>
 
         <PerfCard label="PEA Perso" sub="Boursobank"
@@ -896,37 +896,35 @@ function PerfCard({ label, sub, lines, total, pctChange, href }: {
   label: string; sub?: string; lines: { name: string; value: number }[]; total: number; pctChange: number | null; href: string
 }) {
   return (
-    <Link href={href} className="block" style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
+    <Link href={href} style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-      <div className="text-[10px] tracking-[0.15em] text-[--ink2] uppercase font-semibold">{label}</div>
-      {sub && <div style={{ fontFamily: "var(--font-serif)" }} className="text-[10px] italic text-[--ink3] mt-0.5">{sub}</div>}
-      <div className="mt-3 space-y-1.5">
+      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600 }}>{label}</div>
+      {sub && <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>{sub}</div>}
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
         {lines.map((l, i) => (
-          <div key={i} className="flex justify-between text-xs">
-            <span className="text-[--ink3]">{l.name}</span>
-            <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{fmtEur(l.value)}</span>
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "var(--ink3)" }}>{l.name}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{fmtEur(l.value)}</span>
           </div>
         ))}
         {lines.length > 1 && (
           <>
-            <div className="border-t border-dotted border-[--rule]" />
-            <div className="flex justify-between text-xs font-semibold">
-              <span className="text-[--ink2]">Total</span>
-              <span style={{ fontFamily: "var(--font-mono)" }} className="tabular-nums">{fmtEur(total)}</span>
+            <div style={{ borderTop: "1px dotted var(--rule)" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600 }}>
+              <span style={{ color: "var(--ink2)" }}>Total</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{fmtEur(total)}</span>
             </div>
           </>
         )}
       </div>
-      <div className="mt-3">
-        <div style={{ fontFamily: "var(--font-mono)" }}
-          className={`text-sm font-bold tabular-nums ${pctChange === null ? "text-[--ink3]" : pctChange >= 0 ? "text-[--at-pos]" : "text-[--at-neg]"}`}>
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: pctChange === null ? "var(--ink3)" : pctChange >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
           {pctChange === null ? "—" : `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%`}
         </div>
         {pctChange !== null && (
-          <div className="h-1 bg-[--rule-soft] mt-1 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${pctChange >= 0 ? "bg-[--at-pos]" : "bg-[--at-neg]"}`}
-              style={{ width: `${Math.min(100, Math.abs(pctChange) * 2)}%` }} />
+          <div style={{ height: 3, background: "var(--rule)", marginTop: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", background: pctChange >= 0 ? "var(--at-pos)" : "var(--at-neg)", width: `${Math.min(100, Math.abs(pctChange) * 2)}%` }} />
           </div>
         )}
       </div>
