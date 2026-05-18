@@ -612,6 +612,143 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     return res.json({ snapshots: snapshots || [], accounts })
   })
 
+  // ── Timeseries: historical snapshots + live today point ──────
+  const TIMEFRAME_DAYS: Record<string, number> = { "24h": 2, "1S": 7, "1M": 30, "3M": 90, "6M": 180, "1A": 365 }
+
+  app.get("/api/portfolio/timeseries", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const tf = String(req.query.timeframe || "3M")
+    const days = TIMEFRAME_DAYS[tf] || 90
+
+    const since = new Date()
+    since.setDate(since.getDate() - days)
+    const sinceStr = since.toISOString().slice(0, 10)
+    const todayStr = new Date().toISOString().slice(0, 10)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id, label, broker").eq("user_id", userId).eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json([])
+
+    const accountIds = accounts.map((a: any) => a.id)
+    const brokerKey = (broker: string) => {
+      if (broker === "IBKR") return "ibkr"
+      if (broker === "Kraken") return "kraken"
+      if (broker === "Qonto") return "qonto"
+      if (broker === "Boursorama") return "pea"
+      if (broker === "Crypto") return "crypto"
+      return null
+    }
+
+    // 1. Historical snapshots
+    const { data: snapshots } = await userClient
+      .from("portfolio_snapshots")
+      .select("account_id, snapshot_date, nlv_base")
+      .in("account_id", accountIds)
+      .gte("snapshot_date", sinceStr)
+      .order("snapshot_date", { ascending: true })
+
+    // Group by date → broker NLV
+    const byDateBroker: Record<string, Record<string, number>> = {}
+    for (const s of (snapshots || [])) {
+      const acc = accounts.find((a: any) => a.id === s.account_id)
+      if (!acc) continue
+      const key = brokerKey(acc.broker)
+      if (!key) continue
+      const d = s.snapshot_date
+      if (!byDateBroker[d]) byDateBroker[d] = {}
+      byDateBroker[d][key] = (byDateBroker[d][key] || 0) + (Number(s.nlv_base) || 0)
+    }
+
+    // 2. Live point for today — compute NLV from positions + cash
+    const live: Record<string, number> = { ibkr: 0, kraken: 0, qonto: 0, pea: 0, crypto_perso: 0, crypto_rf: 0 }
+
+    for (const account of accounts) {
+      const key = brokerKey(account.broker)
+      if (!key) continue
+
+      if (account.broker === "Qonto") {
+        const { data: txs } = await userClient
+          .from("fhf_bank_transactions").select("amount, side")
+        live.qonto = (txs || []).reduce((s: number, t: any) => {
+          const amt = Math.abs(Number(t.amount))
+          return s + (t.side === "credit" ? amt : -amt)
+        }, 0)
+        continue
+      }
+
+      const [posRes, cashRes] = await Promise.all([
+        userClient.from("positions").select("*").eq("account_id", account.id),
+        userClient.from("cash_balances").select("*").eq("account_id", account.id),
+      ])
+      const positions = posRes.data || []
+      const cash = cashRes.data || []
+      const posValue = positions.reduce((s: number, p: any) => s + getPositionValueEur(p), 0)
+      const cashValue = cash.reduce((s: number, c: any) => {
+        const fx = Number(c.fx_rate_to_base) || 1
+        return s + Number(c.amount) * fx
+      }, 0)
+
+      if (account.broker === "Crypto") {
+        const persoVal = positions
+          .filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
+          .reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
+        const sharedVal = positions
+          .filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
+          .reduce((s: number, p: any) => {
+            const own = (Number(p.ownership_pct) || 100) / 100
+            return s + Number(p.quantity) * Number(p.market_price) * own
+          }, 0)
+        live.crypto_perso = persoVal + cash.reduce((s: number, c: any) => {
+          const fx = Number(c.fx_rate_to_base) || 1
+          return s + Number(c.amount) * fx
+        }, 0) * (persoVal / ((persoVal + sharedVal) || 1))
+        live.crypto_rf = sharedVal + cashValue * (sharedVal / ((persoVal + sharedVal) || 1))
+      } else {
+        live[key] = (live[key] || 0) + posValue + cashValue
+      }
+    }
+
+    // 3. Compute crypto perso ratio for historical split
+    const cryptoTotal = live.crypto_perso + live.crypto_rf
+    const persoRatio = cryptoTotal > 0 ? live.crypto_perso / cryptoTotal : 0.5
+
+    // 4. Build timeseries with carry-forward
+    const allDates = [...new Set(Object.keys(byDateBroker))].sort()
+    // Remove today from historical if present (live replaces it)
+    const historicalDates = allDates.filter(d => d !== todayStr)
+
+    const KEYS = ["ibkr", "kraken", "qonto", "pea"] as const
+    const lastKnown: Record<string, number> = {}
+    const series: any[] = []
+
+    for (const date of historicalDates) {
+      const day = byDateBroker[date] || {}
+      for (const k of [...KEYS, "crypto"]) {
+        if (day[k] !== undefined) lastKnown[k] = day[k]
+      }
+      const cryptoNlv = lastKnown["crypto"] || 0
+      const row: any = {
+        date,
+        ibkr: lastKnown["ibkr"] || 0,
+        kraken: lastKnown["kraken"] || 0,
+        qonto: lastKnown["qonto"] || 0,
+        pea: lastKnown["pea"] || 0,
+        crypto_perso: cryptoNlv * persoRatio,
+        crypto_rf: cryptoNlv * (1 - persoRatio),
+      }
+      row.total = row.ibkr + row.kraken + row.qonto + row.pea + row.crypto_perso + row.crypto_rf
+      series.push(row)
+    }
+
+    // 5. Append live today point
+    const todayRow: any = { date: todayStr, ...live }
+    todayRow.total = live.ibkr + live.kraken + live.qonto + live.pea + live.crypto_perso + live.crypto_rf
+    series.push(todayRow)
+
+    return res.json(series)
+  })
+
   app.get("/api/cron/daily", async (req: Request, res: Response) => {
     console.log("[cron-endpoint]", "headers", {
       authHeader_present: !!req.headers.authorization,

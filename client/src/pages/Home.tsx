@@ -40,8 +40,7 @@ export default function Home() {
   const [crypto, setCrypto] = useState<any>(null)
   const [kraken, setKraken] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [snapshots, setSnapshots] = useState<any[]>([])
-  const [snapshotAccounts, setSnapshotAccounts] = useState<any[]>([])
+  const [timeseries, setTimeseries] = useState<any[]>([])
   const [chartRange, setChartRange] = useState(90)
   const [notes, setNotes] = useState<any[]>([])
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -110,62 +109,26 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return
-    authFetch(`/api/snapshots/history?days=${chartRange}`)
-      .then(r => r.ok ? r.json() : { snapshots: [], accounts: [] })
-      .then(({ snapshots: snaps, accounts: accs }) => {
-        setSnapshots(snaps || [])
-        setSnapshotAccounts(accs || [])
-      })
+    const tf = RANGES.find(r => r.days === chartRange)?.label || "3M"
+    authFetch(`/api/portfolio/timeseries?timeframe=${tf}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTimeseries(Array.isArray(d) ? d : []))
       .catch(() => {})
   }, [user, chartRange])
 
   const chartData = useMemo(() => {
-    const cryptoPositions = crypto?.positions || []
-    const persoVal = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) === 100)
-      .reduce((s: number, p: any) => s + Number(p.quantity) * Number(p.market_price), 0)
-    const sharedVal = cryptoPositions.filter((p: any) => (Number(p.ownership_pct) || 100) < 100)
-      .reduce((s: number, p: any) => {
-        const own = (Number(p.ownership_pct) || 100) / 100
-        return s + Number(p.quantity) * Number(p.market_price) * own
-      }, 0)
-    const persoRatio = (persoVal + sharedVal) > 0 ? persoVal / (persoVal + sharedVal) : 0.5
-
-    const byDateBroker: Record<string, Record<string, number>> = {}
-    for (const s of snapshots) {
-      const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
-      if (!acc) continue
-      const d = s.snapshot_date
-      if (!byDateBroker[d]) byDateBroker[d] = {}
-      byDateBroker[d][acc.broker] = (byDateBroker[d][acc.broker] || 0) + (Number(s.nlv_base) || 0)
-    }
-    const allDates = Object.keys(byDateBroker).sort()
-    if (allDates.length === 0) return []
-
-    const lastKnown: Record<string, number> = {}
-    return allDates.map(date => {
-      const day = byDateBroker[date]
-      for (const broker of Object.keys(day)) {
-        lastKnown[broker] = day[broker]
-      }
-      const cryptoNlv = lastKnown["Crypto"] || 0
-      const ibkrVal = lastKnown["IBKR"] || 0
-      const krakenVal = lastKnown["Kraken"] || 0
-      const qontoVal = lastKnown["Qonto"] || 0
-      const peaVal = lastKnown["Boursorama"] || 0
-      const cpVal = cryptoNlv * persoRatio
-      const crfVal = cryptoNlv * (1 - persoRatio)
-      return {
-        date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
-        IBKR: ibkrVal,
-        Kraken: krakenVal,
-        Qonto: qontoVal,
-        PEA: peaVal,
-        "Crypto Perso": cpVal,
-        "Crypto R+F": crfVal,
-        total: ibkrVal + krakenVal + qontoVal + peaVal + cpVal + crfVal,
-      }
-    })
-  }, [snapshots, snapshotAccounts, crypto])
+    if (timeseries.length === 0) return []
+    return timeseries.map((row: any) => ({
+      date: new Date(row.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+      IBKR: row.ibkr || 0,
+      Kraken: row.kraken || 0,
+      Qonto: row.qonto || 0,
+      PEA: row.pea || 0,
+      "Crypto Perso": row.crypto_perso || 0,
+      "Crypto R+F": row.crypto_rf || 0,
+      total: row.total || 0,
+    }))
+  }, [timeseries])
 
   function openNoteDrawer(note: any | null) {
     setDrawerNote(note)
@@ -314,27 +277,21 @@ export default function Home() {
   const chartLast = chartData.length > 0 ? (chartData[chartData.length - 1] as any).total : 0
   const chartVarAbs = chartLast - chartFirst
 
-  function calcVariation(broker: string): { pct: number | null; abs: number | null } {
-    const accountSnaps = snapshots.filter(s => {
-      const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
-      return acc?.broker === broker
-    })
-    if (accountSnaps.length < 2) return { pct: null, abs: null }
-    const sorted = [...accountSnaps].sort((a: any, b: any) =>
-      new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
-    )
-    const oldest = Number(sorted[0].nlv_base) || 0
-    const newest = Number(sorted[sorted.length - 1].nlv_base) || 0
+  function calcVariation(key: string): { pct: number | null; abs: number | null } {
+    if (timeseries.length < 2) return { pct: null, abs: null }
+    const oldest = Number(timeseries[0][key]) || 0
+    const newest = Number(timeseries[timeseries.length - 1][key]) || 0
     const abs = newest - oldest
     const pct = oldest === 0 ? null : ((newest - oldest) / oldest) * 100
     return { pct, abs }
   }
 
-  const ibkrVar = calcVariation("IBKR")
-  const krakenVar = calcVariation("Kraken")
-  const qontoVar = calcVariation("Qonto")
-  const cryptoVar = calcVariation("Crypto")
-  const peaVar = calcVariation("Boursorama")
+  const ibkrVar = calcVariation("ibkr")
+  const krakenVar = calcVariation("kraken")
+  const qontoVar = calcVariation("qonto")
+  const cryptoVar = calcVariation("crypto_perso")
+  const peaVar = calcVariation("pea")
+  const cryptoRfVar = calcVariation("crypto_rf")
 
   const fhfPctChange = (() => {
     const pcts = [
@@ -349,6 +306,14 @@ export default function Home() {
   const fhfAbsChange = [ibkrVar.abs, krakenVar.abs, qontoVar.abs].some(v => v !== null)
     ? (ibkrVar.abs || 0) + (krakenVar.abs || 0) + (qontoVar.abs || 0)
     : null
+  const cryptoCombinedAbs = (cryptoVar.abs !== null || cryptoRfVar.abs !== null)
+    ? (cryptoVar.abs || 0) + (cryptoRfVar.abs || 0) : null
+  const cryptoCombinedPct = (() => {
+    if (timeseries.length < 2) return null
+    const oldest = (Number(timeseries[0].crypto_perso) || 0) + (Number(timeseries[0].crypto_rf) || 0)
+    const newest = (Number(timeseries[timeseries.length - 1].crypto_perso) || 0) + (Number(timeseries[timeseries.length - 1].crypto_rf) || 0)
+    return oldest === 0 ? null : ((newest - oldest) / oldest) * 100
+  })()
   const timeframeLabel = RANGES.find(r => r.days === chartRange)?.label || ""
 
   // Masthead
@@ -498,7 +463,7 @@ export default function Home() {
           total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfPctChange} absChange={fhfAbsChange} timeframe={timeframeLabel} href="/fhf" />
         <PerfCard label="Crypto"
           lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
-          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoVar.pct} absChange={cryptoVar.abs} timeframe={timeframeLabel} href="/crypto" />
+          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombinedPct} absChange={cryptoCombinedAbs} timeframe={timeframeLabel} href="/crypto" />
 
         {/* Trading Actif — card spéciale */}
         <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
