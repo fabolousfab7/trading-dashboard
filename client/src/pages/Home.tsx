@@ -3,6 +3,7 @@ import { Link } from "wouter"
 import { supabase } from "@/lib/supabase"
 import { Plus, Pin, Trash2, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
+import { getPositionValueEur, isDerivative } from "@/lib/portfolio-math"
 import NotePanel from "@/components/NotePanel"
 import { AreaChart, Area, LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -308,8 +309,7 @@ export default function Home() {
   // Kraken
   const krakenPositions = kraken?.positions || []
   const krakenPositionsValue = krakenPositions.reduce((s: number, p: any) => {
-    const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
-    return s + Number(p.quantity) * Number(p.market_price) * fx
+    return s + getPositionValueEur(p)
   }, 0)
   const krakenCashValue = (kraken?.cashBalances || []).reduce((s: number, c: any) => {
     const fx = c.fx_rate_to_base ? Number(c.fx_rate_to_base) : 1
@@ -352,6 +352,7 @@ export default function Home() {
     return s + Number(p.quantity) * Number(p.avg_cost) * fx
   }, 0)
   const krakenCost = krakenPositions.reduce((s: number, p: any) => {
+    if (isDerivative(p.asset_class)) return s
     const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
     return s + Number(p.quantity) * Number(p.avg_cost) * fx
   }, 0)

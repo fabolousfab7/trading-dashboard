@@ -5,6 +5,7 @@ import { Link } from "wouter"
 import InfoTip from "@/components/InfoTip"
 import { useToast } from "@/hooks/use-toast"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
+import { getPositionValueEur } from "@/lib/portfolio-math"
 
 const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 const CASH_COLORS = ["#7d2b1d", "#cfb88f"]
@@ -190,8 +191,7 @@ export default function Kraken() {
   const futuresCash = cashBalances.filter((c: any) => c.currency.startsWith("FUT:"))
 
   const spotPositionsValue = spotPositions.reduce((s: number, p: any) => {
-    const fx = Number(p.fx_rate_to_base) || 1
-    return s + Number(p.quantity) * Number(p.market_price) * fx
+    return s + getPositionValueEur(p)
   }, 0)
   const spotCashValue = spotCash.reduce((s: number, c: any) => {
     const fx = Number(c.fx_rate_to_base) || 1
@@ -200,9 +200,7 @@ export default function Kraken() {
   const spotTotal = spotPositionsValue + spotCashValue
 
   const futuresPositionsValue = futuresPositions.reduce((s: number, p: any) => {
-    const pnl = Number(p.unrealized_pnl) || 0
-    const fx = Number(p.fx_rate_to_base) || 1
-    return s + pnl * fx
+    return s + getPositionValueEur(p)
   }, 0)
   const futuresCashValue = futuresCash.reduce((s: number, c: any) => {
     const fx = Number(c.fx_rate_to_base) || 1

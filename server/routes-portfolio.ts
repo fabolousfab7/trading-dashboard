@@ -13,6 +13,7 @@ import { fetchHighImpactEvents } from "./forex-factory.js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
+import { getPositionValueEur } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -163,15 +164,7 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
           .from("cash_balances").select("*").eq("account_id", account.id)
 
         const posValue = (freshPositions || []).reduce((s: number, p: any) => {
-          if (p.asset_class === "crypto_perp") {
-            const pnl = Number(p.unrealized_pnl) || 0
-            const fx = Number(p.fx_rate_to_base) || 1
-            return s + pnl * fx
-          }
-          const qty = Number(p.quantity), price = Number(p.market_price)
-          const fx = Number(p.fx_rate_to_base) || 1
-          const own = (Number(p.ownership_pct) || 100) / 100
-          return qty !== 0 && price !== 0 ? s + qty * price * fx * own : s
+          return s + getPositionValueEur(p)
         }, 0)
         const cashValue = (freshCash || []).reduce((s: number, c: any) => {
           const fx = Number(c.fx_rate_to_base) || 1
@@ -768,14 +761,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         const { data: accCash } = await userClient
           .from("cash_balances").select("amount, fx_rate_to_base").eq("account_id", accountId)
         const posValue = (accPos || []).reduce((s: number, p: any) => {
-          if (p.asset_class === "crypto_perp") {
-            const pnl = Number(p.unrealized_pnl) || 0
-            const fx = Number(p.fx_rate_to_base) || 1
-            return s + pnl * fx
-          }
-          const fx = Number(p.fx_rate_to_base) || 1
-          const own = (Number(p.ownership_pct) || 100) / 100
-          return s + Number(p.quantity) * Number(p.market_price) * fx * own
+          return s + getPositionValueEur(p)
         }, 0)
         const cashTotal = (accCash || []).reduce((s: number, c: any) => {
           return s + Number(c.amount) * (Number(c.fx_rate_to_base) || 1)
