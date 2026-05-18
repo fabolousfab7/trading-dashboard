@@ -12,6 +12,7 @@ import { fetchYahooPrice } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
+import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -82,6 +83,20 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
               accountResult.actions.push(`kraken_sync_fail: ${e.message}`)
               console.log("[cron]", "action", account.label, `kraken_sync_fail: ${e.message}`)
             }
+          }
+
+          try {
+            const { data: futuresCfgRows } = await serviceClient
+              .from("kraken_futures_config").select("api_key, api_secret").eq("account_id", account.id)
+            const futuresCfg = futuresCfgRows?.[0]
+            if (futuresCfg?.api_key && futuresCfg?.api_secret) {
+              const fResult = await syncKrakenFuturesAccount(serviceClient, account.id)
+              accountResult.actions.push(`kraken_futures_sync_ok: ${fResult.positionsCount} positions`)
+              console.log("[cron]", "action", account.label, `kraken_futures_sync_ok: ${fResult.positionsCount} positions`)
+            }
+          } catch (e: any) {
+            accountResult.actions.push(`kraken_futures_sync_fail: ${e.message}`)
+            console.log("[cron]", "action", account.label, `kraken_futures_sync_fail: ${e.message}`)
           }
         }
 

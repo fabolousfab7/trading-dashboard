@@ -5,6 +5,7 @@ import { api } from "../shared/routes.js";
 import { registerPortfolioRoutes } from "./routes-portfolio.js";
 import { registerComptaRoutes } from "./routes-compta.js";
 import { registerKrakenRoutes } from "./routes-kraken.js";
+import { registerKrakenFuturesRoutes } from "./routes-kraken-futures.js";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -110,6 +111,7 @@ export async function registerRoutes(
   registerPortfolioRoutes(app, supabase);
   registerComptaRoutes(app, supabase);
   registerKrakenRoutes(app, supabase);
+  registerKrakenFuturesRoutes(app, supabase);
 
   return httpServer;
 }
