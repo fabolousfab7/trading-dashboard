@@ -57,6 +57,18 @@ export async function fetchFuturesAccountLog(config: KrakenFuturesConfig) {
   return callFutures("/api/history/v2/account-log", config, "/api/history/v2/account-log")
 }
 
+export async function fetchFuturesTickers(): Promise<Array<{ symbol: string; markPrice: number }>> {
+  const res = await fetch(`${BASE_URL}/derivatives/api/v3/tickers`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  })
+  if (!res.ok) {
+    throw new Error(`Kraken Futures /tickers HTTP ${res.status}`)
+  }
+  const data = await res.json()
+  return (data.tickers ?? []) as Array<{ symbol: string; markPrice: number }>
+}
+
 export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, accountId: string) {
   const { data: configRow, error: cfgErr } = await serviceClient
     .from("kraken_futures_config")
@@ -72,9 +84,33 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
   const accountsData = await fetchFuturesAccounts(config)
   const positionsData = await fetchFuturesOpenPositions(config).catch(() => ({ openPositions: [] }))
 
-  const accounts = accountsData as { accounts?: { cash?: { balances?: Record<string, number> } } }
-  const cashAccount = accounts?.accounts?.cash
-  const balances: Record<string, number> = cashAccount?.balances ?? {}
+  // --- Parse balances from ALL sub-accounts (cash, flex, etc.) ---
+  const rawAccounts = (accountsData as Record<string, unknown>).accounts as Record<string, unknown> | undefined
+  if (process.env.DEBUG_KRAKEN_FUTURES && rawAccounts) {
+    console.log("[kraken-futures] accounts keys:", Object.keys(rawAccounts))
+    for (const key of Object.keys(rawAccounts)) {
+      const sub = rawAccounts[key] as Record<string, unknown> | undefined
+      if (sub) console.log(`[kraken-futures] accounts.${key} keys:`, Object.keys(sub))
+    }
+  }
+
+  const balances: Record<string, number> = {}
+  if (rawAccounts) {
+    for (const subAccount of Object.values(rawAccounts)) {
+      const sub = subAccount as Record<string, unknown> | undefined
+      if (!sub || typeof sub !== "object") continue
+      const sources = [sub.balances, sub.currencies] as unknown[]
+      for (const source of sources) {
+        if (!source || typeof source !== "object") continue
+        for (const [currency, amount] of Object.entries(source as Record<string, unknown>)) {
+          const amt = Number(amount)
+          if (!isFinite(amt) || amt === 0) continue
+          const key = currency.toUpperCase()
+          balances[key] = (balances[key] ?? 0) + amt
+        }
+      }
+    }
+  }
 
   await serviceClient
     .from("cash_balances")
@@ -83,17 +119,26 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
     .like("currency", "FUT:%")
 
   for (const [currency, amount] of Object.entries(balances)) {
-    const amt = Number(amount)
-    if (amt === 0) continue
     let fxRate: number | null = null
-    if (currency.toUpperCase() === "EUR") fxRate = 1
-    else if (currency.toUpperCase() === "USD") fxRate = 0.92
+    if (currency === "EUR") fxRate = 1
+    else if (currency === "USD") fxRate = 0.92
     await serviceClient.from("cash_balances").insert({
       account_id: accountId,
       currency: `FUT:${currency}`,
-      amount: amt,
+      amount,
       fx_rate_to_base: fxRate,
     })
+  }
+
+  // --- Fetch tickers for mark prices (public endpoint) ---
+  const tickerPrices = new Map<string, number>()
+  try {
+    const tickers = await fetchFuturesTickers()
+    for (const t of tickers) {
+      if (t.markPrice) tickerPrices.set(t.symbol.toLowerCase(), t.markPrice)
+    }
+  } catch (e) {
+    console.warn("[kraken-futures] failed to fetch tickers, using entry price as fallback:", e)
   }
 
   await serviceClient
@@ -105,11 +150,13 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
   const posData = positionsData as { openPositions?: Array<Record<string, unknown>> }
   const openPositions = posData?.openPositions ?? []
   for (const pos of openPositions) {
+    const symbol = pos.symbol as string
+    const markPrice = tickerPrices.get(symbol.toLowerCase()) ?? (Number(pos.price) || 0)
     await serviceClient.from("positions").insert({
       account_id: accountId,
-      ticker: pos.symbol as string,
+      ticker: symbol,
       quantity: Number(pos.size) * ((pos.side as string) === "long" ? 1 : -1),
-      market_price: Number(pos.markPrice) || 0,
+      market_price: markPrice,
       avg_cost: Number(pos.price) || 0,
       unrealized_pnl: Number((pos.unrealizedFunding as number) ?? 0),
       asset_class: "crypto_perp",
