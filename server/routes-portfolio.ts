@@ -894,7 +894,6 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
   app.post("/api/admin/backfill-prices", async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization
     const cronSecret = process.env.CRON_SECRET
-    // Accept either cron secret or user auth
     let authorized = false
     if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
       authorized = true
@@ -905,11 +904,14 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     }
     if (!authorized) return res.status(401).json({ error: "Unauthorized" })
 
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
     const days = Math.min(Number(req.query.days) || 30, 90)
     const results: string[] = []
 
-    // Fetch all distinct positions across all accounts
-    const { data: allPositions } = await supabase
+    const { data: allPositions } = await serviceClient
       .from("positions").select("ticker, coingecko_id, stooq_symbol, asset_class, currency, fx_rate_to_base")
     if (!allPositions || allPositions.length === 0) return res.json({ results: ["No positions found"] })
 
@@ -930,7 +932,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         const history = await fetchCoinGeckoHistory(p.coingecko_id, days)
         let inserted = 0
         for (const point of history) {
-          await supabase.from("position_price_history").upsert({
+          await serviceClient.from("position_price_history").upsert({
             ticker: p.normalizedTicker,
             asset_class: p.asset_class || "crypto",
             price_date: point.date,
@@ -946,7 +948,6 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       } catch (e: any) {
         results.push(`${p.normalizedTicker}: error - ${e.message}`)
       }
-      // CoinGecko rate limit: ~200ms between calls
       await new Promise(r => setTimeout(r, 250))
     }
 
@@ -960,7 +961,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         const history = await fetchYahooHistory(p.ticker, suffix, days)
         let inserted = 0
         for (const point of history) {
-          await supabase.from("position_price_history").upsert({
+          await serviceClient.from("position_price_history").upsert({
             ticker: p.normalizedTicker,
             asset_class: p.asset_class || "stock",
             price_date: point.date,
