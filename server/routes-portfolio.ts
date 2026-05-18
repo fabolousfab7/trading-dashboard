@@ -163,6 +163,11 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
           .from("cash_balances").select("*").eq("account_id", account.id)
 
         const posValue = (freshPositions || []).reduce((s: number, p: any) => {
+          if (p.asset_class === "crypto_perp") {
+            const pnl = Number(p.unrealized_pnl) || 0
+            const fx = Number(p.fx_rate_to_base) || 1
+            return s + pnl * fx
+          }
           const qty = Number(p.quantity), price = Number(p.market_price)
           const fx = Number(p.fx_rate_to_base) || 1
           const own = (Number(p.ownership_pct) || 100) / 100
@@ -763,6 +768,11 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         const { data: accCash } = await userClient
           .from("cash_balances").select("amount, fx_rate_to_base").eq("account_id", accountId)
         const posValue = (accPos || []).reduce((s: number, p: any) => {
+          if (p.asset_class === "crypto_perp") {
+            const pnl = Number(p.unrealized_pnl) || 0
+            const fx = Number(p.fx_rate_to_base) || 1
+            return s + pnl * fx
+          }
           const fx = Number(p.fx_rate_to_base) || 1
           const own = (Number(p.ownership_pct) || 100) / 100
           return s + Number(p.quantity) * Number(p.market_price) * fx * own

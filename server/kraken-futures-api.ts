@@ -102,9 +102,13 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
       const sources = [sub.balances, sub.currencies] as unknown[]
       for (const source of sources) {
         if (!source || typeof source !== "object") continue
-        for (const [currency, amount] of Object.entries(source as Record<string, unknown>)) {
-          const amt = Number(amount)
-          if (!isFinite(amt) || amt === 0) continue
+        for (const [currency, rawAmount] of Object.entries(source as Record<string, unknown>)) {
+          const amt = typeof rawAmount === "number"
+            ? rawAmount
+            : (typeof rawAmount === "object" && rawAmount !== null && "quantity" in rawAmount
+                ? Number((rawAmount as Record<string, unknown>).quantity)
+                : null)
+          if (amt === null || !isFinite(amt) || amt === 0) continue
           const key = currency.toUpperCase()
           balances[key] = (balances[key] ?? 0) + amt
         }

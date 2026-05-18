@@ -200,8 +200,9 @@ export default function Kraken() {
   const spotTotal = spotPositionsValue + spotCashValue
 
   const futuresPositionsValue = futuresPositions.reduce((s: number, p: any) => {
+    const pnl = Number(p.unrealized_pnl) || 0
     const fx = Number(p.fx_rate_to_base) || 1
-    return s + Number(p.quantity) * Number(p.market_price) * fx
+    return s + pnl * fx
   }, 0)
   const futuresCashValue = futuresCash.reduce((s: number, c: any) => {
     const fx = Number(c.fx_rate_to_base) || 1
