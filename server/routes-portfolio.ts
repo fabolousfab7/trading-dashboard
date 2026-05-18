@@ -797,34 +797,29 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       return { pct: null, abs: 0, reference_date: targetStr, reference_truncated: true }
     }
 
-    function varForComposite(keys: string[]): { pct: number | null; abs: number; reference_date: string; reference_truncated: boolean } {
-      const lastVal = keys.reduce((s, k) => s + (Number((last as any)[k]) || 0), 0)
-      // Use the same carry-forward but sum all keys per row
-      let before: any = null
-      for (const row of series) {
-        if (row.date > targetStr) break
-        const sum = keys.reduce((s, k) => s + (Number((row as any)[k]) || 0), 0)
-        if (sum > 0) before = row
-      }
-      if (before) {
-        const refVal = keys.reduce((s, k) => s + (Number(before[k]) || 0), 0)
-        return { pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: before.date, reference_truncated: false }
-      }
-      const after = series.find(row => keys.reduce((s, k) => s + (Number((row as any)[k]) || 0), 0) > 0)
-      if (after) {
-        const refVal = keys.reduce((s, k) => s + (Number((after as any)[k]) || 0), 0)
-        return { pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: after.date, reference_truncated: true }
-      }
-      return { pct: null, abs: 0, reference_date: targetStr, reference_truncated: true }
-    }
-
-    const VAR_KEYS = ["total", "ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"] as const
+    const VAR_KEYS = ["ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"] as const
     const variations: Record<string, any> = {}
     for (const k of VAR_KEYS) {
       variations[k] = varForKey(k)
     }
-    variations.crypto_combined = varForComposite(["crypto_perso", "crypto_rf"])
-    variations.fhf = varForComposite(["ibkr", "kraken", "qonto"])
+
+    function varFromSubs(subKeys: string[]): { pct: number | null; abs: number; reference_date: string; reference_truncated: boolean } {
+      const abs = subKeys.reduce((s, k) => s + (variations[k]?.abs || 0), 0)
+      const todayVal = subKeys.reduce((s, k) => s + (Number((last as any)[k]) || 0), 0)
+      const refVal = todayVal - abs
+      const dates = subKeys.map(k => variations[k]?.reference_date).filter(Boolean).sort()
+      const truncated = subKeys.some(k => variations[k]?.reference_truncated)
+      return {
+        pct: refVal > 0 ? (abs / refVal) * 100 : null,
+        abs,
+        reference_date: dates[0] || targetStr,
+        reference_truncated: truncated,
+      }
+    }
+
+    variations.fhf = varFromSubs(["ibkr", "kraken", "qonto"])
+    variations.crypto_combined = varFromSubs(["crypto_perso", "crypto_rf"])
+    variations.total = varFromSubs(["ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"])
 
     return res.json({ series, variations })
   })
