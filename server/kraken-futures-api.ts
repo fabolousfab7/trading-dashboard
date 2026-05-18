@@ -69,6 +69,21 @@ export async function fetchFuturesTickers(): Promise<Array<{ symbol: string; mar
   return (data.tickers ?? []) as Array<{ symbol: string; markPrice: number }>
 }
 
+async function fetchFxToEur(currency: string): Promise<number | null> {
+  if (currency.toUpperCase() === "EUR") return 1
+  const from = currency.toLowerCase()
+  try {
+    const res = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from}.json`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data[from]?.eur ?? null
+  } catch {
+    return null
+  }
+}
+
+const HARDCODED_FX: Record<string, number> = { EUR: 1, USD: 0.92, GBP: 1.17, CHF: 1.05, JPY: 0.006 }
+
 export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, accountId: string) {
   const { data: configRow, error: cfgErr } = await serviceClient
     .from("kraken_futures_config")
@@ -116,6 +131,20 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
     }
   }
 
+  // --- Fetch live FX rates for all non-EUR currencies ---
+  const fxRates = new Map<string, number>()
+  fxRates.set("EUR", 1)
+  const nonEurCurrencies = Object.keys(balances).filter(c => c !== "EUR")
+  for (const currency of nonEurCurrencies) {
+    const rate = await fetchFxToEur(currency)
+    if (rate !== null) {
+      fxRates.set(currency, rate)
+    } else {
+      console.warn(`[kraken-futures] FX rate ${currency}→EUR failed, using hardcoded fallback`)
+      fxRates.set(currency, HARDCODED_FX[currency] ?? 1)
+    }
+  }
+
   await serviceClient
     .from("cash_balances")
     .delete()
@@ -123,14 +152,11 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
     .like("currency", "FUT:%")
 
   for (const [currency, amount] of Object.entries(balances)) {
-    let fxRate: number | null = null
-    if (currency === "EUR") fxRate = 1
-    else if (currency === "USD") fxRate = 0.92
     await serviceClient.from("cash_balances").insert({
       account_id: accountId,
       currency: `FUT:${currency}`,
       amount,
-      fx_rate_to_base: fxRate,
+      fx_rate_to_base: fxRates.get(currency) ?? HARDCODED_FX[currency] ?? 1,
     })
   }
 
@@ -151,6 +177,13 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
     .eq("account_id", accountId)
     .eq("asset_class", "crypto_perp")
 
+  // Ensure USD→EUR rate is available for positions
+  if (!fxRates.has("USD")) {
+    const usdRate = await fetchFxToEur("USD")
+    fxRates.set("USD", usdRate ?? HARDCODED_FX["USD"])
+  }
+  const usdToEur = fxRates.get("USD") ?? HARDCODED_FX["USD"]
+
   const posData = positionsData as { openPositions?: Array<Record<string, unknown>> }
   const openPositions = posData?.openPositions ?? []
   for (const pos of openPositions) {
@@ -165,7 +198,7 @@ export async function syncKrakenFuturesAccount(serviceClient: SupabaseClient, ac
       unrealized_pnl: Number((pos.unrealizedFunding as number) ?? 0),
       asset_class: "crypto_perp",
       currency: "USD",
-      fx_rate_to_base: null,
+      fx_rate_to_base: usdToEur,
     })
   }
 
