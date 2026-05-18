@@ -56,9 +56,12 @@ export default function Home() {
   const [moversByPct, setMoversByPct] = useState<any[]>([])
   const [moversRef, setMoversRef] = useState<{ date: string; truncated: boolean }>({ date: "", truncated: false })
   const [moversLoading, setMoversLoading] = useState(false)
+  const [eurUsd, setEurUsd] = useState<number | null>(null)
+  const [zoomImg, setZoomImg] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null))
+    fetch("/api/fx-rates").then(r => r.ok ? r.json() : null).then(d => { if (d?.rates?.USD) setEurUsd(d.rates.USD) }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -357,6 +360,11 @@ export default function Home() {
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 68, fontWeight: 600, letterSpacing: -2, lineHeight: 1.05, marginTop: 4, color: "var(--ink)" }}>
             {fmtEur(patrimoineBrut)}
           </div>
+          {eurUsd && (
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontStyle: "italic", color: "var(--ink3)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+              &asymp; {new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(patrimoineBrut * eurUsd))} $
+            </div>
+          )}
           {chartData.length > 1 && (
             <div style={{ marginTop: 6 }}>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
@@ -484,7 +492,7 @@ export default function Home() {
       <div style={{ textAlign: "center", margin: "24px 0", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash; &#10086; &mdash;</div>
 
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 28 }}>
 
         {/* Meilleurs movers — double colonne */}
         <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
@@ -501,9 +509,9 @@ export default function Home() {
               Aucun mouvement disponible &middot; historique en cours
             </p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
               <MoversColumn title="Mouvements" items={moversByEur} sortKey="eur" />
-              <MoversColumn title="Variations" items={moversByPct} sortKey="pct" />
+              <MoversColumn title="Variations" items={moversByPct} sortKey="pct" border />
             </div>
           )}
         </div>
@@ -562,7 +570,8 @@ export default function Home() {
               <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "24px 0" }}>Aucune note.</p>
             )}
             {notes.map(note => {
-              const imgs = note.images?.length > 0 ? note.images : (note.image_url ? [note.image_url] : [])
+              const imgs: string[] = note.images?.length > 0 ? note.images : (note.image_url ? [note.image_url] : [])
+              const thumb = imgs.length > 0 ? imgs[0] : null
               return (
                 <div key={note.id} onClick={() => openNoteDrawer(note)}
                   style={{
@@ -572,35 +581,43 @@ export default function Home() {
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--at-surface)" }}
                   onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                      {note.title}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ fontFamily: "var(--font-serif)", fontSize: 13, fontWeight: 700, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                          {note.title}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, marginLeft: 8, flexShrink: 0 }}>
+                          <button onClick={e => { e.stopPropagation(); togglePin(note) }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: note.is_pinned ? "var(--at-accent)" : "var(--ink3)", padding: 2 }}>
+                            <Pin size={11} />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-neg)", padding: 2 }}>
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                      {note.content && (
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                          {note.content}
+                        </div>
+                      )}
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)", marginTop: 4 }}>
+                        {new Date(note.created_at).toLocaleDateString("fr-FR")}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginLeft: 8, flexShrink: 0 }}>
-                      <button onClick={e => { e.stopPropagation(); togglePin(note) }}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: note.is_pinned ? "var(--at-accent)" : "var(--ink3)", padding: 2 }}>
-                        <Pin size={11} />
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); deleteNote(note.id) }}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--at-neg)", padding: 2 }}>
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  </div>
-                  {note.content && (
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
-                      {note.content}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    {imgs.length > 0 && (
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)", display: "flex", alignItems: "center", gap: 3 }}>
-                        <Image size={9} /> {imgs.length}
-                      </span>
+                    {thumb && (
+                      <div style={{ position: "relative", flexShrink: 0 }}
+                        onClick={e => { e.stopPropagation(); setZoomImg(thumb) }}>
+                        <img src={thumb} alt="" style={{ width: 48, height: 48, borderRadius: 4, border: "1px solid var(--rule)", objectFit: "cover", cursor: "zoom-in" }} />
+                        {imgs.length > 1 && (
+                          <span style={{ position: "absolute", bottom: 2, right: 2, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 9, fontFamily: "var(--font-mono)", padding: "1px 4px", borderRadius: 3 }}>
+                            +{imgs.length - 1}
+                          </span>
+                        )}
+                      </div>
                     )}
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--ink3)" }}>
-                      {new Date(note.created_at).toLocaleDateString("fr-FR")}
-                    </span>
                   </div>
                 </div>
               )
@@ -734,6 +751,21 @@ export default function Home() {
         )
       })()}
 
+      {zoomImg && (
+        <div onClick={() => setZoomImg(null)}
+          onKeyDown={e => { if (e.key === "Escape") setZoomImg(null) }} tabIndex={0}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(245, 241, 232, 0.94)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "zoom-out",
+          }}>
+          <img src={zoomImg} alt=""
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "80vw", maxHeight: "80vh", objectFit: "contain", border: "1px solid var(--ink)", cursor: "default" }} />
+        </div>
+      )}
+
       <NotePanel
         isOpen={drawerOpen}
         onClose={() => { setDrawerOpen(false); setDrawerNote(null) }}
@@ -865,10 +897,10 @@ function PerfCard({ label, lines, total, pctChange, absChange, timeframe, trunca
   )
 }
 
-function MoversColumn({ title, items, sortKey }: { title: string; items: any[]; sortKey: "eur" | "pct" }) {
+function MoversColumn({ title, items, sortKey, border }: { title: string; items: any[]; sortKey: "eur" | "pct"; border?: boolean }) {
   return (
-    <div>
-      <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)", fontWeight: 600, marginBottom: 8 }}>
+    <div style={border ? { borderLeft: "1px solid var(--rule)", paddingLeft: 24 } : undefined}>
+      <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600, marginBottom: 8 }}>
         {title}
       </div>
       {items.map((m) => {

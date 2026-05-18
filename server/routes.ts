@@ -108,6 +108,36 @@ export async function registerRoutes(
     });
   });
 
+  // ── FX rates (EUR→USD) with 1h memory cache ──
+  let fxCache: { rates: Record<string, number>; fetchedAt: number } | null = null
+  app.get("/api/fx-rates", async (_req, res) => {
+    const ONE_HOUR = 3600_000
+    if (fxCache && Date.now() - fxCache.fetchedAt < ONE_HOUR) {
+      return res.json({ base: "EUR", rates: fxCache.rates, fetched_at: new Date(fxCache.fetchedAt).toISOString() })
+    }
+    try {
+      const resp = await fetch("https://api.exchangerate.host/latest?base=EUR&symbols=USD")
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data?.rates?.USD) {
+          fxCache = { rates: { USD: data.rates.USD }, fetchedAt: Date.now() }
+          return res.json({ base: "EUR", rates: fxCache.rates, fetched_at: new Date(fxCache.fetchedAt).toISOString() })
+        }
+      }
+      const fallbackResp = await fetch("https://open.er-api.com/v6/latest/EUR")
+      if (fallbackResp.ok) {
+        const data = await fallbackResp.json()
+        if (data?.rates?.USD) {
+          fxCache = { rates: { USD: data.rates.USD }, fetchedAt: Date.now() }
+          return res.json({ base: "EUR", rates: fxCache.rates, fetched_at: new Date(fxCache.fetchedAt).toISOString() })
+        }
+      }
+      return res.json({ base: "EUR", rates: { USD: 1.085 }, fetched_at: null })
+    } catch {
+      return res.json({ base: "EUR", rates: { USD: 1.085 }, fetched_at: null })
+    }
+  })
+
   registerPortfolioRoutes(app, supabase);
   registerComptaRoutes(app, supabase);
   registerKrakenRoutes(app, supabase);
