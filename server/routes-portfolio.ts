@@ -7,13 +7,13 @@ import {
 } from "../shared/schema.js"
 import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
-import { fetchCoinGeckoPrices } from "./coingecko.js"
-import { fetchYahooPrice } from "./yahoo-finance.js"
+import { fetchCoinGeckoPrices, fetchCoinGeckoHistory } from "./coingecko.js"
+import { fetchYahooPrice, fetchYahooHistory } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
-import { getPositionValueEur } from "./utils/portfolio-math.js"
+import { getPositionValueEur, normalizeTicker } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -181,6 +181,27 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
         }, { onConflict: "account_id,snapshot_date" })
         accountResult.actions.push(`snapshot_saved: ${nlvBase.toFixed(2)}`)
         console.log("[cron]", "action", account.label, `snapshot_saved: ${nlvBase.toFixed(2)}`)
+
+        // Snapshot individual position prices into position_price_history
+        let priceSnapCount = 0
+        for (const p of (freshPositions || [])) {
+          if (!p.market_price || Number(p.market_price) === 0) continue
+          const source = p.coingecko_id ? "coingecko" : p.stooq_symbol ? "yahoo" : "manual"
+          await serviceClient.from("position_price_history").upsert({
+            ticker: normalizeTicker(p.ticker),
+            asset_class: p.asset_class || "stock",
+            price_date: today,
+            market_price: p.market_price,
+            currency: p.currency || "EUR",
+            fx_rate_to_eur: p.fx_rate_to_base || null,
+            source,
+          }, { onConflict: "ticker,price_date" })
+          priceSnapCount++
+        }
+        if (priceSnapCount > 0) {
+          accountResult.actions.push(`price_history: ${priceSnapCount} tickers`)
+          console.log("[cron]", "action", account.label, `price_history: ${priceSnapCount} tickers`)
+        }
 
       } catch (e: any) {
         accountResult.actions.push(`error: ${e.message}`)
@@ -795,6 +816,169 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     }
 
     return res.json({ series, variations })
+  })
+
+  // ── Movers: top position moves vs historical price ──────────
+  const MOVERS_DAYS: Record<string, number> = { "24h": 1, "1S": 7, "1M": 30 }
+
+  app.get("/api/portfolio/movers", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const tf = String(req.query.timeframe || "24h")
+    const limit = Math.min(Number(req.query.limit) || 10, 30)
+    const refDays = MOVERS_DAYS[tf] || 1
+
+    const refDate = new Date()
+    refDate.setDate(refDate.getDate() - refDays)
+    const refStr = refDate.toISOString().slice(0, 10)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id, label, broker").eq("user_id", userId).eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ movers: [] })
+
+    const accountIds = accounts.map((a: any) => a.id)
+    const { data: positions } = await userClient
+      .from("positions").select("*").in("account_id", accountIds)
+    if (!positions || positions.length === 0) return res.json({ movers: [] })
+
+    // Collect normalized tickers
+    const tickerSet = new Set(positions.map((p: any) => normalizeTicker(p.ticker)))
+    const tickers = Array.from(tickerSet)
+
+    // Fetch reference prices — most recent price_date <= refStr per ticker
+    const { data: histRows } = await userClient
+      .from("position_price_history")
+      .select("ticker, price_date, market_price")
+      .in("ticker", tickers)
+      .lte("price_date", refStr)
+      .order("price_date", { ascending: false })
+
+    // Build map: ticker → most recent reference price (first row per ticker)
+    const refPrices: Record<string, number> = {}
+    for (const row of (histRows || [])) {
+      if (!(row.ticker in refPrices)) {
+        refPrices[row.ticker] = Number(row.market_price)
+      }
+    }
+
+    const accountMap = new Map(accounts.map((a: any) => [a.id, a]))
+    const movers: any[] = []
+    for (const p of positions) {
+      const price = Number(p.market_price) || 0
+      const qty = Number(p.quantity) || 0
+      if (price <= 0 || qty <= 0) continue
+      const nt = normalizeTicker(p.ticker)
+      const refPrice = refPrices[nt]
+      if (!refPrice || refPrice <= 0) continue
+
+      const pctChange = ((price - refPrice) / refPrice) * 100
+      const fx = Number(p.fx_rate_to_base) || 1
+      const acc = accountMap.get(p.account_id)
+      movers.push({
+        ticker: p.ticker,
+        name: p.name || p.ticker,
+        today_price: price,
+        reference_price: refPrice,
+        pct_change: pctChange,
+        value_eur: qty * price * fx,
+        account_label: acc?.label || acc?.broker || "",
+        asset_class: p.asset_class || "stock",
+      })
+    }
+
+    movers.sort((a, b) => Math.abs(b.pct_change) - Math.abs(a.pct_change))
+    return res.json({ movers: movers.slice(0, limit) })
+  })
+
+  // ── Backfill: populate position_price_history with historical data ──
+  app.post("/api/admin/backfill-prices", async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization
+    const cronSecret = process.env.CRON_SECRET
+    // Accept either cron secret or user auth
+    let authorized = false
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      authorized = true
+    } else if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "")
+      const { data } = await supabase.auth.getUser(token)
+      if (data?.user) authorized = true
+    }
+    if (!authorized) return res.status(401).json({ error: "Unauthorized" })
+
+    const days = Math.min(Number(req.query.days) || 30, 90)
+    const results: string[] = []
+
+    // Fetch all distinct positions across all accounts
+    const { data: allPositions } = await supabase
+      .from("positions").select("ticker, coingecko_id, stooq_symbol, asset_class, currency, fx_rate_to_base")
+    if (!allPositions || allPositions.length === 0) return res.json({ results: ["No positions found"] })
+
+    // Deduplicate by normalized ticker
+    const seen = new Set<string>()
+    const uniquePositions: any[] = []
+    for (const p of allPositions) {
+      const nt = normalizeTicker(p.ticker)
+      if (seen.has(nt)) continue
+      seen.add(nt)
+      uniquePositions.push({ ...p, normalizedTicker: nt })
+    }
+
+    // Crypto positions (CoinGecko)
+    const cryptoPositions = uniquePositions.filter(p => p.coingecko_id)
+    for (const p of cryptoPositions) {
+      try {
+        const history = await fetchCoinGeckoHistory(p.coingecko_id, days)
+        let inserted = 0
+        for (const point of history) {
+          await supabase.from("position_price_history").upsert({
+            ticker: p.normalizedTicker,
+            asset_class: p.asset_class || "crypto",
+            price_date: point.date,
+            market_price: point.price,
+            currency: "EUR",
+            fx_rate_to_eur: 1,
+            source: "backfill",
+          }, { onConflict: "ticker,price_date" })
+          inserted++
+        }
+        results.push(`${p.normalizedTicker}: ${inserted} points (coingecko)`)
+        console.log("[backfill]", p.normalizedTicker, `${inserted} points (coingecko)`)
+      } catch (e: any) {
+        results.push(`${p.normalizedTicker}: error - ${e.message}`)
+      }
+      // CoinGecko rate limit: ~200ms between calls
+      await new Promise(r => setTimeout(r, 250))
+    }
+
+    // Stock positions (Yahoo Finance)
+    const stockPositions = uniquePositions.filter(p => !p.coingecko_id && p.stooq_symbol)
+    for (const p of stockPositions) {
+      try {
+        const suffix = p.stooq_symbol?.endsWith(".fr") ? "PA"
+          : p.stooq_symbol?.endsWith(".de") ? "DE"
+          : p.stooq_symbol?.endsWith(".us") ? "" : "PA"
+        const history = await fetchYahooHistory(p.ticker, suffix, days)
+        let inserted = 0
+        for (const point of history) {
+          await supabase.from("position_price_history").upsert({
+            ticker: p.normalizedTicker,
+            asset_class: p.asset_class || "stock",
+            price_date: point.date,
+            market_price: point.price,
+            currency: p.currency || "EUR",
+            fx_rate_to_eur: p.fx_rate_to_base || null,
+            source: "backfill",
+          }, { onConflict: "ticker,price_date" })
+          inserted++
+        }
+        results.push(`${p.normalizedTicker}: ${inserted} points (yahoo)`)
+        console.log("[backfill]", p.normalizedTicker, `${inserted} points (yahoo)`)
+      } catch (e: any) {
+        results.push(`${p.normalizedTicker}: error - ${e.message}`)
+      }
+    }
+
+    return res.json({ results })
   })
 
   app.get("/api/cron/daily", async (req: Request, res: Response) => {

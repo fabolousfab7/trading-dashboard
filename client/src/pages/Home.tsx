@@ -52,6 +52,8 @@ export default function Home() {
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
   const [cotData, setCotData] = useState<any>(null)
+  const [movers, setMovers] = useState<any[]>([])
+  const [moversLoading, setMoversLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user || null))
@@ -106,6 +108,12 @@ export default function Home() {
       .then(r => r.ok ? r.json() : null)
       .then(d => setCotData(d))
       .catch(() => {})
+    setMoversLoading(true)
+    authFetch("/api/portfolio/movers?timeframe=24h&limit=5")
+      .then(r => r.ok ? r.json() : { movers: [] })
+      .then(d => setMovers(d.movers || []))
+      .catch(() => {})
+      .finally(() => setMoversLoading(false))
   }, [user])
 
   useEffect(() => {
@@ -298,39 +306,6 @@ export default function Home() {
   const dateStr = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
 
-  const allMovers: { ticker: string; name: string; poche: string; value: number; pctChange: number }[] = []
-  for (const p of (ibkr?.positions || []) as any[]) {
-    const prevClose = Number(p.previous_close) || 0
-    const price = Number(p.market_price) || 0
-    if (prevClose > 0 && price > 0) {
-      const fx = Number(p.fx_rate_to_base) || 1
-      allMovers.push({ ticker: p.ticker, name: p.name || p.ticker, poche: "IBKR", value: Number(p.quantity) * price * fx, pctChange: ((price - prevClose) / prevClose) * 100 })
-    }
-  }
-  for (const p of (pea?.positions || []) as any[]) {
-    const prevClose = Number(p.previous_close) || 0
-    const price = Number(p.market_price) || 0
-    if (prevClose > 0 && price > 0) {
-      allMovers.push({ ticker: p.ticker, name: p.name || p.ticker, poche: "PEA", value: Number(p.quantity) * price, pctChange: ((price - prevClose) / prevClose) * 100 })
-    }
-  }
-  for (const p of cryptoPerso as any[]) {
-    const prevClose = Number(p.previous_close) || 0
-    const price = Number(p.market_price_usd) || Number(p.market_price) || 0
-    if (prevClose > 0 && price > 0) {
-      allMovers.push({ ticker: p.ticker, name: p.name || p.ticker, poche: "Crypto P", value: Number(p.quantity) * Number(p.market_price), pctChange: ((price - prevClose) / prevClose) * 100 })
-    }
-  }
-  for (const p of cryptoShared as any[]) {
-    const prevClose = Number(p.previous_close) || 0
-    const price = Number(p.market_price_usd) || Number(p.market_price) || 0
-    if (prevClose > 0 && price > 0) {
-      const own = (Number(p.ownership_pct) || 100) / 100
-      allMovers.push({ ticker: p.ticker.replace(/_R$/, ""), name: p.name || p.ticker, poche: "Crypto R+F", value: Number(p.quantity) * Number(p.market_price) * own, pctChange: ((price - prevClose) / prevClose) * 100 })
-    }
-  }
-  const topMovers = allMovers.sort((a, b) => Math.abs(b.pctChange) - Math.abs(a.pctChange)).slice(0, 5)
-
   return (
     <div style={{ padding: "28px 32px" }}>
 
@@ -491,13 +466,14 @@ export default function Home() {
             <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>Mouvements 24h</span>
           </div>
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {topMovers.length === 0 ? (
+            {moversLoading && <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Chargement...</p>}
+            {!moversLoading && movers.length === 0 ? (
               <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
-                Aucune donnée de variation 24h disponible. Les cours previous_close seront récupérés au prochain refresh.
+                Historique en cours de constitution, premiers movers disponibles demain.
               </p>
             ) : (
-              topMovers.map((m) => (
-                <div key={m.ticker + m.poche} style={{
+              movers.map((m) => (
+                <div key={m.ticker + m.account_label} style={{
                   display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 12, alignItems: "center",
                   padding: "8px 0", borderBottom: "1px dotted var(--rule)",
                 }}>
@@ -505,16 +481,16 @@ export default function Home() {
                     {m.ticker}
                   </span>
                   <span style={{ fontStyle: "italic", color: "var(--ink3)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {m.name} &middot; {m.poche}
+                    {m.name} &middot; {m.account_label}
                   </span>
                   <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink3)", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-                    {fmtEur(m.value)}
+                    {fmtEur(m.value_eur)}
                   </span>
                   <span style={{
                     fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-                    color: m.pctChange >= 0 ? "var(--at-pos)" : "var(--at-neg)",
+                    color: m.pct_change >= 0 ? "var(--at-pos)" : "var(--at-neg)",
                   }}>
-                    {m.pctChange >= 0 ? "+" : ""}{m.pctChange.toFixed(2)} %
+                    {m.pct_change >= 0 ? "+" : ""}{m.pct_change.toFixed(2)} %
                   </span>
                 </div>
               ))

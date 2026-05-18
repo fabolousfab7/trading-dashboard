@@ -1,3 +1,7 @@
+export function normalizeTicker(ticker: string): string {
+  return ticker.replace(/_R$/, "")
+}
+
 export const DERIVATIVE_ASSET_CLASSES = ["crypto_perp", "crypto_futures", "FUT"]
 
 export function isDerivative(assetClass: string | null | undefined): boolean {
