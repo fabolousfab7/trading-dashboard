@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import { parseISO, format } from "date-fns"
+import { fr } from "date-fns/locale"
 import { supabase } from "@/lib/supabase"
 import { RefreshCw, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { Link } from "wouter"
@@ -37,6 +39,20 @@ function fmtUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n)
 }
 
+const CCY_SYMBOL: Record<string, string> = { EUR: "€", USD: "$", GBP: "£", CHF: "CHF", JPY: "¥", USDT: "$", USDC: "$", DAI: "$" }
+function fmtCcy(n: number, ccy: string) {
+  const s = CCY_SYMBOL[ccy] || ccy
+  return `${n >= 0 ? "" : "-"}${Math.abs(n).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${s}`
+}
+
+function formatTradeDate(raw: string | null | undefined): { date: string; time: string } {
+  if (!raw) return { date: "—", time: "" }
+  let s = raw.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")
+  const d = parseISO(s)
+  if (isNaN(d.getTime())) return { date: "—", time: "" }
+  return { date: format(d, "dd/MM/yy", { locale: fr }), time: format(d, "HH:mm", { locale: fr }) }
+}
+
 export default function Kraken() {
   const { toast } = useToast()
   const [portfolio, setPortfolio] = useState<any>(null)
@@ -55,6 +71,13 @@ export default function Kraken() {
   const [futuresApiKey, setFuturesApiKey] = useState("")
   const [futuresApiSecret, setFuturesApiSecret] = useState("")
   const [savingFuturesConfig, setSavingFuturesConfig] = useState(false)
+
+  const [krakenTrades, setKrakenTrades] = useState<any[]>([])
+  const [krakenTradesSummary, setKrakenTradesSummary] = useState<any>(null)
+  const [tradesTab, setTradesTab] = useState<"spot" | "futures">("spot")
+  const [tradesRange, setTradesRange] = useState<"30J" | "90J" | "YTD" | "1A" | "Tout">("Tout")
+  const [tradesSyncing, setTradesSyncing] = useState(false)
+  const [tradesSyncMsg, setTradesSyncMsg] = useState<string | null>(null)
 
   async function fetchPortfolio() {
     setLoading(true); setError(null)
@@ -165,7 +188,47 @@ export default function Kraken() {
     } finally { setSavingFuturesConfig(false) }
   }
 
+  function loadKrakenTrades() {
+    const now = new Date()
+    let fromDate: string | undefined
+    if (tradesRange === "30J") fromDate = new Date(now.getTime() - 30 * 86400_000).toISOString().slice(0, 10)
+    else if (tradesRange === "90J") fromDate = new Date(now.getTime() - 90 * 86400_000).toISOString().slice(0, 10)
+    else if (tradesRange === "YTD") fromDate = `${now.getFullYear()}-01-01`
+    else if (tradesRange === "1A") fromDate = new Date(now.getTime() - 365 * 86400_000).toISOString().slice(0, 10)
+    const qs = new URLSearchParams({ market_type: tradesTab, limit: "200", realized_only: "false" })
+    if (fromDate) qs.set("from_date", fromDate)
+    authFetch(`/api/kraken/trades?${qs}`)
+      .then(r => r.ok ? r.json() : { trades: [], summary: null })
+      .then(d => { setKrakenTrades(d.trades || []); setKrakenTradesSummary(d.summary || null) })
+      .catch(() => {})
+  }
+
+  async function syncKrakenTrades() {
+    setTradesSyncing(true); setTradesSyncMsg(null)
+    try {
+      const r = await authFetch("/api/kraken/trades/sync", { method: "POST" })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || "Sync failed")
+      if (d.ok === false) {
+        const friendly: Record<string, string> = {
+          RATE_LIMIT: "Rate limit Kraken atteint. Réessaie dans quelques minutes.",
+          INVALID_TOKEN: "Clé API Kraken invalide. Vérifie la config.",
+          NETWORK: "Erreur réseau Kraken. Réessaie.",
+        }
+        throw new Error(friendly[d.error_code] || d.error || "Erreur inconnue")
+      }
+      const parts: string[] = []
+      if (d.spot) parts.push(`${d.spot.inserted + d.spot.updated} spot`)
+      if (d.futures) parts.push(`${d.futures.inserted + d.futures.updated} futures`)
+      setTradesSyncMsg(parts.join(" · ") || "Sync OK")
+      loadKrakenTrades()
+    } catch (e: any) {
+      setTradesSyncMsg(`⚠ ${e.message}`)
+    } finally { setTradesSyncing(false) }
+  }
+
   useEffect(() => { fetchPortfolio() }, [])
+  useEffect(() => { loadKrakenTrades() }, [tradesTab, tradesRange])
 
   if (loading) return <div style={{ padding: "28px 32px", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Chargement...</div>
   if (error) return <div style={{ padding: "28px 32px", color: "var(--at-neg)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Erreur : {error}</div>
@@ -688,6 +751,165 @@ export default function Kraken() {
             Aucune donnee Futures. Cliquez "Sync Futures" pour charger.
           </div>
         )}
+      </div>
+
+      {/* ── TRADES CLÔTURÉS ─────────────────────────────────── */}
+      <div style={{ marginTop: 32, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600 }}>
+            Trades clôturés
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 2 }}>
+              {(["spot", "futures"] as const).map(tab => (
+                <button key={tab} onClick={() => setTradesTab(tab)}
+                  style={{
+                    padding: "4px 12px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                    background: tradesTab === tab ? "var(--at-accent)" : "transparent",
+                    color: tradesTab === tab ? "var(--at-bg)" : "var(--ink2)", textTransform: "capitalize",
+                  }}>
+                  {tab === "spot" ? "Spot" : "Perps"}
+                </button>
+              ))}
+            </div>
+            <div style={{ width: 1, height: 16, background: "var(--rule)" }} />
+            <div style={{ display: "flex", gap: 2 }}>
+              {(["30J", "90J", "YTD", "1A", "Tout"] as const).map(r => (
+                <button key={r} onClick={() => setTradesRange(r)}
+                  style={{
+                    padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                    background: tradesRange === r ? "var(--at-accent)" : "transparent",
+                    color: tradesRange === r ? "var(--at-bg)" : "var(--ink2)",
+                  }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <button onClick={syncKrakenTrades} disabled={tradesSyncing}
+              style={{
+                padding: "4px 12px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: tradesSyncing ? "wait" : "pointer",
+                border: "1px solid var(--rule)", background: "var(--at-surface)", color: "var(--ink2)", transition: "all .15s", opacity: tradesSyncing ? 0.6 : 1,
+              }}>
+              {tradesSyncing ? "Sync…" : "Sync trades"}
+            </button>
+            {tradesSyncMsg && (
+              <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: tradesSyncMsg.startsWith("⚠") ? "var(--at-neg)" : "var(--at-pos)" }}>
+                {tradesSyncMsg}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {krakenTrades.length === 0 ? (
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+            Aucun trade {tradesTab === "spot" ? "Spot" : "Futures"} enregistré.<br />Cliquez "Sync trades" pour récupérer l'historique.
+          </div>
+        ) : (() => {
+          const thStyle = (right?: boolean): React.CSSProperties => ({
+            padding: "10px 12px", textAlign: right ? "right" : "left",
+            fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+            borderBottom: "1px solid var(--rule)",
+          })
+          const tdNum: React.CSSProperties = { padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }
+
+          const realized = krakenTrades.filter((t: any) => t.realized_pnl != null)
+          const winners = realized.filter((t: any) => Number(t.realized_pnl) > 0)
+          const statsLine = realized.length > 0 ? (() => {
+            const wr = realized.length > 0 ? Math.round((winners.length / realized.length) * 100) : 0
+            const sorted = [...realized].sort((a: any, b: any) =>
+              (Number(b.realized_pnl) * (Number(b.fx_rate_to_eur) || 1)) - (Number(a.realized_pnl) * (Number(a.fx_rate_to_eur) || 1))
+            )
+            const best = sorted[0]
+            const worst = sorted[sorted.length - 1]
+            const fmtP = (t: any) => fmtEur(Number(t.realized_pnl) * (Number(t.fx_rate_to_eur) || 1))
+            return `${realized.length} clôture${realized.length > 1 ? "s" : ""} · ${wr}% gagnante${wr !== 1 ? "s" : ""} · meilleur : ${best.ticker} +${fmtP(best)} · pire : ${worst.ticker} ${fmtP(worst)}`
+          })() : null
+
+          return (
+            <>
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "var(--at-surface)" }}>
+                      <th style={thStyle()}>Date</th>
+                      <th style={thStyle()}>Heure</th>
+                      <th style={thStyle()}>Ticker</th>
+                      <th style={thStyle()}>Pair</th>
+                      <th style={thStyle()}>Side</th>
+                      <th style={thStyle(true)}>Qté</th>
+                      <th style={thStyle(true)}>Prix</th>
+                      <th style={thStyle(true)}>Net</th>
+                      <th style={thStyle(true)}>Frais</th>
+                      <th style={thStyle(true)}>PnL R.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {krakenTrades.map((t: any) => {
+                      const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
+                      const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
+                      const isSell = t.side === "SELL" || t.side === "CLOSE_LONG" || t.side === "CLOSE_SHORT"
+                      const sideLabel = t.side || "—"
+                      const sideColor = isSell ? "var(--at-neg)" : "var(--at-pos)"
+                      const td = formatTradeDate(t.trade_date)
+                      const ccy = t.quote_currency || "EUR"
+                      return (
+                        <tr key={t.id || t.kraken_trade_id} style={{ borderBottom: "1px dotted var(--rule)" }}>
+                          <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>{td.date}</td>
+                          <td style={{ padding: "8px 12px", fontSize: 10, color: "var(--ink3)", whiteSpace: "nowrap" }}>{td.time || "—"}</td>
+                          <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{t.ticker}</td>
+                          <td style={{ padding: "8px 12px", fontSize: 10, color: "var(--ink3)" }}>{t.pair}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{
+                              display: "inline-block", padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                              background: sideColor, color: "var(--at-bg)",
+                            }}>
+                              {sideLabel}
+                            </span>
+                          </td>
+                          <td style={tdNum}>{Number(t.quantity).toLocaleString("fr-FR", { maximumFractionDigits: 8 })}</td>
+                          <td style={tdNum}>{fmtCcy(Number(t.price), ccy)}</td>
+                          <td style={tdNum}>{t.net_cash != null ? fmtCcy(Number(t.net_cash), ccy) : "—"}</td>
+                          <td style={{ ...tdNum, color: "var(--ink3)" }}>{t.fee != null ? fmtCcy(-Math.abs(Number(t.fee)), ccy) : "—"}</td>
+                          <td style={{ ...tdNum, fontWeight: 600, color: pnlColor }}>
+                            {pnl != null ? (pnl >= 0 ? "+" : "") + fmtCcy(pnl, ccy) : "—"}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  {krakenTradesSummary && (
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid var(--ink)", background: "var(--at-surface)" }}>
+                        <td colSpan={7} style={{ padding: "10px 12px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink2)" }}>
+                          Total · en €
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink)" }}>
+                          {"—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink3)" }}>
+                          {krakenTradesSummary.total_fees_eur != null ? fmtEur(-Math.abs(krakenTradesSummary.total_fees_eur)) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: (krakenTradesSummary.realized_pnl_total_eur ?? 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                          {krakenTradesSummary.realized_pnl_total_eur != null ? (krakenTradesSummary.realized_pnl_total_eur >= 0 ? "+" : "") + fmtEur(krakenTradesSummary.realized_pnl_total_eur) : "—"}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              {krakenTradesSummary && (
+                <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
+                  Conversion EUR au taux FX du jour du trade{tradesTab === "spot" ? " · PnL FIFO calculé côté code" : ""}
+                </div>
+              )}
+              {statsLine && (
+                <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ink2)", fontFamily: "var(--font-serif)", marginTop: 4 }}>
+                  {statsLine}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* TRADING ACTIF LINK */}
