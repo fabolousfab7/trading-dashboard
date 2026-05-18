@@ -326,7 +326,7 @@ export default function Home() {
     <div style={{ padding: "28px 32px" }}>
 
       {/* ── 1. MASTHEAD ─────────────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14, marginBottom: 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid var(--ink)", paddingBottom: 14 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink2)", fontFamily: "var(--font-mono)" }}>
             Patrimoine consolidé &middot; N&deg;&thinsp;{editionNo}
@@ -345,14 +345,16 @@ export default function Home() {
         </div>
       </div>
 
+      <div style={{ textAlign: "center", margin: "24px 0", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash; &#10086; &mdash;</div>
+
       {/* ── 2. LEAD — Brut + Courbe ─────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600, display: "flex", alignItems: "center" }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.05em", fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", display: "flex", alignItems: "center" }}>
             Brut &middot; tous comptes
             <InfoTip text="FHF (IBKR + Kraken + Qonto) + PEA + Crypto Perso + Crypto R+F. Avant impôts, hors CCA." wide />
           </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 48, fontWeight: 700, letterSpacing: -2, lineHeight: 1.1, marginTop: 4, color: "var(--ink)" }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 68, fontWeight: 600, letterSpacing: -2, lineHeight: 1.05, marginTop: 4, color: "var(--ink)" }}>
             {fmtEur(patrimoineBrut)}
           </div>
           {chartData.length > 1 && (
@@ -430,8 +432,10 @@ export default function Home() {
         </div>
       </div>
 
+      <div style={{ textAlign: "center", margin: "24px 0", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash; &#10086; &mdash;</div>
+
       {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 0 }}>
         <PerfCard label="Crypto"
           lines={[
             { name: "Perso", value: cryptoPersoValue, pct: cryptoPersoVar.pct ?? null, abs: cryptoPersoVar.abs ?? null },
@@ -439,7 +443,7 @@ export default function Home() {
           ]}
           total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombined.pct ?? null} absChange={cryptoCombined.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/crypto" />
-        <PerfCard label="FHF" sub="Société"
+        <PerfCard label="FHF"
           lines={[
             { name: "IBKR", value: ibkrNlv, pct: ibkrVar.pct ?? null, abs: ibkrVar.abs ?? null },
             { name: "Kraken", value: krakenNlv, pct: krakenVar.pct ?? null, abs: krakenVar.abs ?? null },
@@ -447,7 +451,7 @@ export default function Home() {
           ]}
           total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfVar.pct ?? null} absChange={fhfVar.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/fhf" />
-        <PerfCard label="PEA Perso" sub="Boursobank"
+        <PerfCard label="PEA Perso"
           lines={[{ name: "Valeur", value: peaValue }]}
           total={peaValue} pctChange={peaVar.pct ?? null} absChange={peaVar.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/pea" />
@@ -456,8 +460,7 @@ export default function Home() {
         <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-          <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600 }}>Trading Actif</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>Journal tous comptes</div>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600, fontFamily: "var(--font-sans)" }}>Trading Actif</div>
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
               <span style={{ color: "var(--ink3)" }}>P&L</span>
@@ -477,6 +480,8 @@ export default function Home() {
           <div style={{ marginTop: 12, color: "var(--ink3)", fontSize: 13, fontFamily: "var(--font-mono)" }}>—</div>
         </Link>
       </div>
+
+      <div style={{ textAlign: "center", margin: "24px 0", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash; &#10086; &mdash;</div>
 
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28 }}>
@@ -705,6 +710,30 @@ export default function Home() {
         })()}
       </div>
 
+      {/* ── CITATION DU JOUR ──────────────────────────────── */}
+      {(() => {
+        const citations = [
+          { text: "Le marché est un mécanisme de transfert d'argent des impatients vers les patients.", author: "Warren Buffett" },
+          { text: "Sois craintif quand les autres sont avides, et avide quand les autres sont craintifs.", author: "Warren Buffett" },
+          { text: "Le marché peut rester irrationnel plus longtemps que vous ne pouvez rester solvable.", author: "John Maynard Keynes" },
+          { text: "Le risque vient du fait qu'on ne sait pas ce qu'on fait.", author: "Warren Buffett" },
+          { text: "L'objectif d'un trader est de gagner de l'argent, pas d'avoir raison.", author: "Jack Schwager" },
+          { text: "La discipline est plus importante que la conviction.", author: "William O'Neil" },
+        ]
+        const idx = Math.floor(Date.now() / 86400000) % citations.length
+        const c = citations[idx]
+        return (
+          <div style={{ textAlign: "center", margin: "40px 0 24px", padding: "0 48px" }}>
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, fontStyle: "italic", color: "var(--ink3)", lineHeight: 1.7 }}>
+              &laquo;&thinsp;{c.text}&thinsp;&raquo;
+            </div>
+            <div style={{ fontFamily: "var(--font-sans)", fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--ink3)", marginTop: 6 }}>
+              &mdash; {c.author}
+            </div>
+          </div>
+        )
+      })()}
+
       <NotePanel
         isOpen={drawerOpen}
         onClose={() => { setDrawerOpen(false); setDrawerNote(null) }}
@@ -763,8 +792,8 @@ function ChartTooltip({ active, payload }: any) {
   )
 }
 
-function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, truncated, refDate, href }: {
-  label: string; sub?: string; lines: { name: string; value: number; pct?: number | null; abs?: number | null }[]; total: number
+function PerfCard({ label, lines, total, pctChange, absChange, timeframe, truncated, refDate, href }: {
+  label: string; lines: { name: string; value: number; pct?: number | null; abs?: number | null }[]; total: number
   pctChange: number | null; absChange: number | null; timeframe: string; truncated: boolean; refDate: string; href: string
 }) {
   const hasVar = pctChange !== null || absChange !== null
@@ -778,8 +807,7 @@ function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, t
     <Link href={href} style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600 }}>{label}</div>
-      {sub && <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--ink2)", fontWeight: 600, fontFamily: "var(--font-sans)" }}>{label}</div>
       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
         {lines.map((l, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12 }}>
