@@ -824,6 +824,67 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     return res.json({ series, variations })
   })
 
+  // ── IBKR Trades ────────────────────────────────────────────
+
+  app.get("/api/ibkr/trades", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id").eq("user_id", userId).eq("broker", "IBKR").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ trades: [], summary: null })
+
+    let accountIds = accounts.map((a: any) => a.id)
+    if (req.query.account_id) {
+      const qid = String(req.query.account_id)
+      if (accountIds.includes(qid)) accountIds = [qid]
+      else return res.status(403).json({ error: "Account not found" })
+    }
+
+    let query = userClient.from("ibkr_trades").select("*").in("account_id", accountIds).order("trade_date", { ascending: false })
+    if (req.query.from_date) query = query.gte("trade_date", String(req.query.from_date))
+    if (req.query.to_date) query = query.lte("trade_date", String(req.query.to_date))
+    if (req.query.ticker) query = query.eq("ticker", String(req.query.ticker))
+    if (req.query.side) query = query.eq("side", String(req.query.side).toUpperCase())
+    if (req.query.realized_only === "true") query = query.not("realized_pnl", "is", null)
+    const limit = Math.min(Number(req.query.limit) || 50, 200)
+    query = query.limit(limit)
+
+    const { data: trades, error } = await query
+    if (error) return res.status(500).json({ error: error.message })
+
+    const safe = (trades || []).map((t: any) => {
+      const { raw_data, ...rest } = t
+      return rest
+    })
+
+    const realized = safe.filter((t: any) => t.realized_pnl != null)
+    const winners = realized.filter((t: any) => Number(t.realized_pnl) > 0)
+    const losers = realized.filter((t: any) => Number(t.realized_pnl) < 0)
+    const sells = safe.filter((t: any) => t.side === "SELL")
+    const sellsWithPnl = sells.filter((t: any) => t.realized_pnl != null)
+
+    const best = realized.length > 0 ? realized.reduce((a: any, b: any) => Number(b.realized_pnl) > Number(a.realized_pnl) ? b : a) : null
+    const worst = realized.length > 0 ? realized.reduce((a: any, b: any) => Number(b.realized_pnl) < Number(a.realized_pnl) ? b : a) : null
+
+    const summary = {
+      count: safe.length,
+      realized_pnl_total: realized.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
+      realized_pnl_winners: winners.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
+      realized_pnl_losers: losers.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
+      win_rate_pct: sellsWithPnl.length > 0 ? (winners.length / sellsWithPnl.length) * 100 : null,
+      best_trade: best ? { ticker: best.ticker, realized_pnl: Number(best.realized_pnl), trade_date: best.trade_date } : null,
+      worst_trade: worst ? { ticker: worst.ticker, realized_pnl: Number(worst.realized_pnl), trade_date: worst.trade_date } : null,
+      total_commissions: safe.reduce((s: number, t: any) => s + (Number(t.commission) || 0), 0),
+    }
+
+    return res.json({ trades: safe, summary })
+  })
+
+  app.post("/api/ibkr/trades/sync", auth, async (_req: Request, res: Response) => {
+    return res.json({ status: "not_implemented", message: "Configurez d'abord ibkr_config.trades_query_id" })
+  })
+
   // ── Movers: top position moves vs historical price ──────────
 
   app.get("/api/portfolio/movers", auth, async (req: Request, res: Response) => {

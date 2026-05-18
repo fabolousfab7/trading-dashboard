@@ -100,6 +100,9 @@ export default function Ibkr() {
   const [syncSuccess, setSyncSuccess] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
   const [comptaCapital, setComptaCapital] = useState<number | null>(null)
+  const [trades, setTrades] = useState<any[]>([])
+  const [tradesSummary, setTradesSummary] = useState<any>(null)
+  const [tradesRange, setTradesRange] = useState("30J")
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -166,6 +169,25 @@ export default function Ibkr() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    const now = new Date()
+    let fromDate = ""
+    if (tradesRange === "30J") {
+      const d = new Date(now); d.setDate(d.getDate() - 30); fromDate = d.toISOString().slice(0, 10)
+    } else if (tradesRange === "90J") {
+      const d = new Date(now); d.setDate(d.getDate() - 90); fromDate = d.toISOString().slice(0, 10)
+    } else if (tradesRange === "YTD") {
+      fromDate = `${now.getFullYear()}-01-01`
+    } else if (tradesRange === "1A") {
+      const d = new Date(now); d.setFullYear(d.getFullYear() - 1); fromDate = d.toISOString().slice(0, 10)
+    }
+    const qs = fromDate ? `?from_date=${fromDate}&limit=100` : "?limit=100"
+    authFetch(`/api/ibkr/trades${qs}`)
+      .then(r => r.ok ? r.json() : { trades: [], summary: null })
+      .then(d => { setTrades(d.trades || []); setTradesSummary(d.summary || null) })
+      .catch(() => {})
+  }, [tradesRange])
 
   if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
   if (error && !data) return <div className="p-8 text-[--at-neg] font-mono text-sm">Erreur : {error}</div>
@@ -502,6 +524,132 @@ export default function Ibkr() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── PNL RÉALISÉ — bandeau synthèse ─────────────────────── */}
+      <div style={{ marginTop: 32, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600, marginBottom: 12 }}>
+          PnL réalisé &middot; {tradesRange === "Tout" ? "tous" : tradesRange}
+        </div>
+        {tradesSummary ? (
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", padding: "14px 18px", background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4 }}>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Total</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tradesSummary.realized_pnl_total >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                {tradesSummary.realized_pnl_total >= 0 ? "+" : ""}{fmtEur(tradesSummary.realized_pnl_total)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Trades</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontVariantNumeric: "tabular-nums", color: "var(--ink)", marginTop: 4 }}>{tradesSummary.count}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Win rate</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontVariantNumeric: "tabular-nums", color: "var(--ink)", marginTop: 4 }}>
+                {tradesSummary.win_rate_pct != null ? `${tradesSummary.win_rate_pct.toFixed(0)}%` : "—"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Meilleur</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--at-pos)", marginTop: 4 }}>
+                {tradesSummary.best_trade ? `${tradesSummary.best_trade.ticker} +${fmtEur(tradesSummary.best_trade.realized_pnl)}` : "—"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Pire</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--at-neg)", marginTop: 4 }}>
+                {tradesSummary.worst_trade ? `${tradesSummary.worst_trade.ticker} ${fmtEur(tradesSummary.worst_trade.realized_pnl)}` : "—"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Commissions</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--ink3)", marginTop: 4 }}>
+                {fmtEur(tradesSummary.total_commissions)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", padding: "16px 0" }}>Chargement...</div>
+        )}
+      </div>
+
+      {/* ── TRADES RÉCENTS — tableau ──────────────────────────── */}
+      <div style={{ marginTop: 28, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600 }}>
+            Trades récents
+          </div>
+          <div style={{ display: "flex", gap: 2 }}>
+            {(["30J", "90J", "YTD", "1A", "Tout"] as const).map(r => (
+              <button key={r} onClick={() => setTradesRange(r)}
+                style={{
+                  padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                  background: tradesRange === r ? "var(--at-accent)" : "transparent",
+                  color: tradesRange === r ? "var(--at-bg)" : "var(--ink2)",
+                }}>
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {trades.length === 0 ? (
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+            Aucun trade enregistré.<br />Configurez votre Flex Query Trades dans Settings pour syncer.
+          </div>
+        ) : (
+          <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "var(--at-surface)" }}>
+                  {["Date", "Ticker", "Nom", "Side", "Qté", "Prix", "Net", "PnL R."].map((h, i) => (
+                    <th key={h} style={{
+                      padding: "10px 12px", textAlign: i >= 4 ? "right" : "left",
+                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+                      borderBottom: "1px solid var(--rule)",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map((t: any) => {
+                  const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
+                  const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
+                  const isSell = t.side === "SELL"
+                  return (
+                    <tr key={t.id || t.ibkr_trade_id} style={{ borderBottom: "1px dotted var(--rule)" }}>
+                      <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>
+                        {new Date(t.trade_date + "T00:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                      </td>
+                      <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{t.ticker}</td>
+                      <td style={{ padding: "8px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {(t.name || "").slice(0, 20)}
+                      </td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{
+                          display: "inline-block", padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                          background: isSell ? "var(--at-neg)" : "var(--at-pos)", color: "var(--at-bg)",
+                        }}>
+                          {t.side}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Number(t.quantity)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {Number(t.price).toFixed(2)} {t.currency === "EUR" ? "€" : "$"}
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {t.net_cash != null ? fmtEur(Number(t.net_cash)) : "—"}
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: pnlColor }}>
+                        {pnl != null ? `${pnl >= 0 ? "+" : ""}${fmtEur(pnl)}` : "—"}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ── POSITION NOTE MODAL ───────────────────────────────── */}
