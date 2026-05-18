@@ -613,13 +613,14 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
   })
 
   // ── Timeseries: historical snapshots + live today point ──────
-  const TIMEFRAME_DAYS: Record<string, number> = { "24h": 2, "1S": 7, "1M": 30, "3M": 90, "6M": 180, "1A": 365 }
+  const WINDOW_DAYS: Record<string, number> = { "24h": 2, "1S": 7, "1M": 30, "3M": 90, "6M": 180, "1A": 365 }
+  const REFERENCE_DAYS: Record<string, number> = { "24h": 1, "1S": 7, "1M": 30, "3M": 90, "6M": 180, "1A": 365 }
 
   app.get("/api/portfolio/timeseries", auth, async (req: Request, res: Response) => {
     const userId = (req as any).userId
     const userClient = userScopedClient((req as any).userToken)
     const tf = String(req.query.timeframe || "3M")
-    const days = TIMEFRAME_DAYS[tf] || 90
+    const days = WINDOW_DAYS[tf] || 90
 
     const since = new Date()
     since.setDate(since.getDate() - days)
@@ -746,13 +747,19 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     todayRow.total = live.ibkr + live.kraken + live.qonto + live.pea + live.crypto_perso + live.crypto_rf
     series.push(todayRow)
 
-    // 6. Compute variations (first point = reference)
+    // 6. Compute variations — reference = most recent snapshot <= today - REFERENCE_DAYS
+    const refDays = REFERENCE_DAYS[tf] || 90
     const targetDate = new Date()
-    targetDate.setDate(targetDate.getDate() - (TIMEFRAME_DAYS[tf] || 90))
+    targetDate.setDate(targetDate.getDate() - refDays)
     const targetStr = targetDate.toISOString().slice(0, 10)
 
-    const ref = series[0] || todayRow
     const last = series[series.length - 1] || todayRow
+    // Find the latest row whose date <= targetStr (carry-forward), fall back to first row
+    let ref = series[0] || todayRow
+    for (const row of series) {
+      if (row.date <= targetStr) ref = row
+      else break
+    }
     const truncated = ref.date > targetStr
 
     const VAR_KEYS = ["total", "ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"] as const
