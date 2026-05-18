@@ -29,15 +29,23 @@ export interface FlexCashBalance {
 
 export interface FlexTrade {
   accountId: string
+  tradeID?: string
   symbol: string
+  description?: string
   assetCategory?: string
+  currency: string
+  exchange?: string
   tradeDate: string
+  tradeTime?: string
+  settleDateTarget?: string
+  buySell?: string
   quantity: number
   tradePrice: number
-  netCash: number
+  proceeds?: number
   ibCommission?: number
+  netCash: number
   fifoPnlRealized?: number
-  currency: string
+  fxRateToBase?: number
 }
 
 export interface FlexStmtOfFundsLine {
@@ -215,15 +223,23 @@ export function parseFlexReport(xml: string): FlexStatementData {
   const tradesNode = stmt.Trades
   const trades: FlexTrade[] = asArray(tradesNode?.Trade).map((t: any) => ({
     accountId: t.accountId,
+    tradeID: t.tradeID,
     symbol: t.symbol,
+    description: t.description,
     assetCategory: t.assetCategory,
+    currency: t.currency,
+    exchange: t.exchange,
     tradeDate: t.tradeDate,
+    tradeTime: t.tradeTime,
+    settleDateTarget: t.settleDateTarget,
+    buySell: t.buySell,
     quantity: num(t.quantity),
     tradePrice: num(t.tradePrice),
+    proceeds: t.proceeds != null ? num(t.proceeds) : undefined,
+    ibCommission: t.ibCommission != null ? num(t.ibCommission) : undefined,
     netCash: num(t.netCash),
-    ibCommission: t.ibCommission ? num(t.ibCommission) : undefined,
-    fifoPnlRealized: t.fifoPnlRealized ? num(t.fifoPnlRealized) : undefined,
-    currency: t.currency,
+    fifoPnlRealized: t.fifoPnlRealized != null ? num(t.fifoPnlRealized) : undefined,
+    fxRateToBase: t.fxRateToBase ? num(t.fxRateToBase) : undefined,
   }))
 
   const stmtFundsNode = stmt.StmtFunds

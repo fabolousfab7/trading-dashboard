@@ -881,8 +881,120 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     return res.json({ trades: safe, summary })
   })
 
-  app.post("/api/ibkr/trades/sync", auth, async (_req: Request, res: Response) => {
-    return res.json({ status: "not_implemented", message: "Configurez d'abord ibkr_config.trades_query_id" })
+  app.post("/api/ibkr/trades/sync", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("*, ibkr_config(*)").eq("user_id", userId).eq("broker", "IBKR").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.status(404).json({ error: "No IBKR accounts found" })
+
+    let targets = accounts
+    if (req.body?.account_id) {
+      targets = accounts.filter((a: any) => a.id === req.body.account_id)
+      if (targets.length === 0) return res.status(404).json({ error: "Account not found" })
+    }
+
+    const errors: string[] = []
+    let totalInserted = 0
+    let totalUpdated = 0
+    let accountsSynced = 0
+
+    for (const acc of targets) {
+      const config = (acc as any).ibkr_config?.[0] || (acc as any).ibkr_config
+      if (!config?.flex_token) { errors.push(`${acc.label}: no flex_token`); continue }
+      const tradesQueryId = config.trades_query_id
+      if (!tradesQueryId) { errors.push(`${acc.label}: no trades_query_id`); continue }
+
+      try {
+        console.log("[ibkr-trades-sync]", acc.label, "fetching flex report with query", tradesQueryId)
+        const data = await fetchFlexReport(config.flex_token, tradesQueryId)
+        console.log("[ibkr-trades-sync]", acc.label, `got ${data.trades.length} trades from IBKR`)
+
+        const parseFlexDate = (d: string | undefined): string | null => {
+          if (!d || d.length !== 8) return null
+          return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+        }
+        const parseFlexDateTime = (d: string | undefined, time: string | undefined): string | null => {
+          const dateStr = parseFlexDate(d)
+          if (!dateStr) return null
+          if (time && time.length >= 6) {
+            return `${dateStr}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`
+          }
+          return dateStr
+        }
+
+        let inserted = 0, updated = 0
+        for (const t of data.trades) {
+          if (!t.tradeID) continue
+
+          const row = {
+            account_id: acc.id,
+            ibkr_trade_id: String(t.tradeID),
+            trade_date: parseFlexDateTime(t.tradeDate, t.tradeTime) || parseFlexDate(t.tradeDate),
+            settle_date: parseFlexDate(t.settleDateTarget),
+            ticker: t.symbol,
+            name: t.description || null,
+            asset_class: t.assetCategory || null,
+            currency: t.currency,
+            exchange: t.exchange || null,
+            side: t.buySell || (t.quantity < 0 ? "SELL" : "BUY"),
+            quantity: Math.abs(t.quantity),
+            price: t.tradePrice,
+            proceeds: t.proceeds ?? null,
+            commission: t.ibCommission != null ? Math.abs(t.ibCommission) : null,
+            net_cash: t.netCash,
+            realized_pnl: t.fifoPnlRealized ?? null,
+            fx_rate_to_eur: t.fxRateToBase ?? null,
+            source: "flex_query",
+            raw_data: t,
+          }
+
+          const { data: existing } = await userClient
+            .from("ibkr_trades")
+            .select("id")
+            .eq("account_id", acc.id)
+            .eq("ibkr_trade_id", String(t.tradeID))
+            .maybeSingle()
+
+          if (existing) {
+            await userClient.from("ibkr_trades").update(row).eq("id", existing.id)
+            updated++
+          } else {
+            await userClient.from("ibkr_trades").insert(row)
+            inserted++
+          }
+        }
+
+        await userClient.from("ibkr_config").update({
+          last_synced_at: new Date().toISOString(),
+          last_sync_status: "success",
+          last_sync_error: null,
+        }).eq("id", config.id)
+
+        totalInserted += inserted
+        totalUpdated += updated
+        accountsSynced++
+        console.log("[ibkr-trades-sync]", acc.label, `done: ${inserted} inserted, ${updated} updated`)
+      } catch (e: any) {
+        console.error("[ibkr-trades-sync]", acc.label, "error:", e.message)
+        errors.push(`${acc.label}: ${e.message}`)
+        try {
+          await userClient.from("ibkr_config").update({
+            last_sync_status: "error",
+            last_sync_error: e.message,
+          }).eq("id", config.id)
+        } catch { /* best-effort */ }
+      }
+    }
+
+    return res.json({
+      status: errors.length === 0 ? "ok" : "partial",
+      accounts_synced: accountsSynced,
+      trades_inserted: totalInserted,
+      trades_updated: totalUpdated,
+      errors,
+    })
   })
 
   // ── Movers: top position moves vs historical price ──────────

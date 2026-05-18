@@ -103,6 +103,8 @@ export default function Ibkr() {
   const [trades, setTrades] = useState<any[]>([])
   const [tradesSummary, setTradesSummary] = useState<any>(null)
   const [tradesRange, setTradesRange] = useState("30J")
+  const [tradesSyncing, setTradesSyncing] = useState(false)
+  const [tradesSyncMsg, setTradesSyncMsg] = useState<string | null>(null)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -170,7 +172,7 @@ export default function Ibkr() {
 
   useEffect(() => { loadData() }, [])
 
-  useEffect(() => {
+  function loadTrades() {
     const now = new Date()
     let fromDate = ""
     if (tradesRange === "30J") {
@@ -187,7 +189,21 @@ export default function Ibkr() {
       .then(r => r.ok ? r.json() : { trades: [], summary: null })
       .then(d => { setTrades(d.trades || []); setTradesSummary(d.summary || null) })
       .catch(() => {})
-  }, [tradesRange])
+  }
+  useEffect(() => { loadTrades() }, [tradesRange])
+
+  async function syncTrades() {
+    setTradesSyncing(true); setTradesSyncMsg(null)
+    try {
+      const r = await authFetch("/api/ibkr/trades/sync", { method: "POST" })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || "Sync failed")
+      setTradesSyncMsg(`${d.trades_inserted} nouveaux · ${d.trades_updated} mis à jour`)
+      loadTrades()
+    } catch (e: any) {
+      setTradesSyncMsg(`Erreur : ${e.message}`)
+    } finally { setTradesSyncing(false) }
+  }
 
   if (loading) return <div className="p-8 text-[--ink2] font-mono text-sm">Chargement...</div>
   if (error && !data) return <div className="p-8 text-[--at-neg] font-mono text-sm">Erreur : {error}</div>
@@ -579,17 +595,31 @@ export default function Ibkr() {
           <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600 }}>
             Trades récents
           </div>
-          <div style={{ display: "flex", gap: 2 }}>
-            {(["30J", "90J", "YTD", "1A", "Tout"] as const).map(r => (
-              <button key={r} onClick={() => setTradesRange(r)}
-                style={{
-                  padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
-                  background: tradesRange === r ? "var(--at-accent)" : "transparent",
-                  color: tradesRange === r ? "var(--at-bg)" : "var(--ink2)",
-                }}>
-                {r}
-              </button>
-            ))}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 2 }}>
+              {(["30J", "90J", "YTD", "1A", "Tout"] as const).map(r => (
+                <button key={r} onClick={() => setTradesRange(r)}
+                  style={{
+                    padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                    background: tradesRange === r ? "var(--at-accent)" : "transparent",
+                    color: tradesRange === r ? "var(--at-bg)" : "var(--ink2)",
+                  }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <button onClick={syncTrades} disabled={tradesSyncing}
+              style={{
+                padding: "4px 12px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: tradesSyncing ? "wait" : "pointer",
+                border: "1px solid var(--rule)", background: "var(--at-surface)", color: "var(--ink2)", transition: "all .15s", opacity: tradesSyncing ? 0.6 : 1,
+              }}>
+              {tradesSyncing ? "Sync…" : "Sync trades"}
+            </button>
+            {tradesSyncMsg && (
+              <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: tradesSyncMsg.startsWith("Erreur") ? "var(--at-neg)" : "var(--at-pos)" }}>
+                {tradesSyncMsg}
+              </span>
+            )}
           </div>
         </div>
 
