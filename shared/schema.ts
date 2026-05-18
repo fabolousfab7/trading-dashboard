@@ -96,6 +96,22 @@ export const ibkrConfig = pgTable("ibkr_config", {
 })
 
 // =====================================================
+// kraken_futures_config : credentials Kraken Futures API
+// =====================================================
+export const krakenFuturesConfig = pgTable("kraken_futures_config", {
+  accountId: uuid("account_id")
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  apiKey: text("api_key").notNull(),
+  apiSecret: text("api_secret").notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  lastSyncStatus: text("last_sync_status"),
+  lastSyncError: text("last_sync_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// =====================================================
 // positions : positions ouvertes
 // =====================================================
 export const positions = pgTable(
@@ -181,6 +197,10 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
     fields: [accounts.id],
     references: [ibkrConfig.accountId],
   }),
+  krakenFuturesConfig: one(krakenFuturesConfig, {
+    fields: [accounts.id],
+    references: [krakenFuturesConfig.accountId],
+  }),
   positions: many(positions),
   cashBalances: many(cashBalances),
   snapshots: many(portfolioSnapshots),
@@ -220,6 +240,7 @@ export type Account = typeof accounts.$inferSelect
 export type InsertAccount = z.infer<typeof insertAccountSchema>
 export type IbkrConfig = typeof ibkrConfig.$inferSelect
 export type InsertIbkrConfig = z.infer<typeof insertIbkrConfigSchema>
+export type KrakenFuturesConfig = typeof krakenFuturesConfig.$inferSelect
 export type Position = typeof positions.$inferSelect
 export type CashBalance = typeof cashBalances.$inferSelect
 export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect
