@@ -925,33 +925,35 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       uniquePositions.push({ ...p, normalizedTicker: nt })
     }
 
-    // Crypto positions (CoinGecko)
     const cryptoPositions = uniquePositions.filter(p => p.coingecko_id)
     for (const p of cryptoPositions) {
       try {
         const history = await fetchCoinGeckoHistory(p.coingecko_id, days)
-        let inserted = 0
-        for (const point of history) {
-          await serviceClient.from("position_price_history").upsert({
-            ticker: p.normalizedTicker,
-            asset_class: p.asset_class || "crypto",
-            price_date: point.date,
-            market_price: point.price,
-            currency: "EUR",
-            fx_rate_to_eur: 1,
-            source: "backfill",
-          }, { onConflict: "ticker,price_date" })
-          inserted++
+        if (history.length === 0) {
+          results.push(`${p.normalizedTicker}: 0 points — empty response (coingecko)`)
+          console.log("[backfill]", p.normalizedTicker, "0 points — empty response")
+        } else {
+          for (const point of history) {
+            await serviceClient.from("position_price_history").upsert({
+              ticker: p.normalizedTicker,
+              asset_class: p.asset_class || "crypto",
+              price_date: point.date,
+              market_price: point.price,
+              currency: "EUR",
+              fx_rate_to_eur: 1,
+              source: "backfill",
+            }, { onConflict: "ticker,price_date" })
+          }
+          results.push(`${p.normalizedTicker}: ${history.length} points (coingecko)`)
+          console.log("[backfill]", p.normalizedTicker, `${history.length} points (coingecko)`)
         }
-        results.push(`${p.normalizedTicker}: ${inserted} points (coingecko)`)
-        console.log("[backfill]", p.normalizedTicker, `${inserted} points (coingecko)`)
       } catch (e: any) {
-        results.push(`${p.normalizedTicker}: error - ${e.message}`)
+        results.push(`${p.normalizedTicker}: failed — ${e.message}`)
+        console.log("[backfill]", p.normalizedTicker, "error:", e.message)
       }
-      await new Promise(r => setTimeout(r, 250))
+      await new Promise(r => setTimeout(r, 2500))
     }
 
-    // Stock positions (Yahoo Finance)
     const stockPositions = uniquePositions.filter(p => !p.coingecko_id && p.stooq_symbol)
     for (const p of stockPositions) {
       try {
@@ -959,23 +961,53 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
           : p.stooq_symbol?.endsWith(".de") ? "DE"
           : p.stooq_symbol?.endsWith(".us") ? "" : "PA"
         const history = await fetchYahooHistory(p.ticker, suffix, days)
-        let inserted = 0
-        for (const point of history) {
-          await serviceClient.from("position_price_history").upsert({
-            ticker: p.normalizedTicker,
-            asset_class: p.asset_class || "stock",
-            price_date: point.date,
-            market_price: point.price,
-            currency: p.currency || "EUR",
-            fx_rate_to_eur: p.fx_rate_to_base || null,
-            source: "backfill",
-          }, { onConflict: "ticker,price_date" })
-          inserted++
+        if (history.length === 0) {
+          results.push(`${p.normalizedTicker}: 0 points — empty response (yahoo/${suffix || "US"})`)
+        } else {
+          for (const point of history) {
+            await serviceClient.from("position_price_history").upsert({
+              ticker: p.normalizedTicker,
+              asset_class: p.asset_class || "stock",
+              price_date: point.date,
+              market_price: point.price,
+              currency: p.currency || "EUR",
+              fx_rate_to_eur: p.fx_rate_to_base || null,
+              source: "backfill",
+            }, { onConflict: "ticker,price_date" })
+          }
+          results.push(`${p.normalizedTicker}: ${history.length} points (yahoo/${suffix || "US"})`)
         }
-        results.push(`${p.normalizedTicker}: ${inserted} points (yahoo)`)
-        console.log("[backfill]", p.normalizedTicker, `${inserted} points (yahoo)`)
+        console.log("[backfill]", p.normalizedTicker, `${history.length} points (yahoo/${suffix || "US"})`)
       } catch (e: any) {
-        results.push(`${p.normalizedTicker}: error - ${e.message}`)
+        results.push(`${p.normalizedTicker}: failed — ${e.message}`)
+        console.log("[backfill]", p.normalizedTicker, "error:", e.message)
+      }
+    }
+
+    const usStockPositions = uniquePositions.filter(p => !p.coingecko_id && !p.stooq_symbol)
+    for (const p of usStockPositions) {
+      try {
+        const history = await fetchYahooHistory(p.normalizedTicker, "", days)
+        if (history.length === 0) {
+          results.push(`${p.normalizedTicker}: 0 points — empty response (yahoo/US-raw)`)
+        } else {
+          for (const point of history) {
+            await serviceClient.from("position_price_history").upsert({
+              ticker: p.normalizedTicker,
+              asset_class: p.asset_class || "STK",
+              price_date: point.date,
+              market_price: point.price,
+              currency: p.currency || "USD",
+              fx_rate_to_eur: p.fx_rate_to_base || null,
+              source: "backfill",
+            }, { onConflict: "ticker,price_date" })
+          }
+          results.push(`${p.normalizedTicker}: ${history.length} points (yahoo/US-raw)`)
+        }
+        console.log("[backfill]", p.normalizedTicker, `${history.length} points (yahoo/US-raw)`)
+      } catch (e: any) {
+        results.push(`${p.normalizedTicker}: failed — ${e.message}`)
+        console.log("[backfill]", p.normalizedTicker, "error:", e.message)
       }
     }
 

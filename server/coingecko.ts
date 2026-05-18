@@ -3,18 +3,14 @@ export async function fetchCoinGeckoHistory(
   days: number = 30
 ): Promise<{ date: string; price: number }[]> {
   const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(coingeckoId)}/market_chart?vs_currency=eur&days=${days}&interval=daily`
-  try {
-    const response = await fetch(url)
-    if (!response.ok) return []
-    const data = await response.json()
-    const prices: number[][] = data?.prices || []
-    return prices.map(([ts, price]) => ({
-      date: new Date(ts).toISOString().slice(0, 10),
-      price,
-    }))
-  } catch {
-    return []
-  }
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`)
+  const data = await response.json()
+  const prices: number[][] = data?.prices || []
+  return prices.map(([ts, price]) => ({
+    date: new Date(ts).toISOString().slice(0, 10),
+    price,
+  }))
 }
 
 export async function fetchCoinGeckoPrices(
