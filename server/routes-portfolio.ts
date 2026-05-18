@@ -988,12 +988,25 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       }
     }
 
+    const ok = errors.length === 0
+    let error_code: string | undefined
+    if (!ok && errors.length > 0) {
+      const msg = errors.join(" ")
+      if (/could not be generated|try again/i.test(msg) || /IBKR_RATE_LIMIT/i.test(msg)) error_code = "RATE_LIMIT"
+      else if (/invalid.*token/i.test(msg)) error_code = "INVALID_TOKEN"
+      else if (/invalid.*query/i.test(msg)) error_code = "QUERY_NOT_FOUND"
+      else if (/timeout|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(msg)) error_code = "NETWORK"
+      else if (/parse|xml|FlexQueryResponse/i.test(msg)) error_code = "PARSE_ERROR"
+      else error_code = "UNKNOWN"
+    }
+
     return res.json({
-      status: errors.length === 0 ? "ok" : "partial",
+      ok,
+      error: ok ? undefined : errors.join("; "),
+      error_code,
       accounts_synced: accountsSynced,
       trades_inserted: totalInserted,
       trades_updated: totalUpdated,
-      errors,
     })
   })
 

@@ -208,10 +208,20 @@ export default function Ibkr() {
       const r = await authFetch("/api/ibkr/trades/sync", { method: "POST" })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || "Sync failed")
+      if (d.ok === false) {
+        const friendly: Record<string, string> = {
+          RATE_LIMIT: "Rate limit IBKR atteint. Réessaie dans 10-15 minutes.",
+          INVALID_TOKEN: "Token Flex IBKR invalide. Vérifie ibkr_config.flex_token.",
+          QUERY_NOT_FOUND: "Query ID Trades invalide. Vérifie le trades_query_id.",
+          NETWORK: "Erreur réseau IBKR. Réessaie dans quelques minutes.",
+          PARSE_ERROR: "Réponse IBKR illisible (XML invalide).",
+        }
+        throw new Error(friendly[d.error_code] || d.error || "Erreur inconnue")
+      }
       setTradesSyncMsg(`${d.trades_inserted} nouveaux · ${d.trades_updated} mis à jour`)
       loadTrades()
     } catch (e: any) {
-      setTradesSyncMsg(`Erreur : ${e.message}`)
+      setTradesSyncMsg(`⚠ ${e.message}`)
     } finally { setTradesSyncing(false) }
   }
 
@@ -626,7 +636,7 @@ export default function Ibkr() {
               {tradesSyncing ? "Sync…" : "Sync trades"}
             </button>
             {tradesSyncMsg && (
-              <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: tradesSyncMsg.startsWith("Erreur") ? "var(--at-neg)" : "var(--at-pos)" }}>
+              <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: tradesSyncMsg.startsWith("⚠") ? "var(--at-neg)" : "var(--at-pos)" }}>
                 {tradesSyncMsg}
               </span>
             )}
