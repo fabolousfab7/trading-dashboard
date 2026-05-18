@@ -5,7 +5,7 @@ import { Plus, Pin, Trash2, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import { getPositionValueEur, isDerivative } from "@/lib/portfolio-math"
 import NotePanel from "@/components/NotePanel"
-import { AreaChart, Area, LineChart, Line, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
@@ -29,23 +29,6 @@ const RANGES = [
   { label: "1A", days: 365 },
 ]
 
-const CHART_LEGEND_VALUE = [
-  { label: "IBKR", color: "#2d5a27" },
-  { label: "Kraken", color: "#3a6e3f" },
-  { label: "Qonto", color: "#6b9f71" },
-  { label: "PEA", color: "#7d2b1d" },
-  { label: "Crypto P", color: "#b8944a" },
-  { label: "R+F", color: "#cfb88f" },
-]
-
-const CHART_LEGEND_PERF = [
-  { label: "FHF", color: "#2d5a27" },
-  { label: "PEA", color: "#7d2b1d" },
-  { label: "Crypto P", color: "#b8944a" },
-  { label: "Crypto R+F", color: "#cfb88f" },
-  { label: "Trading", color: "#5b5a55" },
-]
-
 const FLAG: Record<string, string> = { USD: "\u{1F1FA}\u{1F1F8}", EUR: "\u{1F1EA}\u{1F1FA}", GBP: "\u{1F1EC}\u{1F1E7}", JPY: "\u{1F1EF}\u{1F1F5}", CAD: "\u{1F1E8}\u{1F1E6}", AUD: "\u{1F1E6}\u{1F1FA}", NZD: "\u{1F1F3}\u{1F1FF}", CHF: "\u{1F1E8}\u{1F1ED}", CNY: "\u{1F1E8}\u{1F1F3}" }
 
 export default function Home() {
@@ -60,7 +43,6 @@ export default function Home() {
   const [snapshots, setSnapshots] = useState<any[]>([])
   const [snapshotAccounts, setSnapshotAccounts] = useState<any[]>([])
   const [chartRange, setChartRange] = useState(90)
-  const [chartMode, setChartMode] = useState<"value" | "perf">("value")
   const [notes, setNotes] = useState<any[]>([])
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerNote, setDrawerNote] = useState<any>(null)
@@ -166,62 +148,24 @@ export default function Home() {
         lastKnown[broker] = day[broker]
       }
       const cryptoNlv = lastKnown["Crypto"] || 0
+      const ibkrVal = lastKnown["IBKR"] || 0
+      const krakenVal = lastKnown["Kraken"] || 0
+      const qontoVal = lastKnown["Qonto"] || 0
+      const peaVal = lastKnown["Boursorama"] || 0
+      const cpVal = cryptoNlv * persoRatio
+      const crfVal = cryptoNlv * (1 - persoRatio)
       return {
         date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
-        IBKR: lastKnown["IBKR"] || 0,
-        Kraken: lastKnown["Kraken"] || 0,
-        Qonto: lastKnown["Qonto"] || 0,
-        PEA: lastKnown["Boursorama"] || 0,
-        "Crypto Perso": cryptoNlv * persoRatio,
-        "Crypto R+F": cryptoNlv * (1 - persoRatio),
+        IBKR: ibkrVal,
+        Kraken: krakenVal,
+        Qonto: qontoVal,
+        PEA: peaVal,
+        "Crypto Perso": cpVal,
+        "Crypto R+F": crfVal,
+        total: ibkrVal + krakenVal + qontoVal + peaVal + cpVal + crfVal,
       }
     })
   }, [snapshots, snapshotAccounts, crypto])
-
-  const perfData = useMemo(() => {
-    const byDate: Record<string, Record<string, number>> = {}
-    const brokerBuckets: Record<string, string[]> = { IBKR: ["FHF"], Kraken: ["FHF"], Qonto: ["FHF"], Boursorama: ["PEA"], Crypto: ["Crypto P", "Crypto R+F"] }
-    for (const s of snapshots) {
-      const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
-      if (!acc) continue
-      const buckets = brokerBuckets[acc.broker]
-      if (!buckets) continue
-      if (!byDate[s.snapshot_date]) byDate[s.snapshot_date] = {}
-      for (const b of buckets) {
-        byDate[s.snapshot_date][b] = (byDate[s.snapshot_date][b] || 0) + (Number(s.nlv_base) || 0)
-      }
-    }
-    const dates = Object.keys(byDate).sort()
-    if (dates.length < 2) return []
-
-    const periodStart = dates[0]
-    const tradePnlByDate: Record<string, number> = {}
-    const periodTrades = trades
-      .filter(t => t.date && t.date >= periodStart)
-      .sort((a: any, b: any) => a.date.localeCompare(b.date))
-    let cumPnl = 0
-    for (const t of periodTrades) {
-      cumPnl += Number(t.profit) || 0
-      tradePnlByDate[t.date.slice(0, 10)] = cumPnl
-    }
-
-    const portfolioBuckets = ["FHF", "PEA", "Crypto P", "Crypto R+F"]
-    const lastKnown: Record<string, number> = {}
-    const first: Record<string, number> = {}
-    let lastTradingPnl = 0
-    return dates.map((date, i) => {
-      const row: any = { date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) }
-      for (const b of portfolioBuckets) {
-        if (byDate[date]?.[b] !== undefined) lastKnown[b] = byDate[date][b]
-        const val = lastKnown[b] || 0
-        if (i === 0) first[b] = val
-        row[b] = val - (first[b] || 0)
-      }
-      if (tradePnlByDate[date] !== undefined) lastTradingPnl = tradePnlByDate[date]
-      row["Trading"] = lastTradingPnl
-      return row
-    })
-  }, [snapshots, snapshotAccounts, trades])
 
   function openNoteDrawer(note: any | null) {
     setDrawerNote(note)
@@ -366,41 +310,46 @@ export default function Home() {
   const cryptoSharedNet = cryptoSharedValue * (1 - 0.314)
   const patrimoineNet = fhfDistribuableNet + qontoBalance + peaNet + cryptoPersoNet + cryptoSharedNet
 
-  // Chart variation
-  const chartKeys = ["IBKR", "Kraken", "Qonto", "PEA", "Crypto Perso", "Crypto R+F"]
-  const sumRow = (row: any) => chartKeys.reduce((s, k) => s + (row[k] || 0), 0)
-  const chartFirst = chartData.length > 0 ? sumRow(chartData[0]) : 0
-  const chartLast = chartData.length > 0 ? sumRow(chartData[chartData.length - 1]) : 0
+  const chartFirst = chartData.length > 0 ? (chartData[0] as any).total : 0
+  const chartLast = chartData.length > 0 ? (chartData[chartData.length - 1] as any).total : 0
   const chartVarAbs = chartLast - chartFirst
 
-  // % evolution on selected timeframe (from snapshots)
-  function calcPctChange(broker: string): number | null {
+  function calcVariation(broker: string): { pct: number | null; abs: number | null } {
     const accountSnaps = snapshots.filter(s => {
       const acc = snapshotAccounts.find((a: any) => a.id === s.account_id)
       return acc?.broker === broker
     })
-    if (accountSnaps.length < 2) return null
+    if (accountSnaps.length < 2) return { pct: null, abs: null }
     const sorted = [...accountSnaps].sort((a: any, b: any) =>
       new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
     )
     const oldest = Number(sorted[0].nlv_base) || 0
     const newest = Number(sorted[sorted.length - 1].nlv_base) || 0
-    if (oldest === 0) return null
-    return ((newest - oldest) / oldest) * 100
+    const abs = newest - oldest
+    const pct = oldest === 0 ? null : ((newest - oldest) / oldest) * 100
+    return { pct, abs }
   }
+
+  const ibkrVar = calcVariation("IBKR")
+  const krakenVar = calcVariation("Kraken")
+  const qontoVar = calcVariation("Qonto")
+  const cryptoVar = calcVariation("Crypto")
+  const peaVar = calcVariation("Boursorama")
 
   const fhfPctChange = (() => {
     const pcts = [
-      { pct: calcPctChange("IBKR"), val: ibkrNlv },
-      { pct: calcPctChange("Kraken"), val: krakenNlv },
-      { pct: calcPctChange("Qonto"), val: qontoBalance },
+      { pct: ibkrVar.pct, val: ibkrNlv },
+      { pct: krakenVar.pct, val: krakenNlv },
+      { pct: qontoVar.pct, val: qontoBalance },
     ].filter(p => p.pct !== null) as { pct: number; val: number }[]
     if (pcts.length === 0) return null
     const totalVal = pcts.reduce((s, p) => s + p.val, 0) || 1
     return pcts.reduce((s, p) => s + p.pct * (p.val / totalVal), 0)
   })()
-  const cryptoPctChange = calcPctChange("Crypto")
-  const peaPctChange = calcPctChange("Boursorama")
+  const fhfAbsChange = [ibkrVar.abs, krakenVar.abs, qontoVar.abs].some(v => v !== null)
+    ? (ibkrVar.abs || 0) + (krakenVar.abs || 0) + (qontoVar.abs || 0)
+    : null
+  const timeframeLabel = RANGES.find(r => r.days === chartRange)?.label || ""
 
   // Masthead
   const now = new Date()
@@ -476,7 +425,7 @@ export default function Home() {
           </div>
           {chartData.length > 1 && (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, marginTop: 6, fontVariantNumeric: "tabular-nums", color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {chartRange}j
+              {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {timeframeLabel}
             </div>
           )}
           <div style={{ marginTop: 16, padding: 12, background: "var(--at-surface)", border: "1px dotted var(--rule)" }}>
@@ -495,26 +444,7 @@ export default function Home() {
 
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ display: "flex", gap: 14 }}>
-              {(chartMode === "value" ? CHART_LEGEND_VALUE : CHART_LEGEND_PERF).map(l => (
-                <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink2)" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 1, background: l.color, display: "inline-block" }} />
-                  {l.label}
-                </div>
-              ))}
-            </div>
             <div style={{ display: "flex", gap: 2 }}>
-              {([{ label: "Patrimoine", mode: "value" as const }, { label: "Performance", mode: "perf" as const }]).map(m => (
-                <button key={m.mode} onClick={() => setChartMode(m.mode)}
-                  style={{
-                    padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
-                    background: chartMode === m.mode ? "var(--at-accent)" : "transparent",
-                    color: chartMode === m.mode ? "var(--at-bg)" : "var(--ink2)",
-                  }}>
-                  {m.label}
-                </button>
-              ))}
-              <div style={{ width: 1, background: "var(--rule)", margin: "0 4px" }} />
               {RANGES.map(r => (
                 <button key={r.days} onClick={() => setChartRange(r.days)}
                   style={{
@@ -527,43 +457,33 @@ export default function Home() {
               ))}
             </div>
           </div>
-          {chartMode === "value" && chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData}>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)" }}
-                  formatter={(value: number, name: string) => [fmtEur(value), name]}
-                />
-                <Area type="monotone" dataKey="Qonto" stackId="1" stroke="#6b9f71" fill="#6b9f71" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Kraken" stackId="1" stroke="#3a6e3f" fill="#3a6e3f" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="IBKR" stackId="1" stroke="#2d5a27" fill="#2d5a27" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="PEA" stackId="1" stroke="#7d2b1d" fill="#7d2b1d" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Crypto R+F" stackId="1" stroke="#cfb88f" fill="#cfb88f" fillOpacity={0.85} />
-                <Area type="monotone" dataKey="Crypto Perso" stackId="1" stroke="#b8944a" fill="#b8944a" fillOpacity={0.85} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : chartMode === "perf" && perfData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={perfData}>
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)}€`} />
-                <Tooltip
-                  contentStyle={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink)" }}
-                  formatter={(value: number, name: string) => [`${value >= 0 ? "+" : ""}${fmtEur(value)}`, name]}
-                />
-                <ReferenceLine y={0} stroke="var(--ink)" strokeWidth={1} />
-                <Line type="monotone" dataKey="FHF" stroke="#2d5a27" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="PEA" stroke="#7d2b1d" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Crypto P" stroke="#b8944a" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Crypto R+F" stroke="#cfb88f" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="Trading" stroke="#5b5a55" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
+          {chartData.length > 1 ? (() => {
+            const totals = chartData.map((d: any) => d.total as number)
+            const yMin = Math.min(...totals)
+            const yMax = Math.max(...totals)
+            const yPad = (yMax - yMin) * 0.1 || 1000
+            const yDomain: [number, number] = [
+              Math.floor((yMin - yPad) / 1000) * 1000,
+              Math.ceil((yMax + yPad) / 1000) * 1000,
+            ]
+            return (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--at-accent)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--at-accent)" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                  <YAxis domain={yDomain} tick={{ fontSize: 10, fill: "var(--ink3)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false}
+                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="total" stroke="var(--at-accent)" strokeWidth={2} fill="url(#totalGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )
+          })() : (
             <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
               Pas encore de données
             </div>
@@ -575,10 +495,10 @@ export default function Home() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <PerfCard label="FHF" sub="Société"
           lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }, { name: "Qonto", value: qontoBalance }]}
-          total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfPctChange} href="/fhf" />
+          total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfPctChange} absChange={fhfAbsChange} timeframe={timeframeLabel} href="/fhf" />
         <PerfCard label="Crypto"
           lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
-          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoPctChange} href="/crypto" />
+          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoVar.pct} absChange={cryptoVar.abs} timeframe={timeframeLabel} href="/crypto" />
 
         {/* Trading Actif — card spéciale */}
         <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
@@ -607,7 +527,7 @@ export default function Home() {
 
         <PerfCard label="PEA Perso" sub="Boursobank"
           lines={[{ name: "Valeur", value: peaValue }]}
-          total={peaValue} pctChange={peaPctChange} href="/pea" />
+          total={peaValue} pctChange={peaVar.pct} absChange={peaVar.abs} timeframe={timeframeLabel} href="/pea" />
       </div>
 
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
@@ -893,9 +813,29 @@ export default function Home() {
   )
 }
 
-function PerfCard({ label, sub, lines, total, pctChange, href }: {
-  label: string; sub?: string; lines: { name: string; value: number }[]; total: number; pctChange: number | null; href: string
+function ChartTooltip({ active, payload }: any) {
+  if (!active || !payload?.[0]) return null
+  const d = payload[0].payload
+  const keys = ["IBKR", "Kraken", "Qonto", "PEA", "Crypto Perso", "Crypto R+F"]
+  return (
+    <div style={{ background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4, padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 11 }}>
+      <div style={{ fontSize: 10, color: "var(--ink3)", marginBottom: 6 }}>{d.date}</div>
+      <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>{fmtEur(d.total)}</div>
+      {keys.map(k => (
+        <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, color: "var(--ink2)", lineHeight: 1.6 }}>
+          <span>{k}</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEur(d[k] || 0)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, href }: {
+  label: string; sub?: string; lines: { name: string; value: number }[]; total: number; pctChange: number | null; absChange: number | null; timeframe: string; href: string
 }) {
+  const hasVar = pctChange !== null || absChange !== null
+  const color = hasVar ? ((absChange || 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)") : "var(--ink3)"
   return (
     <Link href={href} style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
@@ -919,13 +859,19 @@ function PerfCard({ label, sub, lines, total, pctChange, href }: {
           </>
         )}
       </div>
-      <div style={{ marginTop: 12 }}>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: pctChange === null ? "var(--ink3)" : pctChange >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-          {pctChange === null ? "—" : `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%`}
-        </div>
-        {pctChange !== null && (
+      <div style={{ marginTop: 12, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+        {hasVar ? (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color }}>{pctChange !== null ? `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%` : "—"}</span>
+            <span style={{ fontSize: 11, color }}>{absChange !== null ? `${absChange >= 0 ? "+" : ""}${fmtEur(Math.round(absChange))}` : ""}</span>
+            <span style={{ fontSize: 9, color: "var(--ink3)" }}>{timeframe}</span>
+          </div>
+        ) : (
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)" }}>—</span>
+        )}
+        {hasVar && (
           <div style={{ height: 3, background: "var(--rule)", marginTop: 4, overflow: "hidden" }}>
-            <div style={{ height: "100%", background: pctChange >= 0 ? "var(--at-pos)" : "var(--at-neg)", width: `${Math.min(100, Math.abs(pctChange) * 2)}%` }} />
+            <div style={{ height: "100%", background: color, width: `${Math.min(100, Math.abs(pctChange || 0) * 2)}%` }} />
           </div>
         )}
       </div>
