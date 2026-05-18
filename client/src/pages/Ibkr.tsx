@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import { parseISO, format } from "date-fns"
+import { fr } from "date-fns/locale"
 import { supabase } from "@/lib/supabase"
 import { RefreshCw } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
@@ -77,6 +79,14 @@ async function authFetch(url: string, options: RequestInit = {}) {
 
 function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
+}
+
+function formatTradeDate(raw: string | null | undefined): { date: string; time: string } {
+  if (!raw) return { date: "—", time: "" }
+  let s = raw.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")
+  const d = parseISO(s)
+  if (isNaN(d.getTime())) return { date: "—", time: "" }
+  return { date: format(d, "dd/MM/yy", { locale: fr }), time: format(d, "HH:mm", { locale: fr }) }
 }
 
 const tooltipStyle = {
@@ -646,10 +656,12 @@ export default function Ibkr() {
                   const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
                   const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
                   const isSell = t.side === "SELL"
+                  const td = formatTradeDate(t.trade_date)
                   return (
                     <tr key={t.id || t.ibkr_trade_id} style={{ borderBottom: "1px dotted var(--rule)" }}>
                       <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>
-                        {new Date(t.trade_date + "T00:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                        {td.date}
+                        {td.time && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--ink3)" }}>{td.time}</span>}
                       </td>
                       <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{t.ticker}</td>
                       <td style={{ padding: "8px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
