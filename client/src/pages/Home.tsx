@@ -509,9 +509,10 @@ export default function Home() {
               Aucun mouvement disponible &middot; historique en cours
             </p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-              <MoversColumn title="Mouvements" items={moversByEur} sortKey="eur" />
-              <MoversColumn title="Variations" items={moversByPct} sortKey="pct" border />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr", gap: 0 }}>
+              <div style={{ paddingRight: 24 }}><MoversColumn title="Mouvements" items={moversByEur} sortKey="eur" /></div>
+              <div style={{ background: "var(--rule)" }} />
+              <div style={{ paddingLeft: 24 }}><MoversColumn title="Variations" items={moversByPct} sortKey="pct" /></div>
             </div>
           )}
         </div>
@@ -897,9 +898,9 @@ function PerfCard({ label, lines, total, pctChange, absChange, timeframe, trunca
   )
 }
 
-function MoversColumn({ title, items, sortKey, border }: { title: string; items: any[]; sortKey: "eur" | "pct"; border?: boolean }) {
+function MoversColumn({ title, items, sortKey }: { title: string; items: any[]; sortKey: "eur" | "pct" }) {
   return (
-    <div style={border ? { borderLeft: "1px solid var(--rule)", paddingLeft: 24 } : undefined}>
+    <div>
       <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600, marginBottom: 8 }}>
         {title}
       </div>
