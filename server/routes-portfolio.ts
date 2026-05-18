@@ -768,52 +768,63 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     todayRow.total = live.ibkr + live.kraken + live.qonto + live.pea + live.crypto_perso + live.crypto_rf
     series.push(todayRow)
 
-    // 6. Compute variations — reference = most recent snapshot <= today - REFERENCE_DAYS
+    // 6. Compute variations — per-key carry-forward reference
     const refDays = REFERENCE_DAYS[tf] || 90
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() - refDays)
     const targetStr = targetDate.toISOString().slice(0, 10)
 
     const last = series[series.length - 1] || todayRow
-    // Find the latest row whose date <= targetStr (carry-forward), fall back to first row
-    let ref = series[0] || todayRow
-    for (const row of series) {
-      if (row.date <= targetStr) ref = row
-      else break
+
+    function varForKey(key: string): { pct: number | null; abs: number; reference_date: string; reference_truncated: boolean } {
+      const lastVal = Number((last as any)[key]) || 0
+      // Carry-forward: latest row with date <= target AND non-zero value for this key
+      let before: any = null
+      for (const row of series) {
+        if (row.date > targetStr) break
+        if (Number((row as any)[key]) > 0) before = row
+      }
+      if (before) {
+        const refVal = Number(before[key])
+        return { pct: ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: before.date, reference_truncated: false }
+      }
+      // Fallback: first row with non-zero value (truncation)
+      const after = series.find(row => Number((row as any)[key]) > 0)
+      if (after) {
+        const refVal = Number((after as any)[key])
+        return { pct: ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: after.date, reference_truncated: true }
+      }
+      return { pct: null, abs: 0, reference_date: targetStr, reference_truncated: true }
     }
-    const truncated = ref.date > targetStr
+
+    function varForComposite(keys: string[]): { pct: number | null; abs: number; reference_date: string; reference_truncated: boolean } {
+      const lastVal = keys.reduce((s, k) => s + (Number((last as any)[k]) || 0), 0)
+      // Use the same carry-forward but sum all keys per row
+      let before: any = null
+      for (const row of series) {
+        if (row.date > targetStr) break
+        const sum = keys.reduce((s, k) => s + (Number((row as any)[k]) || 0), 0)
+        if (sum > 0) before = row
+      }
+      if (before) {
+        const refVal = keys.reduce((s, k) => s + (Number(before[k]) || 0), 0)
+        return { pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: before.date, reference_truncated: false }
+      }
+      const after = series.find(row => keys.reduce((s, k) => s + (Number((row as any)[k]) || 0), 0) > 0)
+      if (after) {
+        const refVal = keys.reduce((s, k) => s + (Number((after as any)[k]) || 0), 0)
+        return { pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100, abs: lastVal - refVal, reference_date: after.date, reference_truncated: true }
+      }
+      return { pct: null, abs: 0, reference_date: targetStr, reference_truncated: true }
+    }
 
     const VAR_KEYS = ["total", "ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"] as const
     const variations: Record<string, any> = {}
     for (const k of VAR_KEYS) {
-      const refVal = Number(ref[k]) || 0
-      const lastVal = Number(last[k]) || 0
-      const abs = lastVal - refVal
-      variations[k] = {
-        pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100,
-        abs,
-        reference_date: ref.date,
-        reference_truncated: truncated,
-      }
+      variations[k] = varForKey(k)
     }
-    // Combined crypto (perso + rf)
-    const cryptoRefVal = (Number(ref.crypto_perso) || 0) + (Number(ref.crypto_rf) || 0)
-    const cryptoLastVal = (Number(last.crypto_perso) || 0) + (Number(last.crypto_rf) || 0)
-    variations.crypto_combined = {
-      pct: cryptoRefVal === 0 ? null : ((cryptoLastVal - cryptoRefVal) / cryptoRefVal) * 100,
-      abs: cryptoLastVal - cryptoRefVal,
-      reference_date: ref.date,
-      reference_truncated: truncated,
-    }
-    // FHF combined (ibkr + kraken + qonto)
-    const fhfRefVal = (Number(ref.ibkr) || 0) + (Number(ref.kraken) || 0) + (Number(ref.qonto) || 0)
-    const fhfLastVal = (Number(last.ibkr) || 0) + (Number(last.kraken) || 0) + (Number(last.qonto) || 0)
-    variations.fhf = {
-      pct: fhfRefVal === 0 ? null : ((fhfLastVal - fhfRefVal) / fhfRefVal) * 100,
-      abs: fhfLastVal - fhfRefVal,
-      reference_date: ref.date,
-      reference_truncated: truncated,
-    }
+    variations.crypto_combined = varForComposite(["crypto_perso", "crypto_rf"])
+    variations.fhf = varForComposite(["ibkr", "kraken", "qonto"])
 
     return res.json({ series, variations })
   })

@@ -432,6 +432,13 @@ export default function Home() {
 
       {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
+        <PerfCard label="Crypto"
+          lines={[
+            { name: "Perso", value: cryptoPersoValue, pct: cryptoPersoVar.pct ?? null, abs: cryptoPersoVar.abs ?? null },
+            { name: "R+F (50%)", value: cryptoSharedValue, pct: cryptoRfVar.pct ?? null, abs: cryptoRfVar.abs ?? null },
+          ]}
+          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombined.pct ?? null} absChange={cryptoCombined.abs ?? null}
+          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/crypto" />
         <PerfCard label="FHF" sub="Société"
           lines={[
             { name: "IBKR", value: ibkrNlv, pct: ibkrVar.pct ?? null, abs: ibkrVar.abs ?? null },
@@ -440,13 +447,10 @@ export default function Home() {
           ]}
           total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfVar.pct ?? null} absChange={fhfVar.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/fhf" />
-        <PerfCard label="Crypto"
-          lines={[
-            { name: "Perso", value: cryptoPersoValue, pct: cryptoPersoVar.pct ?? null, abs: cryptoPersoVar.abs ?? null },
-            { name: "R+F (50%)", value: cryptoSharedValue, pct: cryptoRfVar.pct ?? null, abs: cryptoRfVar.abs ?? null },
-          ]}
-          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombined.pct ?? null} absChange={cryptoCombined.abs ?? null}
-          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/crypto" />
+        <PerfCard label="PEA Perso" sub="Boursobank"
+          lines={[{ name: "Valeur", value: peaValue }]}
+          total={peaValue} pctChange={peaVar.pct ?? null} absChange={peaVar.abs ?? null}
+          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/pea" />
 
         {/* Trading Actif — card spéciale */}
         <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
@@ -472,11 +476,6 @@ export default function Home() {
           </div>
           <div style={{ marginTop: 12, color: "var(--ink3)", fontSize: 13, fontFamily: "var(--font-mono)" }}>—</div>
         </Link>
-
-        <PerfCard label="PEA Perso" sub="Boursobank"
-          lines={[{ name: "Valeur", value: peaValue }]}
-          total={peaValue} pctChange={peaVar.pct ?? null} absChange={peaVar.abs ?? null}
-          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/pea" />
       </div>
 
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
