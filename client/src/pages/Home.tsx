@@ -300,6 +300,11 @@ export default function Home() {
   const fhfVar = variations.fhf || {}
   const cryptoCombined = variations.crypto_combined || {}
   const peaVar = variations.pea || {}
+  const ibkrVar = variations.ibkr || {}
+  const krakenVar = variations.kraken || {}
+  const qontoVar = variations.qonto || {}
+  const cryptoPersoVar = variations.crypto_perso || {}
+  const cryptoRfVar = variations.crypto_rf || {}
   const chartVarAbs = totalVar.abs || 0
   const refTruncated = !!totalVar.reference_truncated
   const timeframeLabel = RANGES.find(r => r.days === chartRange)?.label || ""
@@ -428,11 +433,18 @@ export default function Home() {
       {/* ── 3. PERFORMANCE CARDS ────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <PerfCard label="FHF" sub="Société"
-          lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }, { name: "Qonto", value: qontoBalance }]}
+          lines={[
+            { name: "IBKR", value: ibkrNlv, pct: ibkrVar.pct ?? null, abs: ibkrVar.abs ?? null },
+            { name: "Kraken", value: krakenNlv, pct: krakenVar.pct ?? null, abs: krakenVar.abs ?? null },
+            { name: "Qonto", value: qontoBalance, pct: qontoVar.pct ?? null, abs: qontoVar.abs ?? null },
+          ]}
           total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfVar.pct ?? null} absChange={fhfVar.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/fhf" />
         <PerfCard label="Crypto"
-          lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
+          lines={[
+            { name: "Perso", value: cryptoPersoValue, pct: cryptoPersoVar.pct ?? null, abs: cryptoPersoVar.abs ?? null },
+            { name: "R+F (50%)", value: cryptoSharedValue, pct: cryptoRfVar.pct ?? null, abs: cryptoRfVar.abs ?? null },
+          ]}
           total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombined.pct ?? null} absChange={cryptoCombined.abs ?? null}
           timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/crypto" />
 
@@ -753,12 +765,16 @@ function ChartTooltip({ active, payload }: any) {
 }
 
 function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, truncated, refDate, href }: {
-  label: string; sub?: string; lines: { name: string; value: number }[]; total: number
+  label: string; sub?: string; lines: { name: string; value: number; pct?: number | null; abs?: number | null }[]; total: number
   pctChange: number | null; absChange: number | null; timeframe: string; truncated: boolean; refDate: string; href: string
 }) {
   const hasVar = pctChange !== null || absChange !== null
   const color = hasVar ? ((absChange || 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)") : "var(--ink3)"
   const tfDisplay = truncated ? `depuis ${refDate}` : timeframe
+  function lineColor(v: number | null | undefined) {
+    if (v == null || v === 0) return "var(--ink3)"
+    return v > 0 ? "var(--at-pos)" : "var(--at-neg)"
+  }
   return (
     <Link href={href} style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
@@ -767,31 +783,51 @@ function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, t
       {sub && <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>{sub}</div>}
       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
         {lines.map((l, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: "var(--ink3)" }}>{l.name}</span>
-            <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{fmtEur(l.value)}</span>
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12 }}>
+            <span style={{ color: "var(--ink3)", flexShrink: 0 }}>{l.name}</span>
+            <div style={{ display: "flex", gap: 6, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+              <span>{fmtEur(l.value)}</span>
+              {l.pct != null ? (
+                <span style={{ fontSize: 10, color: lineColor(l.abs), minWidth: 42, textAlign: "right" }}>
+                  {l.pct >= 0 ? "+" : ""}{l.pct.toFixed(1)}%
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, color: "var(--ink3)", minWidth: 42, textAlign: "right" }}>&mdash;</span>
+              )}
+              {l.abs != null ? (
+                <span style={{ fontSize: 10, color: lineColor(l.abs), minWidth: 50, textAlign: "right" }}>
+                  {l.abs >= 0 ? "+" : ""}{fmtEur(Math.round(l.abs))}
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, color: "var(--ink3)", minWidth: 50, textAlign: "right" }}>0 &euro;</span>
+              )}
+            </div>
           </div>
         ))}
         {lines.length > 1 && (
           <>
             <div style={{ borderTop: "1px dotted var(--rule)" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12, fontWeight: 600 }}>
               <span style={{ color: "var(--ink2)" }}>Total</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{fmtEur(total)}</span>
+              <div style={{ display: "flex", gap: 6, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+                <span>{fmtEur(total)}</span>
+                {pctChange != null && (
+                  <span style={{ fontSize: 10, color, minWidth: 42, textAlign: "right" }}>
+                    {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(1)}%
+                  </span>
+                )}
+                {absChange != null && (
+                  <span style={{ fontSize: 10, color, minWidth: 50, textAlign: "right" }}>
+                    {absChange >= 0 ? "+" : ""}{fmtEur(Math.round(absChange))}
+                  </span>
+                )}
+              </div>
             </div>
           </>
         )}
       </div>
       <div style={{ marginTop: 12, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
-        {hasVar ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color }}>{pctChange !== null ? `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%` : "—"}</span>
-            <span style={{ fontSize: 11, color }}>{absChange !== null ? `${absChange >= 0 ? "+" : ""}${fmtEur(Math.round(absChange))}` : ""}</span>
-            <span style={{ fontSize: 9, color: "var(--ink3)" }} title={!truncated && refDate ? `depuis le ${refDate}` : undefined}>{tfDisplay}</span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)" }}>—</span>
-        )}
+        <span style={{ fontSize: 9, color: "var(--ink3)" }} title={!truncated && refDate ? `depuis le ${refDate}` : undefined}>{tfDisplay}</span>
         {hasVar && (
           <div style={{ height: 3, background: "var(--rule)", marginTop: 4, overflow: "hidden" }}>
             <div style={{ height: "100%", background: color, width: `${Math.min(100, Math.abs(pctChange || 0) * 2)}%` }} />
