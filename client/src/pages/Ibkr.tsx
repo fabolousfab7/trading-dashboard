@@ -81,6 +81,12 @@ function fmtEur(n: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
+const CCY_SYMBOL: Record<string, string> = { EUR: "€", USD: "$", GBP: "£", CHF: "CHF", JPY: "¥" }
+function fmtCcy(n: number, ccy: string) {
+  const s = CCY_SYMBOL[ccy] || ccy
+  return `${n >= 0 ? "" : "-"}${Math.abs(n).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${s}`
+}
+
 function formatTradeDate(raw: string | null | undefined): { date: string; time: string } {
   if (!raw) return { date: "—", time: "" }
   let s = raw.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")
@@ -562,55 +568,8 @@ export default function Ibkr() {
         </div>
       </div>
 
-      {/* ── PNL RÉALISÉ — bandeau synthèse ─────────────────────── */}
+      {/* ── TRADES RÉCENTS ─────────────────────────────────────── */}
       <div style={{ marginTop: 32, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600, marginBottom: 12 }}>
-          PnL réalisé &middot; {tradesRange === "Tout" ? "tous" : tradesRange}
-        </div>
-        {tradesSummary ? (
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", padding: "14px 18px", background: "var(--at-surface)", border: "1px solid var(--rule)", borderRadius: 4 }}>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Total</div>
-              <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tradesSummary.realized_pnl_total >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-                {tradesSummary.realized_pnl_total >= 0 ? "+" : ""}{fmtEur(tradesSummary.realized_pnl_total)}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Trades</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontVariantNumeric: "tabular-nums", color: "var(--ink)", marginTop: 4 }}>{tradesSummary.count}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Win rate</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontVariantNumeric: "tabular-nums", color: "var(--ink)", marginTop: 4 }}>
-                {tradesSummary.win_rate_pct != null ? `${tradesSummary.win_rate_pct.toFixed(0)}%` : "—"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Meilleur</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--at-pos)", marginTop: 4 }}>
-                {tradesSummary.best_trade ? `${tradesSummary.best_trade.ticker} +${fmtEur(tradesSummary.best_trade.realized_pnl)}` : "—"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Pire</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--at-neg)", marginTop: 4 }}>
-                {tradesSummary.worst_trade ? `${tradesSummary.worst_trade.ticker} ${fmtEur(tradesSummary.worst_trade.realized_pnl)}` : "—"}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Commissions</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: "var(--ink3)", marginTop: 4 }}>
-                {fmtEur(tradesSummary.total_commissions)}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", padding: "16px 0" }}>Chargement...</div>
-        )}
-      </div>
-
-      {/* ── TRADES RÉCENTS — tableau ──────────────────────────── */}
-      <div style={{ marginTop: 28, borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontFamily: "var(--font-sans)", color: "var(--ink2)", fontWeight: 600 }}>
             Trades récents
@@ -647,61 +606,108 @@ export default function Ibkr() {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
             Aucun trade enregistré.<br />Configurez votre Flex Query Trades dans Settings pour syncer.
           </div>
-        ) : (
-          <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: "var(--at-surface)" }}>
-                  {["Date", "Ticker", "Nom", "Side", "Qté", "Prix", "Net", "PnL R."].map((h, i) => (
-                    <th key={h} style={{
-                      padding: "10px 12px", textAlign: i >= 4 ? "right" : "left",
-                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
-                      borderBottom: "1px solid var(--rule)",
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t: any) => {
-                  const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
-                  const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
-                  const isSell = t.side === "SELL"
-                  const td = formatTradeDate(t.trade_date)
-                  return (
-                    <tr key={t.id || t.ibkr_trade_id} style={{ borderBottom: "1px dotted var(--rule)" }}>
-                      <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>
-                        {td.date}
-                        {td.time && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--ink3)" }}>{td.time}</span>}
-                      </td>
-                      <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{t.ticker}</td>
-                      <td style={{ padding: "8px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {(t.name || "").slice(0, 20)}
-                      </td>
-                      <td style={{ padding: "8px 12px" }}>
-                        <span style={{
-                          display: "inline-block", padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-                          background: isSell ? "var(--at-neg)" : "var(--at-pos)", color: "var(--at-bg)",
-                        }}>
-                          {t.side}
-                        </span>
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{Number(t.quantity)}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {Number(t.price).toFixed(2)} {t.currency === "EUR" ? "€" : "$"}
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {t.net_cash != null ? fmtEur(Number(t.net_cash)) : "—"}
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: pnlColor }}>
-                        {pnl != null ? `${pnl >= 0 ? "+" : ""}${fmtEur(pnl)}` : "—"}
-                      </td>
+        ) : (() => {
+          const thStyle = (right?: boolean): React.CSSProperties => ({
+            padding: "10px 12px", textAlign: right ? "right" : "left",
+            fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+            borderBottom: "1px solid var(--rule)",
+          })
+          const tdNum: React.CSSProperties = { padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }
+          const sells = trades.filter((t: any) => t.side === "SELL" && t.realized_pnl != null)
+          const winners = sells.filter((t: any) => Number(t.realized_pnl) > 0)
+          const statsLine = sells.length > 0 ? (() => {
+            const wr = sells.length > 0 ? Math.round((winners.length / sells.length) * 100) : 0
+            const sorted = [...sells].sort((a: any, b: any) => (Number(b.realized_pnl) * (Number(b.fx_rate_to_eur) || 1)) - (Number(a.realized_pnl) * (Number(a.fx_rate_to_eur) || 1)))
+            const best = sorted[0]
+            const worst = sorted[sorted.length - 1]
+            const fmtP = (t: any) => fmtEur(Number(t.realized_pnl) * (Number(t.fx_rate_to_eur) || 1))
+            return `${sells.length} clôture${sells.length > 1 ? "s" : ""} · ${wr}% gagnante${wr !== 1 ? "s" : ""} · meilleur : ${best.ticker} +${fmtP(best)} · pire : ${worst.ticker} ${fmtP(worst)}`
+          })() : null
+          return (
+            <>
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "var(--at-surface)" }}>
+                      <th style={thStyle()}>Date</th>
+                      <th style={thStyle()}>Heure</th>
+                      <th style={thStyle()}>Ticker</th>
+                      <th style={thStyle()}>Nom</th>
+                      <th style={thStyle()}>Side</th>
+                      <th style={thStyle(true)}>Qté</th>
+                      <th style={thStyle(true)}>Prix</th>
+                      <th style={thStyle(true)}>Net</th>
+                      <th style={thStyle(true)}>Frais</th>
+                      <th style={thStyle(true)}>PnL R.</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody>
+                    {trades.map((t: any) => {
+                      const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
+                      const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
+                      const isSell = t.side === "SELL"
+                      const td = formatTradeDate(t.trade_date)
+                      const ccy = t.currency || "EUR"
+                      return (
+                        <tr key={t.id || t.ibkr_trade_id} style={{ borderBottom: "1px dotted var(--rule)" }}>
+                          <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>{td.date}</td>
+                          <td style={{ padding: "8px 12px", fontSize: 10, color: "var(--ink3)", whiteSpace: "nowrap" }}>{td.time || "—"}</td>
+                          <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{t.ticker}</td>
+                          <td style={{ padding: "8px 12px", fontStyle: "italic", color: "var(--ink3)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {(t.name || "").slice(0, 25)}
+                          </td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{
+                              display: "inline-block", padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                              background: isSell ? "var(--at-neg)" : "var(--at-pos)", color: "var(--at-bg)",
+                            }}>
+                              {t.side}
+                            </span>
+                          </td>
+                          <td style={tdNum}>{Number(t.quantity)}</td>
+                          <td style={tdNum}>{fmtCcy(Number(t.price), ccy)}</td>
+                          <td style={tdNum}>{t.net_cash != null ? fmtCcy(Number(t.net_cash), ccy) : "—"}</td>
+                          <td style={{ ...tdNum, color: "var(--ink3)" }}>{t.commission != null ? fmtCcy(-Math.abs(Number(t.commission)), ccy) : "—"}</td>
+                          <td style={{ ...tdNum, fontWeight: 600, color: pnlColor }}>
+                            {pnl != null ? (pnl >= 0 ? "+" : "") + fmtCcy(pnl, ccy) : "—"}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  {tradesSummary && (
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid var(--ink)", background: "var(--at-surface)" }}>
+                        <td colSpan={7} style={{ padding: "10px 12px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink2)" }}>
+                          Total · en €
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink)" }}>
+                          {tradesSummary.total_net_cash_eur != null ? (tradesSummary.total_net_cash_eur >= 0 ? "+" : "") + fmtEur(tradesSummary.total_net_cash_eur) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink3)" }}>
+                          {tradesSummary.total_commissions_eur != null ? fmtEur(-Math.abs(tradesSummary.total_commissions_eur)) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: (tradesSummary.realized_pnl_total_eur ?? 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                          {tradesSummary.realized_pnl_total_eur != null ? (tradesSummary.realized_pnl_total_eur >= 0 ? "+" : "") + fmtEur(tradesSummary.realized_pnl_total_eur) : "—"}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              {tradesSummary && (
+                <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
+                  Conversion EUR au taux FX du jour du trade
+                </div>
+              )}
+              {statsLine && (
+                <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ink2)", fontFamily: "var(--font-serif)", marginTop: 4 }}>
+                  {statsLine}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* ── POSITION NOTE MODAL ───────────────────────────────── */}

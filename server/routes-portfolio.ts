@@ -858,24 +858,28 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       return rest
     })
 
+    const fx = (t: any) => Number(t.fx_rate_to_eur) || 1
+    const pnlEur = (t: any) => Number(t.realized_pnl) * fx(t)
+
     const realized = safe.filter((t: any) => t.realized_pnl != null)
     const winners = realized.filter((t: any) => Number(t.realized_pnl) > 0)
     const losers = realized.filter((t: any) => Number(t.realized_pnl) < 0)
     const sells = safe.filter((t: any) => t.side === "SELL")
     const sellsWithPnl = sells.filter((t: any) => t.realized_pnl != null)
 
-    const best = realized.length > 0 ? realized.reduce((a: any, b: any) => Number(b.realized_pnl) > Number(a.realized_pnl) ? b : a) : null
-    const worst = realized.length > 0 ? realized.reduce((a: any, b: any) => Number(b.realized_pnl) < Number(a.realized_pnl) ? b : a) : null
+    const best = realized.length > 0 ? realized.reduce((a: any, b: any) => pnlEur(b) > pnlEur(a) ? b : a) : null
+    const worst = realized.length > 0 ? realized.reduce((a: any, b: any) => pnlEur(b) < pnlEur(a) ? b : a) : null
 
     const summary = {
       count: safe.length,
-      realized_pnl_total: realized.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
-      realized_pnl_winners: winners.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
-      realized_pnl_losers: losers.reduce((s: number, t: any) => s + Number(t.realized_pnl), 0),
+      realized_pnl_total_eur: realized.reduce((s: number, t: any) => s + pnlEur(t), 0),
+      realized_pnl_winners_eur: winners.reduce((s: number, t: any) => s + pnlEur(t), 0),
+      realized_pnl_losers_eur: losers.reduce((s: number, t: any) => s + pnlEur(t), 0),
       win_rate_pct: sellsWithPnl.length > 0 ? (winners.length / sellsWithPnl.length) * 100 : null,
-      best_trade: best ? { ticker: best.ticker, realized_pnl: Number(best.realized_pnl), trade_date: best.trade_date } : null,
-      worst_trade: worst ? { ticker: worst.ticker, realized_pnl: Number(worst.realized_pnl), trade_date: worst.trade_date } : null,
-      total_commissions: safe.reduce((s: number, t: any) => s + (Number(t.commission) || 0), 0),
+      best_trade: best ? { ticker: best.ticker, realized_pnl: Number(best.realized_pnl), currency: best.currency, realized_pnl_eur: pnlEur(best), trade_date: best.trade_date } : null,
+      worst_trade: worst ? { ticker: worst.ticker, realized_pnl: Number(worst.realized_pnl), currency: worst.currency, realized_pnl_eur: pnlEur(worst), trade_date: worst.trade_date } : null,
+      total_commissions_eur: safe.reduce((s: number, t: any) => s + (Number(t.commission) || 0) * fx(t), 0),
+      total_net_cash_eur: safe.reduce((s: number, t: any) => s + (Number(t.net_cash) || 0) * fx(t), 0),
     }
 
     return res.json({ trades: safe, summary })
