@@ -819,75 +819,94 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
   })
 
   // ── Movers: top position moves vs historical price ──────────
-  const MOVERS_DAYS: Record<string, number> = { "24h": 1, "1S": 7, "1M": 30 }
 
   app.get("/api/portfolio/movers", auth, async (req: Request, res: Response) => {
     const userId = (req as any).userId
     const userClient = userScopedClient((req as any).userToken)
     const tf = String(req.query.timeframe || "24h")
-    const limit = Math.min(Number(req.query.limit) || 10, 30)
-    const refDays = MOVERS_DAYS[tf] || 1
+    const limit = Math.min(Number(req.query.limit) || 5, 30)
+    const refDays = REFERENCE_DAYS[tf] || 1
 
-    const refDate = new Date()
-    refDate.setDate(refDate.getDate() - refDays)
-    const refStr = refDate.toISOString().slice(0, 10)
+    const targetDate = new Date()
+    targetDate.setDate(targetDate.getDate() - refDays)
+    const targetStr = targetDate.toISOString().slice(0, 10)
 
     const { data: accounts } = await userClient
       .from("accounts").select("id, label, broker").eq("user_id", userId).eq("is_active", true)
-    if (!accounts || accounts.length === 0) return res.json({ movers: [] })
+    if (!accounts || accounts.length === 0) return res.json({ by_eur: [], by_pct: [], reference_date: targetStr, reference_truncated: false })
 
     const accountIds = accounts.map((a: any) => a.id)
     const { data: positions } = await userClient
       .from("positions").select("*").in("account_id", accountIds)
-    if (!positions || positions.length === 0) return res.json({ movers: [] })
+    if (!positions || positions.length === 0) return res.json({ by_eur: [], by_pct: [], reference_date: targetStr, reference_truncated: false })
 
-    // Collect normalized tickers
     const tickerSet = new Set(positions.map((p: any) => normalizeTicker(p.ticker)))
     const tickers = Array.from(tickerSet)
 
-    // Fetch reference prices — most recent price_date <= refStr per ticker
     const { data: histRows } = await userClient
       .from("position_price_history")
       .select("ticker, price_date, market_price")
       .in("ticker", tickers)
-      .lte("price_date", refStr)
+      .lte("price_date", targetStr)
       .order("price_date", { ascending: false })
 
-    // Build map: ticker → most recent reference price (first row per ticker)
-    const refPrices: Record<string, number> = {}
+    const refMap: Record<string, { price: number; date: string }> = {}
     for (const row of (histRows || [])) {
-      if (!(row.ticker in refPrices)) {
-        refPrices[row.ticker] = Number(row.market_price)
+      if (!(row.ticker in refMap)) {
+        refMap[row.ticker] = { price: Number(row.market_price), date: row.price_date }
+      }
+    }
+
+    let actualRefDate = targetStr
+    let truncated = false
+    const refDates = Object.values(refMap).map(r => r.date)
+    if (refDates.length > 0) {
+      const earliest = refDates.sort()[0]
+      if (earliest > targetStr) {
+        actualRefDate = earliest
+        truncated = true
       }
     }
 
     const accountMap = new Map(accounts.map((a: any) => [a.id, a]))
-    const movers: any[] = []
+
+    const byTicker = new Map<string, any>()
     for (const p of positions) {
       const price = Number(p.market_price) || 0
       const qty = Number(p.quantity) || 0
       if (price <= 0 || qty <= 0) continue
       const nt = normalizeTicker(p.ticker)
-      const refPrice = refPrices[nt]
-      if (!refPrice || refPrice <= 0) continue
+      const ref = refMap[nt]
+      if (!ref || ref.price <= 0) continue
 
-      const pctChange = ((price - refPrice) / refPrice) * 100
+      const pctChange = ((price - ref.price) / ref.price) * 100
       const fx = Number(p.fx_rate_to_base) || 1
+      const own = (Number(p.ownership_pct) || 100) / 100
+      const variationEur = (price - ref.price) * qty * fx * own
+      const valueEur = qty * price * fx * own
       const acc = accountMap.get(p.account_id)
-      movers.push({
-        ticker: p.ticker,
-        name: p.name || p.ticker,
-        today_price: price,
-        reference_price: refPrice,
-        pct_change: pctChange,
-        value_eur: qty * price * fx,
-        account_label: acc?.label || acc?.broker || "",
-        asset_class: p.asset_class || "stock",
-      })
+
+      const existing = byTicker.get(nt)
+      if (!existing || Math.abs(valueEur) > Math.abs(existing.value_eur)) {
+        byTicker.set(nt, {
+          ticker: nt,
+          name: p.name || nt,
+          account_label: acc?.label || acc?.broker || "",
+          asset_class: p.asset_class || "stock",
+          today_price: price,
+          reference_price: ref.price,
+          pct_change: Math.round(pctChange * 100) / 100,
+          variation_eur: Math.round(variationEur * 100) / 100,
+          value_eur: Math.round(valueEur * 100) / 100,
+        })
+      }
     }
 
-    movers.sort((a, b) => Math.abs(b.pct_change) - Math.abs(a.pct_change))
-    return res.json({ movers: movers.slice(0, limit) })
+    const all = Array.from(byTicker.values())
+    const byEur = [...all].sort((a, b) => Math.abs(b.variation_eur) - Math.abs(a.variation_eur)).slice(0, limit)
+    const byPct = [...all].sort((a, b) => Math.abs(b.pct_change) - Math.abs(a.pct_change)).slice(0, limit)
+
+    return res.json({ by_eur: byEur, by_pct: byPct, reference_date: actualRefDate, reference_truncated: truncated })
   })
 
   // ── Backfill: populate position_price_history with historical data ──

@@ -52,7 +52,9 @@ export default function Home() {
   const [marketEvents, setMarketEvents] = useState<any[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
   const [cotData, setCotData] = useState<any>(null)
-  const [movers, setMovers] = useState<any[]>([])
+  const [moversByEur, setMoversByEur] = useState<any[]>([])
+  const [moversByPct, setMoversByPct] = useState<any[]>([])
+  const [moversRef, setMoversRef] = useState<{ date: string; truncated: boolean }>({ date: "", truncated: false })
   const [moversLoading, setMoversLoading] = useState(false)
 
   useEffect(() => {
@@ -108,12 +110,6 @@ export default function Home() {
       .then(r => r.ok ? r.json() : null)
       .then(d => setCotData(d))
       .catch(() => {})
-    setMoversLoading(true)
-    authFetch("/api/portfolio/movers?timeframe=24h&limit=5")
-      .then(r => r.ok ? r.json() : { movers: [] })
-      .then(d => setMovers(d.movers || []))
-      .catch(() => {})
-      .finally(() => setMoversLoading(false))
   }, [user])
 
   useEffect(() => {
@@ -126,6 +122,21 @@ export default function Home() {
         setVariations(d.variations || {})
       })
       .catch(() => {})
+  }, [user, chartRange])
+
+  useEffect(() => {
+    if (!user) return
+    const tf = RANGES.find(r => r.days === chartRange)?.label || "3M"
+    setMoversLoading(true)
+    authFetch(`/api/portfolio/movers?timeframe=${tf}&limit=5`)
+      .then(r => r.ok ? r.json() : { by_eur: [], by_pct: [] })
+      .then(d => {
+        setMoversByEur(d.by_eur || [])
+        setMoversByPct(d.by_pct || [])
+        setMoversRef({ date: d.reference_date || "", truncated: !!d.reference_truncated })
+      })
+      .catch(() => {})
+      .finally(() => setMoversLoading(false))
   }, [user, chartRange])
 
   const chartData = useMemo(() => {
@@ -459,43 +470,26 @@ export default function Home() {
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 28 }}>
 
-        {/* Meilleurs movers */}
+        {/* Meilleurs movers — double colonne */}
         <div style={{ borderTop: "2px solid var(--ink)", paddingTop: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
             <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Meilleurs movers</span>
-            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>Mouvements 24h</span>
+            <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>
+              {moversRef.truncated ? `depuis le ${fmtRefDate(moversRef.date)}` : timeframeLabel}
+            </span>
           </div>
-          <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {moversLoading && <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Chargement...</p>}
-            {!moversLoading && movers.length === 0 ? (
-              <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
-                Historique en cours de constitution, premiers movers disponibles demain.
-              </p>
-            ) : (
-              movers.map((m) => (
-                <div key={m.ticker + m.account_label} style={{
-                  display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 12, alignItems: "center",
-                  padding: "8px 0", borderBottom: "1px dotted var(--rule)",
-                }}>
-                  <span style={{ fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)", fontSize: 13 }}>
-                    {m.ticker}
-                  </span>
-                  <span style={{ fontStyle: "italic", color: "var(--ink3)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {m.name} &middot; {m.account_label}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink3)", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-                    {fmtEur(m.value_eur)}
-                  </span>
-                  <span style={{
-                    fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-                    color: m.pct_change >= 0 ? "var(--at-pos)" : "var(--at-neg)",
-                  }}>
-                    {m.pct_change >= 0 ? "+" : ""}{m.pct_change.toFixed(2)} %
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+          {moversLoading ? (
+            <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0" }}>Chargement...</p>
+          ) : moversByEur.length === 0 && moversByPct.length === 0 ? (
+            <p style={{ color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "center", padding: "20px 0", lineHeight: 1.6 }}>
+              Aucun mouvement disponible &middot; historique en cours
+            </p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <MoversColumn title="Mouvements" items={moversByEur} sortKey="eur" />
+              <MoversColumn title="Variations" items={moversByPct} sortKey="pct" />
+            </div>
+          )}
         </div>
 
         {/* Agenda du marché */}
@@ -805,5 +799,36 @@ function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, t
         )}
       </div>
     </Link>
+  )
+}
+
+function MoversColumn({ title, items, sortKey }: { title: string; items: any[]; sortKey: "eur" | "pct" }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)", fontWeight: 600, marginBottom: 8 }}>
+        {title}
+      </div>
+      {items.map((m) => {
+        const color = (sortKey === "eur" ? m.variation_eur : m.pct_change) >= 0 ? "var(--at-pos)" : "var(--at-neg)"
+        return (
+          <div key={m.ticker} style={{ padding: "6px 0", borderBottom: "1px dotted var(--rule)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0, flex: 1 }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)", fontSize: 12, flexShrink: 0 }}>{m.ticker}</span>
+                <span style={{ fontStyle: "italic", color: "var(--ink3)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0, marginLeft: 8, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color }}>
+                  {m.pct_change >= 0 ? "+" : ""}{m.pct_change.toFixed(1)}%
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color }}>
+                  {m.variation_eur >= 0 ? "+" : ""}{fmtEur(Math.round(m.variation_eur))}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
