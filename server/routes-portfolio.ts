@@ -628,7 +628,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
 
     const { data: accounts } = await userClient
       .from("accounts").select("id, label, broker").eq("user_id", userId).eq("is_active", true)
-    if (!accounts || accounts.length === 0) return res.json([])
+    if (!accounts || accounts.length === 0) return res.json({ series: [], variations: {} })
 
     const accountIds = accounts.map((a: any) => a.id)
     const brokerKey = (broker: string) => {
@@ -746,7 +746,48 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     todayRow.total = live.ibkr + live.kraken + live.qonto + live.pea + live.crypto_perso + live.crypto_rf
     series.push(todayRow)
 
-    return res.json(series)
+    // 6. Compute variations (first point = reference)
+    const targetDate = new Date()
+    targetDate.setDate(targetDate.getDate() - (TIMEFRAME_DAYS[tf] || 90))
+    const targetStr = targetDate.toISOString().slice(0, 10)
+
+    const ref = series[0] || todayRow
+    const last = series[series.length - 1] || todayRow
+    const truncated = ref.date > targetStr
+
+    const VAR_KEYS = ["total", "ibkr", "kraken", "qonto", "pea", "crypto_perso", "crypto_rf"] as const
+    const variations: Record<string, any> = {}
+    for (const k of VAR_KEYS) {
+      const refVal = Number(ref[k]) || 0
+      const lastVal = Number(last[k]) || 0
+      const abs = lastVal - refVal
+      variations[k] = {
+        pct: refVal === 0 ? null : ((lastVal - refVal) / refVal) * 100,
+        abs,
+        reference_date: ref.date,
+        reference_truncated: truncated,
+      }
+    }
+    // Combined crypto (perso + rf)
+    const cryptoRefVal = (Number(ref.crypto_perso) || 0) + (Number(ref.crypto_rf) || 0)
+    const cryptoLastVal = (Number(last.crypto_perso) || 0) + (Number(last.crypto_rf) || 0)
+    variations.crypto_combined = {
+      pct: cryptoRefVal === 0 ? null : ((cryptoLastVal - cryptoRefVal) / cryptoRefVal) * 100,
+      abs: cryptoLastVal - cryptoRefVal,
+      reference_date: ref.date,
+      reference_truncated: truncated,
+    }
+    // FHF combined (ibkr + kraken + qonto)
+    const fhfRefVal = (Number(ref.ibkr) || 0) + (Number(ref.kraken) || 0) + (Number(ref.qonto) || 0)
+    const fhfLastVal = (Number(last.ibkr) || 0) + (Number(last.kraken) || 0) + (Number(last.qonto) || 0)
+    variations.fhf = {
+      pct: fhfRefVal === 0 ? null : ((fhfLastVal - fhfRefVal) / fhfRefVal) * 100,
+      abs: fhfLastVal - fhfRefVal,
+      reference_date: ref.date,
+      reference_truncated: truncated,
+    }
+
+    return res.json({ series, variations })
   })
 
   app.get("/api/cron/daily", async (req: Request, res: Response) => {

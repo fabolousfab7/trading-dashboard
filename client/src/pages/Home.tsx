@@ -41,6 +41,7 @@ export default function Home() {
   const [kraken, setKraken] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [timeseries, setTimeseries] = useState<any[]>([])
+  const [variations, setVariations] = useState<any>({})
   const [chartRange, setChartRange] = useState(90)
   const [notes, setNotes] = useState<any[]>([])
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -111,8 +112,11 @@ export default function Home() {
     if (!user) return
     const tf = RANGES.find(r => r.days === chartRange)?.label || "3M"
     authFetch(`/api/portfolio/timeseries?timeframe=${tf}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setTimeseries(Array.isArray(d) ? d : []))
+      .then(r => r.ok ? r.json() : { series: [], variations: {} })
+      .then(d => {
+        setTimeseries(Array.isArray(d.series) ? d.series : [])
+        setVariations(d.variations || {})
+      })
       .catch(() => {})
   }, [user, chartRange])
 
@@ -273,48 +277,20 @@ export default function Home() {
   const cryptoSharedNet = cryptoSharedValue * (1 - 0.314)
   const patrimoineNet = fhfDistribuableNet + qontoBalance + peaNet + cryptoPersoNet + cryptoSharedNet
 
-  const chartFirst = chartData.length > 0 ? (chartData[0] as any).total : 0
-  const chartLast = chartData.length > 0 ? (chartData[chartData.length - 1] as any).total : 0
-  const chartVarAbs = chartLast - chartFirst
-
-  function calcVariation(key: string): { pct: number | null; abs: number | null } {
-    if (timeseries.length < 2) return { pct: null, abs: null }
-    const oldest = Number(timeseries[0][key]) || 0
-    const newest = Number(timeseries[timeseries.length - 1][key]) || 0
-    const abs = newest - oldest
-    const pct = oldest === 0 ? null : ((newest - oldest) / oldest) * 100
-    return { pct, abs }
-  }
-
-  const ibkrVar = calcVariation("ibkr")
-  const krakenVar = calcVariation("kraken")
-  const qontoVar = calcVariation("qonto")
-  const cryptoVar = calcVariation("crypto_perso")
-  const peaVar = calcVariation("pea")
-  const cryptoRfVar = calcVariation("crypto_rf")
-
-  const fhfPctChange = (() => {
-    const pcts = [
-      { pct: ibkrVar.pct, val: ibkrNlv },
-      { pct: krakenVar.pct, val: krakenNlv },
-      { pct: qontoVar.pct, val: qontoBalance },
-    ].filter(p => p.pct !== null) as { pct: number; val: number }[]
-    if (pcts.length === 0) return null
-    const totalVal = pcts.reduce((s, p) => s + p.val, 0) || 1
-    return pcts.reduce((s, p) => s + p.pct * (p.val / totalVal), 0)
-  })()
-  const fhfAbsChange = [ibkrVar.abs, krakenVar.abs, qontoVar.abs].some(v => v !== null)
-    ? (ibkrVar.abs || 0) + (krakenVar.abs || 0) + (qontoVar.abs || 0)
-    : null
-  const cryptoCombinedAbs = (cryptoVar.abs !== null || cryptoRfVar.abs !== null)
-    ? (cryptoVar.abs || 0) + (cryptoRfVar.abs || 0) : null
-  const cryptoCombinedPct = (() => {
-    if (timeseries.length < 2) return null
-    const oldest = (Number(timeseries[0].crypto_perso) || 0) + (Number(timeseries[0].crypto_rf) || 0)
-    const newest = (Number(timeseries[timeseries.length - 1].crypto_perso) || 0) + (Number(timeseries[timeseries.length - 1].crypto_rf) || 0)
-    return oldest === 0 ? null : ((newest - oldest) / oldest) * 100
-  })()
+  const totalVar = variations.total || {}
+  const fhfVar = variations.fhf || {}
+  const cryptoCombined = variations.crypto_combined || {}
+  const peaVar = variations.pea || {}
+  const chartVarAbs = totalVar.abs || 0
+  const refTruncated = !!totalVar.reference_truncated
   const timeframeLabel = RANGES.find(r => r.days === chartRange)?.label || ""
+
+  function fmtRefDate(dateStr: string | undefined) {
+    if (!dateStr) return ""
+    const d = new Date(dateStr + "T00:00:00")
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })
+  }
+  const refDateLabel = fmtRefDate(totalVar.reference_date)
 
   // Masthead
   const now = new Date()
@@ -389,8 +365,15 @@ export default function Home() {
             {fmtEur(patrimoineBrut)}
           </div>
           {chartData.length > 1 && (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, marginTop: 6, fontVariantNumeric: "tabular-nums", color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {timeframeLabel}
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums", color: chartVarAbs >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                {chartVarAbs >= 0 ? "↑" : "↓"} {fmtEur(Math.abs(chartVarAbs))} sur {refTruncated ? `depuis le ${refDateLabel}` : timeframeLabel}
+              </div>
+              {!refTruncated && refDateLabel && (
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
+                  depuis le {refDateLabel}
+                </div>
+              )}
             </div>
           )}
           <div style={{ marginTop: 16, padding: 12, background: "var(--at-surface)", border: "1px dotted var(--rule)" }}>
@@ -460,10 +443,12 @@ export default function Home() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         <PerfCard label="FHF" sub="Société"
           lines={[{ name: "IBKR", value: ibkrNlv }, { name: "Kraken", value: krakenNlv }, { name: "Qonto", value: qontoBalance }]}
-          total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfPctChange} absChange={fhfAbsChange} timeframe={timeframeLabel} href="/fhf" />
+          total={ibkrNlv + krakenNlv + qontoBalance} pctChange={fhfVar.pct ?? null} absChange={fhfVar.abs ?? null}
+          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/fhf" />
         <PerfCard label="Crypto"
           lines={[{ name: "Perso", value: cryptoPersoValue }, { name: "R+F (50%)", value: cryptoSharedValue }]}
-          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombinedPct} absChange={cryptoCombinedAbs} timeframe={timeframeLabel} href="/crypto" />
+          total={cryptoPersoValue + cryptoSharedValue} pctChange={cryptoCombined.pct ?? null} absChange={cryptoCombined.abs ?? null}
+          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/crypto" />
 
         {/* Trading Actif — card spéciale */}
         <Link href="/analytics" style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
@@ -492,7 +477,8 @@ export default function Home() {
 
         <PerfCard label="PEA Perso" sub="Boursobank"
           lines={[{ name: "Valeur", value: peaValue }]}
-          total={peaValue} pctChange={peaVar.pct} absChange={peaVar.abs} timeframe={timeframeLabel} href="/pea" />
+          total={peaValue} pctChange={peaVar.pct ?? null} absChange={peaVar.abs ?? null}
+          timeframe={timeframeLabel} truncated={refTruncated} refDate={refDateLabel} href="/pea" />
       </div>
 
       {/* ── 4. BOTTOM — Movers + Agenda + Notes ─────────────── */}
@@ -796,11 +782,13 @@ function ChartTooltip({ active, payload }: any) {
   )
 }
 
-function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, href }: {
-  label: string; sub?: string; lines: { name: string; value: number }[]; total: number; pctChange: number | null; absChange: number | null; timeframe: string; href: string
+function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, truncated, refDate, href }: {
+  label: string; sub?: string; lines: { name: string; value: number }[]; total: number
+  pctChange: number | null; absChange: number | null; timeframe: string; truncated: boolean; refDate: string; href: string
 }) {
   const hasVar = pctChange !== null || absChange !== null
   const color = hasVar ? ((absChange || 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)") : "var(--ink3)"
+  const tfDisplay = truncated ? `depuis ${refDate}` : timeframe
   return (
     <Link href={href} style={{ display: "block", padding: "16px 22px", borderRight: "1px solid var(--rule)", cursor: "pointer", transition: "background 0.2s" }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--at-surface)")}
@@ -826,10 +814,10 @@ function PerfCard({ label, sub, lines, total, pctChange, absChange, timeframe, h
       </div>
       <div style={{ marginTop: 12, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
         {hasVar ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 700, color }}>{pctChange !== null ? `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}%` : "—"}</span>
             <span style={{ fontSize: 11, color }}>{absChange !== null ? `${absChange >= 0 ? "+" : ""}${fmtEur(Math.round(absChange))}` : ""}</span>
-            <span style={{ fontSize: 9, color: "var(--ink3)" }}>{timeframe}</span>
+            <span style={{ fontSize: 9, color: "var(--ink3)" }} title={!truncated && refDate ? `depuis le ${refDate}` : undefined}>{tfDisplay}</span>
           </div>
         ) : (
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink3)" }}>—</span>
