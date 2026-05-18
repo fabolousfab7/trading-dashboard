@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js"
 import { krakenPrivateRequest, normalizeKrakenTicker, KrakenConfig } from "./kraken-api.js"
 import { recalcFifoForAccount } from "./fifo-pnl.js"
 
-const QUASI_FIAT = new Set(["EUR", "USD", "GBP", "JPY", "USDT", "USDC", "DAI"])
+const QUASI_FIAT = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI"])
+const FIAT_LIKE_RAW = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI", "ZEUR", "ZUSD", "ZGBP", "ZJPY", "ZCHF"])
 
 const HARDCODED_FX: Record<string, number> = { EUR: 1, USD: 0.92, GBP: 1.17, CHF: 1.05, JPY: 0.006, USDT: 0.92, USDC: 0.92, DAI: 0.92 }
 
@@ -63,32 +64,55 @@ interface FuturesFill {
   fee_currency?: string
 }
 
-async function fetchFuturesFills(config: { api_key: string; api_secret: string }): Promise<FuturesFill[]> {
-  const { default: crypto } = await import("crypto")
-  const endpoint = "/derivatives/api/v3/fills"
-  const nonce = Date.now().toString()
-  const postData = ""
-  const sigPath = "/api/v3/fills"
-  const message = postData + nonce + sigPath
+function signFutures(endpointPath: string, postData: string, nonce: string, apiSecret: string): string {
+  const crypto = require("crypto")
+  const message = postData + nonce + endpointPath
   const sha256Hash = crypto.createHash("sha256").update(message).digest()
-  const hmac = crypto.createHmac("sha512", Buffer.from(config.api_secret, "base64"))
+  const hmac = crypto.createHmac("sha512", Buffer.from(apiSecret, "base64"))
   hmac.update(sha256Hash)
-  const signature = hmac.digest("base64")
+  return hmac.digest("base64")
+}
 
-  const now = new Date()
-  const since = new Date(now.getTime() - 365 * 86400_000)
-
-  const url = `https://futures.kraken.com${endpoint}?lastFillTime=${since.toISOString()}`
+async function callFuturesEndpoint(endpoint: string, sigPath: string, config: { api_key: string; api_secret: string }, qs = ""): Promise<any> {
+  const nonce = Date.now().toString()
+  const signature = signFutures(sigPath, "", nonce, config.api_secret)
+  const url = `https://futures.kraken.com${endpoint}${qs ? "?" + qs : ""}`
+  console.log(`[kraken-futures-fills] calling ${endpoint}${qs ? "?" + qs : ""}`)
   const res = await fetch(url, {
     method: "GET",
     headers: { APIKey: config.api_key, Nonce: nonce, Authent: signature, Accept: "application/json" },
   })
-  if (!res.ok) throw new Error(`Kraken Futures fills HTTP ${res.status}`)
-  const data = await res.json()
-  if (data.result === "error" || data.error) {
-    throw new Error(`Kraken Futures API error: ${JSON.stringify(data.error ?? data)}`)
+  const body = await res.text()
+  if (!res.ok) {
+    throw new Error(`Kraken Futures ${endpoint} HTTP ${res.status}: ${body.slice(0, 300)}`)
   }
-  return (data.fills ?? []) as FuturesFill[]
+  const data = JSON.parse(body)
+  if (data.result === "error" || data.error) {
+    throw new Error(`Kraken Futures ${endpoint}: ${JSON.stringify(data.error ?? data.errors ?? data)}`)
+  }
+  return data
+}
+
+async function fetchFuturesFills(config: { api_key: string; api_secret: string }): Promise<FuturesFill[]> {
+  const since = new Date(Date.now() - 365 * 86400_000)
+
+  const endpoints = [
+    { path: "/derivatives/api/v3/fills", sigPath: "/api/v3/fills", qsKey: "lastFillTime" },
+    { path: "/api/history/v3/fills", sigPath: "/api/history/v3/fills", qsKey: "lastFillTime" },
+  ]
+
+  for (const ep of endpoints) {
+    try {
+      const data = await callFuturesEndpoint(ep.path, ep.sigPath, config, `${ep.qsKey}=${since.toISOString()}`)
+      const fills = (data.fills ?? []) as FuturesFill[]
+      console.log(`[kraken-futures-fills] ${ep.path} returned ${fills.length} fills`)
+      return fills
+    } catch (e: any) {
+      console.warn(`[kraken-futures-fills] ${ep.path} failed: ${e.message}`)
+      if (ep === endpoints[endpoints.length - 1]) throw e
+    }
+  }
+  return []
 }
 
 function futuresTickerFromSymbol(symbol: string): string {
@@ -216,6 +240,7 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
           const parsed = parseKrakenPair(t.pair || "")
           if (!parsed) continue
           if (!QUASI_FIAT.has(parsed.quote)) continue
+          if (QUASI_FIAT.has(parsed.ticker) || FIAT_LIKE_RAW.has(parsed.ticker)) continue
 
           const fxToEur = HARDCODED_FX[parsed.quote] ?? 1
           const side = (t.type || "").toLowerCase() === "sell" ? "SELL" : "BUY"

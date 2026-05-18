@@ -2,8 +2,7 @@ import { useEffect, useState } from "react"
 import { parseISO, format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { supabase } from "@/lib/supabase"
-import { RefreshCw, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
-import { Link } from "wouter"
+import { RefreshCw, ChevronDown, ChevronUp } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import { useToast } from "@/hooks/use-toast"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
@@ -323,30 +322,8 @@ export default function Kraken() {
         </div>
       </div>
 
-      {/* CONSOLIDATED KPI — SPOT + FUTURES + TOTAL */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", marginBottom: 28, border: "1px solid var(--rule)", borderRadius: 4, background: "var(--at-surface)" }}>
-        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Spot Wallet</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(spotTotal)}</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
-            Crypto {fmtEur(spotPositionsValue)} &middot; Fiat {fmtEur(spotCashValue)}
-          </div>
-        </div>
-        <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Futures Wallet</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(futuresTotal)}</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
-            Positions {fmtEur(futuresPositionsValue)} &middot; Cash {fmtEur(futuresCashValue)}
-          </div>
-        </div>
-        <div style={{ padding: "16px 22px" }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Total Kraken FHF</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--at-accent)", marginTop: 4 }}>{fmtEur(nlv)}</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
-            Spot + Futures consolide
-          </div>
-        </div>
-      </div>
+
+
 
       {/* SPOT CONFIG PANEL */}
       <div style={{ border: "1px solid var(--rule)", borderRadius: 4, background: "var(--at-surface)", marginBottom: 14 }}>
@@ -595,43 +572,8 @@ export default function Kraken() {
         )}
       </div>
 
-      {/* SPOT CASH BALANCES */}
-      {spotCash.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Cash Spot</span>
-            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{spotCash.length} devises</span>
-          </div>
-          <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-              <thead>
-                <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
-                  {["Devise", "Montant", "Equivalent EUR"].map((h, i) => (
-                    <th key={h} style={{
-                      padding: "10px 12px", textAlign: i === 0 ? "left" : "right",
-                      fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
-                      borderBottom: "1px solid var(--rule)",
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {spotCash.map((c: any) => {
-                  const fx = Number(c.fx_rate_to_base) || 1
-                  const eurValue = Number(c.amount) * fx
-                  return (
-                    <tr key={c.id || c.currency} style={{ borderBottom: "1px dotted var(--rule)" }}>
-                      <td style={{ padding: "9px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{c.currency}</td>
-                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{Number(c.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
-                      <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtEur(eurValue)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
+
 
       {/* ══════════════════════════════════════════════════════ */}
       {/* FUTURES WALLET SECTION                                */}
@@ -707,44 +649,8 @@ export default function Kraken() {
           </div>
         )}
 
-        {/* Futures Cash Balances */}
-        {futuresCash.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-              <span style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, color: "var(--ink)", letterSpacing: -0.2 }}>Cash Futures</span>
-              <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>{futuresCash.length} devises</span>
-            </div>
-            <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ position: "sticky", top: 0, background: "var(--at-surface)", zIndex: 1 }}>
-                    {["Devise", "Montant", "Equivalent EUR"].map((h, i) => (
-                      <th key={h} style={{
-                        padding: "10px 12px", textAlign: i === 0 ? "left" : "right",
-                        fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
-                        borderBottom: "1px solid var(--rule)",
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {futuresCash.map((c: any) => {
-                    const fx = Number(c.fx_rate_to_base) || 1
-                    const eurValue = Number(c.amount) * fx
-                    const displayCurrency = c.currency.replace("FUT:", "")
-                    return (
-                      <tr key={c.id || c.currency} style={{ borderBottom: "1px dotted var(--rule)" }}>
-                        <td style={{ padding: "9px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{displayCurrency}</td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{Number(c.amount).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtEur(eurValue)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+
+
 
         {futuresPositions.length === 0 && futuresCash.length === 0 && hasFuturesCreds && (
           <div style={{ padding: 32, textAlign: "center", color: "var(--ink3)", fontFamily: "var(--font-mono)", fontSize: 12, border: "1px solid var(--rule)", borderRadius: 4 }}>
@@ -912,18 +818,8 @@ export default function Kraken() {
         })()}
       </div>
 
-      {/* TRADING ACTIF LINK */}
-      <div style={{ borderTop: "1px dotted var(--rule)", paddingTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Trading Actif</div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 11, fontStyle: "italic", color: "var(--ink3)", marginTop: 2 }}>
-            Les trades court terme Kraken sont suivis dans la page Trading Actif.
-          </div>
-        </div>
-        <Link href="/analytics" style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--at-accent)", textDecoration: "none" }}>
-          Voir <ExternalLink size={12} />
-        </Link>
-      </div>
+
+
     </div>
   )
 }
