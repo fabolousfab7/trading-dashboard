@@ -380,8 +380,15 @@ async function fetchSpotHoldingFees(
   fromDate: Date,
   toDate: Date
 ): Promise<{ fees: HoldingFee[]; types_seen: string[] }> {
+  console.log("[kraken-ledger-diag] === START ===")
+  console.log("[kraken-ledger-diag] fromDate:", fromDate.toISOString())
+  console.log("[kraken-ledger-diag] toDate:", toDate.toISOString())
+  console.log("[kraken-ledger-diag] start unix:", Math.floor(fromDate.getTime() / 1000))
+  console.log("[kraken-ledger-diag] end unix:", Math.ceil(toDate.getTime() / 1000))
+
   const allEntries: Array<{ id: string; raw: any }> = []
   let offset = 0
+  let reportedCount = 0
 
   do {
     const result = await krakenPrivateRequest("Ledgers", {
@@ -390,12 +397,14 @@ async function fetchSpotHoldingFees(
       ofs: String(offset),
     }, config)
 
+    if (offset === 0) {
+      console.log("[kraken-ledger-diag] raw response (3000 chars):", JSON.stringify(result).substring(0, 3000))
+      reportedCount = Number(result?.count) || 0
+      console.log("[kraken-ledger-diag] reported count:", reportedCount)
+    }
+
     const ledger = result?.ledger ?? {}
     const entries = Object.entries(ledger)
-
-    if (offset === 0 && entries.length > 0) {
-      console.log(`[kraken-spot] ledger (no type filter) first 3:`, entries.slice(0, 3).map(([, e]) => JSON.stringify(e).slice(0, 300)))
-    }
 
     for (const [id, raw] of entries) {
       allEntries.push({ id, raw })
@@ -406,13 +415,30 @@ async function fetchSpotHoldingFees(
     await new Promise(r => setTimeout(r, 1500))
   } while (true)
 
+  console.log("[kraken-ledger-diag] total entries fetched:", allEntries.length)
+
+  if (allEntries.length > 0) {
+    const typeCounts: Record<string, number> = {}
+    for (const { raw } of allEntries) {
+      const t = String((raw as any).type || "unknown")
+      typeCounts[t] = (typeCounts[t] || 0) + 1
+    }
+    console.log("[kraken-ledger-diag] types breakdown:", JSON.stringify(typeCounts))
+
+    console.log("[kraken-ledger-diag] first 5 entries:")
+    allEntries.slice(0, 5).forEach(({ id, raw }, i) => {
+      console.log(`[kraken-ledger-diag] entry ${i} (${id}):`, JSON.stringify(raw))
+    })
+  } else {
+    console.log("[kraken-ledger-diag] 0 entries returned by Kraken API")
+  }
+
   const typeCounts: Record<string, number> = {}
   for (const { raw } of allEntries) {
     const t = String((raw as any).type || "unknown")
     typeCounts[t] = (typeCounts[t] || 0) + 1
   }
   const types_seen = Object.entries(typeCounts).map(([t, n]) => `${t}(${n})`)
-  console.log(`[kraken-spot] ledger: ${allEntries.length} total entries, types: ${types_seen.join(", ")}`)
 
   const fees: HoldingFee[] = []
   for (const { id, raw } of allEntries) {
@@ -427,7 +453,8 @@ async function fetchSpotHoldingFees(
     })
   }
 
-  console.log(`[kraken-spot] holding fees: ${fees.length} entries matching [${Array.from(HOLDING_FEE_TYPES).join(", ")}]`)
+  console.log(`[kraken-ledger-diag] after filter: ${fees.length} entries matching [${Array.from(HOLDING_FEE_TYPES).join(", ")}]`)
+  console.log("[kraken-ledger-diag] === END ===")
   return { fees, types_seen }
 }
 
@@ -438,10 +465,15 @@ async function fetchFuturesHoldingFees(
   fromDate: Date,
   toDate: Date
 ): Promise<{ fees: HoldingFee[]; types_seen: string[] }> {
+  console.log("[kraken-account-log-diag] === START ===")
+  console.log("[kraken-account-log-diag] fromMs:", fromDate.getTime())
+  console.log("[kraken-account-log-diag] toMs:", toDate.getTime())
+
   const allElements: any[] = []
   let continuationToken: string | undefined
 
   try {
+    let pageNum = 0
     do {
       const params: Record<string, string> = {
         since: String(fromDate.getTime()),
@@ -451,21 +483,45 @@ async function fetchFuturesHoldingFees(
       if (continuationToken) params.continuationToken = continuationToken
 
       const { url, headers } = buildSignedRequest("/api/history/v2/account-log", params, config)
+      console.log("[kraken-account-log-diag] URL called:", url.replace(/Authent=[^&]+/, "Authent=***"))
       const res = await fetch(url, { method: "GET", headers })
       const body = await res.text()
 
       if (!res.ok) {
-        console.warn(`[kraken-futures] /account-log HTTP ${res.status}: ${body.slice(0, 300)}`)
+        console.warn(`[kraken-account-log-diag] HTTP ${res.status}: ${body.slice(0, 500)}`)
         break
       }
 
       const data = JSON.parse(body)
-      allElements.push(...(data.elements ?? []))
+
+      if (pageNum === 0) {
+        console.log("[kraken-account-log-diag] raw response keys:", Object.keys(data).join(", "))
+        console.log("[kraken-account-log-diag] raw response (3000 chars):", JSON.stringify(data).substring(0, 3000))
+      }
+
+      const items = data.elements ?? data.logs ?? []
+      console.log(`[kraken-account-log-diag] page ${pageNum}: ${(items as any[]).length} items, continuationToken: ${data.continuationToken ? "yes" : "no"}`)
+      allElements.push(...items)
       continuationToken = data.continuationToken ?? undefined
+      pageNum++
       if (continuationToken) await new Promise(r => setTimeout(r, 500))
     } while (continuationToken)
   } catch (e: any) {
-    console.warn("[kraken-futures] /account-log failed:", e.message)
+    console.warn("[kraken-account-log-diag] failed:", e.message)
+  }
+
+  console.log("[kraken-account-log-diag] total items:", allElements.length)
+
+  if (allElements.length > 0) {
+    const fieldNames = Array.from(new Set(allElements.flatMap((i: any) => Object.keys(i))))
+    console.log("[kraken-account-log-diag] field names across all items:", fieldNames.join(", "))
+
+    console.log("[kraken-account-log-diag] first 5 items:")
+    allElements.slice(0, 5).forEach((item: any, i: number) => {
+      console.log(`[kraken-account-log-diag] item ${i}:`, JSON.stringify(item).substring(0, 800))
+    })
+  } else {
+    console.log("[kraken-account-log-diag] 0 items returned by Kraken Futures API")
   }
 
   const typeCounts: Record<string, number> = {}
@@ -474,18 +530,15 @@ async function fetchFuturesHoldingFees(
     typeCounts[t] = (typeCounts[t] || 0) + 1
   }
   const types_seen = Object.entries(typeCounts).map(([t, n]) => `${t}(${n})`)
-
-  if (allElements.length > 0) {
-    console.log("[kraken-futures] account-log sample:", JSON.stringify(allElements[0]).slice(0, 500))
-  }
-  console.log(`[kraken-futures] account-log: ${allElements.length} total, types: ${types_seen.join(", ")}`)
+  console.log("[kraken-account-log-diag] types breakdown:", JSON.stringify(typeCounts))
 
   const fundingEntries = allElements.filter((el: any) => {
     const blob = JSON.stringify(el).toLowerCase()
     return FUNDING_KEYWORDS.some(kw => blob.includes(kw))
   })
 
-  console.log(`[kraken-futures] funding/interest/financing entries: ${fundingEntries.length}`)
+  console.log(`[kraken-account-log-diag] after filter (funding/interest/financing): ${fundingEntries.length}`)
+  console.log("[kraken-account-log-diag] === END ===")
 
   const fees = fundingEntries.map((el: any) => {
     const newBal = Number(el.new_balance ?? el.amount ?? 0)
