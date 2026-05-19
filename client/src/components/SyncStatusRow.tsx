@@ -19,6 +19,7 @@ interface SyncCard {
   status: "green" | "orange" | "red" | "manual"
   last_synced_at: string | null
   last_sync_error: string | null
+  prices_refreshed_at?: string | null
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -105,7 +106,9 @@ export default function SyncStatusRow() {
               border: "1px solid var(--rule)", background: "var(--at-surface)",
               fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink2)",
             }}
-            title={c.last_sync_error || undefined}
+            title={c.prices_refreshed_at
+              ? `Positions figées (${c.last_sync_error || "rate limit"}) mais prix actualisés à ${new Date(c.prices_refreshed_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+              : c.last_sync_error || undefined}
             >
               <span style={{
                 width: 7, height: 7, borderRadius: "50%",

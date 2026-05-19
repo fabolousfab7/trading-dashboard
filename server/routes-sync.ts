@@ -5,6 +5,9 @@ import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
 import { runDailySnapshot } from "./routes-portfolio.js"
+import { fetchYahooPrice } from "./yahoo-finance.js"
+import { fetchCoinGeckoPrices } from "./coingecko.js"
+import { normalizeTicker } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -34,6 +37,115 @@ async function requireAuth(supabase: SupabaseClient, req: Request, res: Response
   ;(req as any).userId = data.user.id
   ;(req as any).userToken = token
   next()
+}
+
+function yahooSuffix(currency: string, ticker: string): string | null {
+  if (ticker.includes(".")) return null
+  if (currency === "USD") return ""
+  if (currency === "EUR") return "PA"
+  if (currency === "GBP") return "L"
+  if (currency === "CHF") return "SW"
+  return null
+}
+
+const YAHOO_DE_TICKERS = new Set(["P911", "SAP", "SIE", "ALV", "BAS", "BMW", "DAI", "DTE", "MRK"])
+
+async function refreshAllPositionPrices(
+  svcClient: SupabaseClient,
+  accountIds: string[],
+): Promise<{ stocks: number; crypto: number; skipped: number; errors: string[] }> {
+  const { data: positions } = await svcClient
+    .from("positions")
+    .select("*")
+    .in("account_id", accountIds)
+
+  if (!positions || positions.length === 0) return { stocks: 0, crypto: 0, skipped: 0, errors: [] }
+
+  const now = new Date().toISOString()
+  const today = now.slice(0, 10)
+  let stocks = 0
+  let crypto = 0
+  let skipped = 0
+  const errors: string[] = []
+
+  const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
+  if (cryptoPositions.length > 0) {
+    const ids = Array.from(new Set(cryptoPositions.map((p: any) => p.coingecko_id))) as string[]
+    const prices = await fetchCoinGeckoPrices(ids, ["eur", "usd"])
+    for (const p of cryptoPositions) {
+      const coinPrices = prices[p.coingecko_id]
+      if (coinPrices?.eur !== undefined) {
+        await svcClient.from("positions").update({
+          market_price: coinPrices.eur,
+          market_price_usd: coinPrices.usd || null,
+          last_synced_at: now,
+        }).eq("id", p.id)
+        crypto++
+      }
+    }
+  }
+
+  const stockPositions = positions.filter((p: any) =>
+    !p.coingecko_id && (p.asset_class === "STK" || p.asset_class === "stock")
+  )
+  for (const p of stockPositions) {
+    try {
+      const ticker = p.ticker as string
+      const currency = (p.currency as string) || "USD"
+
+      if (ticker.includes(".") || Number(p.quantity) === 0) {
+        skipped++
+        continue
+      }
+
+      let suffix = yahooSuffix(currency, ticker)
+      if (suffix === null) { skipped++; continue }
+
+      if (currency === "EUR" && YAHOO_DE_TICKERS.has(ticker)) suffix = "DE"
+
+      let price = await fetchYahooPrice(ticker, suffix)
+
+      if (price === null && currency === "EUR" && suffix === "PA") {
+        price = await fetchYahooPrice(ticker, "DE")
+      }
+      if (price === null && currency === "EUR" && suffix === "DE") {
+        price = await fetchYahooPrice(ticker, "PA")
+      }
+
+      if (price !== null && price > 0) {
+        await svcClient.from("positions").update({
+          market_price: String(price),
+          last_synced_at: now,
+        }).eq("id", p.id)
+
+        await svcClient.from("position_price_history").upsert({
+          ticker: normalizeTicker(ticker),
+          asset_class: p.asset_class || "stock",
+          price_date: today,
+          market_price: price,
+          currency: currency,
+          fx_rate_to_eur: p.fx_rate_to_base || null,
+          source: "yahoo",
+        }, { onConflict: "ticker,price_date" })
+
+        stocks++
+      } else {
+        console.warn(`[refresh-prices] no Yahoo price for ${ticker} (${currency}, suffix=${suffix})`)
+        skipped++
+      }
+    } catch (e: any) {
+      console.warn(`[refresh-prices] error for ${p.ticker}: ${e.message}`)
+      skipped++
+    }
+  }
+
+  const otherPositions = positions.filter((p: any) =>
+    !p.coingecko_id && p.asset_class !== "STK" && p.asset_class !== "stock" && p.asset_class !== "crypto_perp"
+  )
+  skipped += otherPositions.length
+
+  console.log(`[refresh-prices] done: ${stocks} stocks, ${crypto} crypto, ${skipped} skipped`)
+  return { stocks, crypto, skipped, errors }
 }
 
 interface StepResult {
@@ -189,7 +301,19 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
       }
     }
 
-    // Step 5: Refresh prices + daily snapshot
+    // Step 5: Refresh all position prices (always runs, independent of broker sync results)
+    {
+      const s0 = Date.now()
+      try {
+        const accountIds = accounts.map((a: any) => a.id)
+        const result = await refreshAllPositionPrices(svcClient, accountIds)
+        steps.push({ step: "refresh_prices", status: "ok", message: `${result.stocks} stocks, ${result.crypto} crypto, ${result.skipped} skip`, durationMs: Date.now() - s0 })
+      } catch (e: any) {
+        steps.push({ step: "refresh_prices", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 6: Daily snapshot (portfolio values + price history)
     {
       const s0 = Date.now()
       try {
@@ -235,14 +359,35 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
     for (const account of accounts) {
       if (account.broker === "IBKR") {
         const cfg = account.ibkr_config?.[0] || account.ibkr_config
+        let ibkrStatus = syncStatus(cfg?.last_synced_at, cfg?.last_sync_status)
+        let ibkrPricesAt: string | null = null
+
+        if (ibkrStatus === "red" || ibkrStatus === "orange") {
+          const { data: freshestPos } = await userClient
+            .from("positions")
+            .select("last_synced_at")
+            .eq("account_id", account.id)
+            .order("last_synced_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (freshestPos?.last_synced_at) {
+            const posAge = Date.now() - new Date(freshestPos.last_synced_at).getTime()
+            if (posAge < ONE_DAY) {
+              ibkrStatus = "orange"
+              ibkrPricesAt = freshestPos.last_synced_at
+            }
+          }
+        }
+
         cards.push({
           id: account.id,
           label: account.label,
           broker: "IBKR",
           type: "positions",
-          status: syncStatus(cfg?.last_synced_at, cfg?.last_sync_status),
+          status: ibkrStatus,
           last_synced_at: cfg?.last_synced_at || null,
           last_sync_error: cfg?.last_sync_error || null,
+          prices_refreshed_at: ibkrPricesAt,
         })
       }
 

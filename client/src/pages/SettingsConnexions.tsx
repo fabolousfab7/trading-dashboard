@@ -19,6 +19,7 @@ interface SyncCard {
   status: "green" | "orange" | "red" | "manual"
   last_synced_at: string | null
   last_sync_error: string | null
+  prices_refreshed_at?: string | null
 }
 
 const STATUS_ICON: Record<string, any> = {
@@ -172,6 +173,15 @@ export default function SettingsConnexions() {
                   fontFamily: "var(--font-mono)", color: "var(--at-neg)",
                 }}>
                   {c.last_sync_error}
+                </div>
+              )}
+              {c.prices_refreshed_at && (
+                <div style={{
+                  marginTop: 8, padding: "4px 8px", borderRadius: 3,
+                  background: "rgba(200,150,0,0.06)", fontSize: 10,
+                  fontFamily: "var(--font-mono)", color: "#e8a317",
+                }}>
+                  Prix de marché actualisés à {fmtDate(c.prices_refreshed_at)}
                 </div>
               )}
             </div>
