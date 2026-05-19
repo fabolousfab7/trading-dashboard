@@ -84,10 +84,6 @@ export default function Kraken() {
   const [openSpotPositions, setOpenSpotPositions] = useState<any[]>([])
   const [spotView, setSpotView] = useState<"round-trips" | "fills">("round-trips")
   const [includeFiat, setIncludeFiat] = useState(false)
-  const [orphanFuturesFees, setOrphanFuturesFees] = useState(0)
-  const [orphanSpotFees, setOrphanSpotFees] = useState(0)
-  const [futuresYtdSummary, setFuturesYtdSummary] = useState<any>(null)
-  const [spotYtdSummary, setSpotYtdSummary] = useState<any>(null)
 
   async function fetchPortfolio() {
     setLoading(true); setError(null)
@@ -219,8 +215,6 @@ export default function Kraken() {
       .then(d => {
         setRoundTrips(d.round_trips || [])
         setOpenFuturesPositions(d.open_positions || [])
-        setOrphanFuturesFees(d.orphan_holding_fees_total || 0)
-        setFuturesYtdSummary(d.ytd_summary || null)
       })
       .catch(() => {})
   }
@@ -232,8 +226,6 @@ export default function Kraken() {
       .then(d => {
         setSpotRoundTrips(d.round_trips || [])
         setOpenSpotPositions(d.open_positions || [])
-        setOrphanSpotFees(d.orphan_holding_fees_total || 0)
-        setSpotYtdSummary(d.ytd_summary || null)
       })
       .catch(() => {})
   }
@@ -808,12 +800,9 @@ export default function Kraken() {
 
         {tradesTab === "futures" && futuresView === "round-trips" ? (() => {
           if (roundTrips.length === 0) return (
-            <>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-                Aucun round-trip Futures clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
-              </div>
-              {futuresYtdSummary && <YtdSummaryBlock summary={futuresYtdSummary} label="funding" />}
-            </>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+              Aucun round-trip Futures clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
+            </div>
           )
           const thStyle = (right?: boolean): React.CSSProperties => ({
             padding: "10px 12px", textAlign: right ? "right" : "left",
@@ -890,22 +879,13 @@ export default function Kraken() {
               <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
                 PnL = (closes − opens) − fees
               </div>
-              {orphanFuturesFees > 0 && (
-                <div style={{ fontSize: 10, color: "var(--at-neg)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
-                  {fmtCcy(orphanFuturesFees, "USD")} de frais de tenue sur positions ouvertes (non attribués)
-                </div>
-              )}
-              {futuresYtdSummary && <YtdSummaryBlock summary={futuresYtdSummary} label="funding" />}
             </>
           )
         })() : tradesTab === "spot" && spotView === "round-trips" ? (() => {
           if (spotRoundTrips.length === 0) return (
-            <>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-                Aucun round-trip Spot clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
-              </div>
-              {spotYtdSummary && <YtdSummaryBlock summary={spotYtdSummary} label="rollover" />}
-            </>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+              Aucun round-trip Spot clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
+            </div>
           )
           const thStyle = (right?: boolean): React.CSSProperties => ({
             padding: "10px 12px", textAlign: right ? "right" : "left",
@@ -985,12 +965,6 @@ export default function Kraken() {
               <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
                 PnL = (closes − opens) − fees · Total converti en EUR au taux fixe
               </div>
-              {orphanSpotFees > 0 && (
-                <div style={{ fontSize: 10, color: "var(--at-neg)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
-                  {fmtEur(orphanSpotFees)} de frais de tenue sur positions ouvertes (non attribués)
-                </div>
-              )}
-              {spotYtdSummary && <YtdSummaryBlock summary={spotYtdSummary} label="rollover" />}
             </>
           )
         })() : (krakenTrades.length === 0 ? (
@@ -1107,49 +1081,6 @@ export default function Kraken() {
 
 
 
-    </div>
-  )
-}
-
-function YtdSummaryBlock({ summary, label }: { summary: any; label: string }) {
-  const ccy = summary.currency || "EUR"
-  const fmt = ccy === "EUR" ? fmtEur : (n: number) => fmtCcy(n, ccy)
-  const net = summary.net_pnl_realized_ytd ?? 0
-  const netEur = summary.net_pnl_realized_ytd_eur ?? net
-
-  const rowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", marginBottom: 4 }
-
-  return (
-    <div style={{
-      marginTop: 14, padding: "14px 18px", border: "1px solid var(--rule)", borderRadius: 4,
-      background: "var(--at-surface)", fontFamily: "var(--font-mono)", fontSize: 11,
-    }}>
-      <div style={{ fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600, marginBottom: 10 }}>
-        Bilan YTD
-      </div>
-      <div style={rowStyle}>
-        <span style={{ color: "var(--ink2)" }}>PnL réalisé (brut)</span>
-        <span style={{ color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{fmt(summary.realized_pnl_gross ?? 0)}</span>
-      </div>
-      <div style={rowStyle}>
-        <span style={{ color: "var(--ink2)" }}>Frais d'exécution</span>
-        <span style={{ color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>{fmt(-(summary.execution_fees_total ?? 0))}</span>
-      </div>
-      <div style={rowStyle}>
-        <span style={{ color: "var(--ink2)" }}>Frais de tenue ({label})</span>
-        <span style={{ color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>{fmt(-(summary.holding_fees_total ?? 0))}</span>
-      </div>
-      <div style={{ borderTop: "1px solid var(--rule)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between" }}>
-        <span style={{ color: "var(--ink)", fontWeight: 700 }}>PnL net réalisé YTD</span>
-        <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", color: net >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
-          {(net >= 0 ? "+" : "") + fmt(net)}
-          {ccy !== "EUR" && (
-            <span style={{ color: "var(--ink3)", fontWeight: 400, marginLeft: 8 }}>
-              ({(netEur >= 0 ? "+" : "") + fmtEur(netEur)})
-            </span>
-          )}
-        </span>
-      </div>
     </div>
   )
 }
