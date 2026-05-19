@@ -25,12 +25,11 @@ export function buildSignedRequest(
 ): { url: string; headers: Record<string, string> } {
   const nonce = Date.now().toString()
   const qs = new URLSearchParams(params).toString()
-  let sigPath = endpoint.startsWith("/derivatives")
+  const sigPath = endpoint.startsWith("/derivatives")
     ? endpoint.slice("/derivatives".length)
     : endpoint
-  if (qs) sigPath += "?" + qs
-
-  const signature = signRequest(sigPath, "", nonce, config.api_secret)
+  // QS goes into postData (1st arg of SHA-256), NOT appended to sigPath
+  const signature = signRequest(sigPath, qs, nonce, config.api_secret)
   const finalUrl = `${BASE_URL}${endpoint}${qs ? "?" + qs : ""}`
 
   console.log("[kraken-debug] === REQUEST ===")
