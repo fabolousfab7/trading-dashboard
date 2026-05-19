@@ -77,6 +77,9 @@ export default function Kraken() {
   const [tradesRange, setTradesRange] = useState<"30J" | "90J" | "YTD" | "1A" | "Tout">("Tout")
   const [tradesSyncing, setTradesSyncing] = useState(false)
   const [tradesSyncMsg, setTradesSyncMsg] = useState<string | null>(null)
+  const [roundTrips, setRoundTrips] = useState<any[]>([])
+  const [openFuturesPosition, setOpenFuturesPosition] = useState<any>(null)
+  const [futuresView, setFuturesView] = useState<"round-trips" | "fills">("round-trips")
 
   async function fetchPortfolio() {
     setLoading(true); setError(null)
@@ -202,6 +205,13 @@ export default function Kraken() {
       .catch(() => {})
   }
 
+  function loadRoundTrips() {
+    authFetch("/api/kraken/trades/futures/round-trips")
+      .then(r => r.ok ? r.json() : { round_trips: [], open_position: null })
+      .then(d => { setRoundTrips(d.round_trips || []); setOpenFuturesPosition(d.open_position || null) })
+      .catch(() => {})
+  }
+
   async function syncKrakenTrades() {
     setTradesSyncing(true); setTradesSyncMsg(null)
     try {
@@ -212,6 +222,7 @@ export default function Kraken() {
         const friendly: Record<string, string> = {
           RATE_LIMIT: "Rate limit Kraken atteint. Réessaie dans quelques minutes.",
           INVALID_TOKEN: "Clé API Kraken invalide. Vérifie la config.",
+          PERMISSION_DENIED: d.user_message || "Permissions API Futures insuffisantes.",
           NETWORK: "Erreur réseau Kraken. Réessaie.",
         }
         throw new Error(friendly[d.error_code] || d.error || "Erreur inconnue")
@@ -221,13 +232,17 @@ export default function Kraken() {
       if (d.futures) parts.push(`${d.futures.inserted + d.futures.updated} futures`)
       setTradesSyncMsg(parts.join(" · ") || "Sync OK")
       loadKrakenTrades()
+      if (tradesTab === "futures") loadRoundTrips()
     } catch (e: any) {
       setTradesSyncMsg(`⚠ ${e.message}`)
     } finally { setTradesSyncing(false) }
   }
 
   useEffect(() => { fetchPortfolio() }, [])
-  useEffect(() => { loadKrakenTrades() }, [tradesTab, tradesRange])
+  useEffect(() => {
+    loadKrakenTrades()
+    if (tradesTab === "futures") loadRoundTrips()
+  }, [tradesTab, tradesRange])
 
   if (loading) return <div style={{ padding: "28px 32px", color: "var(--ink2)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Chargement...</div>
   if (error) return <div style={{ padding: "28px 32px", color: "var(--at-neg)", fontFamily: "var(--font-mono)", fontSize: 13 }}>Erreur : {error}</div>
@@ -678,6 +693,23 @@ export default function Kraken() {
                 </button>
               ))}
             </div>
+            {tradesTab === "futures" && (
+              <>
+                <div style={{ width: 1, height: 16, background: "var(--rule)" }} />
+                <div style={{ display: "flex", gap: 2 }}>
+                  {(["round-trips", "fills"] as const).map(v => (
+                    <button key={v} onClick={() => setFuturesView(v)}
+                      style={{
+                        padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                        background: futuresView === v ? "var(--at-accent)" : "transparent",
+                        color: futuresView === v ? "var(--at-bg)" : "var(--ink2)",
+                      }}>
+                      {v === "round-trips" ? "Round-trips" : "Fills"}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <div style={{ width: 1, height: 16, background: "var(--rule)" }} />
             <div style={{ display: "flex", gap: 2 }}>
               {(["30J", "90J", "YTD", "1A", "Tout"] as const).map(r => (
@@ -706,7 +738,111 @@ export default function Kraken() {
           </div>
         </div>
 
-        {krakenTrades.length === 0 ? (
+        {/* Open position banner */}
+        {tradesTab === "futures" && openFuturesPosition && (
+          <div style={{
+            padding: "10px 14px", marginBottom: 10, borderRadius: 4,
+            background: "var(--at-surface)", border: "1px solid var(--rule)",
+            fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink2)",
+          }}>
+            Position ouverte : {openFuturesPosition.qty.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {openFuturesPosition.ticker}{" "}
+            <span style={{ fontWeight: 700, color: openFuturesPosition.direction === "LONG" ? "var(--at-pos)" : "var(--at-neg)" }}>
+              {openFuturesPosition.direction}
+            </span>
+            {" "}depuis {formatTradeDate(openFuturesPosition.open_date).date} · prix moy. {fmtCcy(openFuturesPosition.avg_open_price, "USD")}
+          </div>
+        )}
+
+        {tradesTab === "futures" && futuresView === "round-trips" ? (() => {
+          if (roundTrips.length === 0) return (
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+              Aucun round-trip Futures clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
+            </div>
+          )
+          const thStyle = (right?: boolean): React.CSSProperties => ({
+            padding: "10px 12px", textAlign: right ? "right" : "left",
+            fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
+            borderBottom: "1px solid var(--rule)",
+          })
+          const tdNum: React.CSSProperties = { padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }
+          const totalPnlEur = roundTrips.reduce((s: number, rt: any) => s + (rt.realized_pnl_net_eur || 0), 0)
+          const totalFees = roundTrips.reduce((s: number, rt: any) => s + (rt.total_fees || 0), 0)
+
+          return (
+            <>
+              <div style={{ border: "1px solid var(--rule)", borderRadius: 4, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "var(--at-surface)" }}>
+                      <th style={thStyle()}>Période</th>
+                      <th style={thStyle()}>Ticker</th>
+                      <th style={thStyle()}>Dir.</th>
+                      <th style={thStyle(true)}>Qté</th>
+                      <th style={thStyle(true)}>Prix open</th>
+                      <th style={thStyle(true)}>Prix close</th>
+                      <th style={thStyle(true)}>Frais</th>
+                      <th style={thStyle(true)}>PnL net $</th>
+                      <th style={thStyle(true)}>PnL net €</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roundTrips.map((rt: any) => {
+                      const pnlColor = rt.realized_pnl_net > 0 ? "var(--at-pos)" : rt.realized_pnl_net < 0 ? "var(--at-neg)" : "var(--ink3)"
+                      const openD = formatTradeDate(rt.open_date)
+                      const closeD = formatTradeDate(rt.close_date)
+                      return (
+                        <tr key={rt.id} style={{ borderBottom: "1px dotted var(--rule)" }}>
+                          <td style={{ padding: "8px 12px", color: "var(--ink2)", whiteSpace: "nowrap" }}>
+                            <div>{openD.date} {openD.time}</div>
+                            <div style={{ fontSize: 10, color: "var(--ink3)" }}>{closeD.date} {closeD.time} · {rt.duration_hours}h · {rt.nb_fills} fills</div>
+                          </td>
+                          <td style={{ padding: "8px 12px", fontFamily: "var(--font-serif)", fontWeight: 700, color: "var(--ink)" }}>{rt.ticker}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{
+                              display: "inline-block", padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                              background: rt.direction === "LONG" ? "var(--at-pos)" : "var(--at-neg)", color: "var(--at-bg)",
+                            }}>
+                              {rt.direction}
+                            </span>
+                          </td>
+                          <td style={tdNum}>{rt.qty.toLocaleString("fr-FR", { maximumFractionDigits: 8 })}</td>
+                          <td style={tdNum}>{fmtCcy(rt.avg_open_price, "USD")}</td>
+                          <td style={tdNum}>{fmtCcy(rt.avg_close_price, "USD")}</td>
+                          <td style={{ ...tdNum, color: "var(--ink3)" }}>{fmtCcy(-Math.abs(rt.total_fees), "USD")}</td>
+                          <td style={{ ...tdNum, fontWeight: 600, color: pnlColor }}>
+                            {(rt.realized_pnl_net >= 0 ? "+" : "") + fmtCcy(rt.realized_pnl_net, "USD")}
+                          </td>
+                          <td style={{ ...tdNum, fontWeight: 600, color: pnlColor }}>
+                            {(rt.realized_pnl_net_eur >= 0 ? "+" : "") + fmtEur(rt.realized_pnl_net_eur)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid var(--ink)", background: "var(--at-surface)" }}>
+                      <td colSpan={6} style={{ padding: "10px 12px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink2)" }}>
+                        Total · {roundTrips.length} round-trip{roundTrips.length > 1 ? "s" : ""}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink3)" }}>
+                        {fmtCcy(-Math.abs(totalFees), "USD")}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink)" }}>
+                        {"—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: totalPnlEur >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
+                        {(totalPnlEur >= 0 ? "+" : "") + fmtEur(totalPnlEur)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
+                PnL = (closes − opens) − fees · FX EUR au taux fixe du jour
+              </div>
+            </>
+          )
+        })() : (krakenTrades.length === 0 ? (
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
             Aucun trade {tradesTab === "spot" ? "Spot" : "Futures"} enregistré.<br />Cliquez "Sync trades" pour récupérer l'historique.
           </div>
@@ -815,7 +951,7 @@ export default function Kraken() {
               )}
             </>
           )
-        })()}
+        })())}
       </div>
 
 

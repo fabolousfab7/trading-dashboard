@@ -210,6 +210,110 @@ function mapExecutionV2ToRow(element: any, accountId: string): FuturesTradeRow |
   }
 }
 
+function aggregateRoundTrips(fills: any[]): {
+  round_trips: any[]
+  open_position: any | null
+} {
+  const byTicker: Record<string, any[]> = {}
+  for (const f of fills) {
+    const t = f.ticker || ""
+    if (!byTicker[t]) byTicker[t] = []
+    byTicker[t].push(f)
+  }
+
+  const trips: any[] = []
+  let openPosition: any = null
+
+  for (const [ticker, tickerFills] of Object.entries(byTicker)) {
+    const sorted = [...tickerFills].sort(
+      (a, b) => +new Date(a.trade_date) - +new Date(b.trade_date)
+    )
+
+    let positionQty = 0
+    let trip: any = null
+
+    for (const fill of sorted) {
+      const qty = Number(fill.quantity) || 0
+      const signedQty = fill.side === "BUY" ? qty : -qty
+
+      if (positionQty === 0) {
+        trip = {
+          ticker, pair: fill.pair, quote_currency: fill.quote_currency || "USD",
+          direction: signedQty > 0 ? "LONG" : "SHORT",
+          open_date: fill.trade_date, close_date: null,
+          open_qty: 0, close_qty: 0,
+          open_proceeds: 0, close_proceeds: 0,
+          open_fees: 0, close_fees: 0,
+          fill_ids: [] as string[],
+        }
+      }
+      if (!trip) continue
+
+      const isOpening = (trip.direction === "LONG" && signedQty > 0)
+                     || (trip.direction === "SHORT" && signedQty < 0)
+      const proceeds = qty * (Number(fill.price) || 0)
+      const fee = Number(fill.fee) || 0
+
+      if (isOpening) {
+        trip.open_qty += qty
+        trip.open_proceeds += proceeds
+        trip.open_fees += fee
+      } else {
+        trip.close_qty += qty
+        trip.close_proceeds += proceeds
+        trip.close_fees += fee
+      }
+      trip.fill_ids.push(fill.id || fill.kraken_trade_id)
+      positionQty += signedQty
+
+      if (Math.abs(positionQty) < 1e-8) {
+        trip.close_date = fill.trade_date
+        const totalFees = trip.open_fees + trip.close_fees
+        const grossPnl = trip.direction === "LONG"
+          ? trip.close_proceeds - trip.open_proceeds
+          : trip.open_proceeds - trip.close_proceeds
+        const netPnl = grossPnl - totalFees
+        const fxRate = HARDCODED_FX[trip.quote_currency] ?? 1
+
+        trips.push({
+          id: `${ticker}-${trip.open_date}`,
+          ticker, pair: trip.pair, direction: trip.direction,
+          open_date: trip.open_date, close_date: trip.close_date,
+          duration_hours: Math.round((+new Date(trip.close_date) - +new Date(trip.open_date)) / 3_600_000 * 10) / 10,
+          qty: trip.open_qty,
+          avg_open_price: trip.open_qty > 0 ? trip.open_proceeds / trip.open_qty : 0,
+          avg_close_price: trip.close_qty > 0 ? trip.close_proceeds / trip.close_qty : 0,
+          open_fees: trip.open_fees, close_fees: trip.close_fees, total_fees: totalFees,
+          gross_pnl: grossPnl, realized_pnl_net: netPnl,
+          quote_currency: trip.quote_currency,
+          fx_rate_to_eur: fxRate,
+          realized_pnl_net_eur: netPnl * fxRate,
+          nb_fills: trip.fill_ids.length,
+          fill_ids: trip.fill_ids,
+        })
+        trip = null
+        positionQty = 0
+      }
+    }
+
+    if (trip && Math.abs(positionQty) >= 1e-8) {
+      openPosition = {
+        ticker, pair: trip.pair, direction: trip.direction,
+        open_date: trip.open_date,
+        qty: Math.abs(positionQty),
+        avg_open_price: trip.open_qty > 0 ? trip.open_proceeds / trip.open_qty : 0,
+        open_fees: trip.open_fees,
+        nb_fills: trip.fill_ids.length,
+      }
+    }
+  }
+
+  return {
+    round_trips: trips.sort((a, b) => +new Date(b.close_date) - +new Date(a.close_date)),
+    open_position: openPosition,
+  }
+}
+
 export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClient) {
   const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
 
@@ -263,6 +367,27 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     }
 
     return res.json({ trades: safe, summary })
+  })
+
+  // ── GET /api/kraken/trades/futures/round-trips ────────────
+  app.get("/api/kraken/trades/futures/round-trips", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ round_trips: [], open_position: null })
+
+    const accountIds = accounts.map((a: any) => a.id)
+    const { data: fills, error } = await userClient
+      .from("kraken_trades")
+      .select("*")
+      .in("account_id", accountIds)
+      .eq("market_type", "futures")
+      .order("trade_date", { ascending: true })
+
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json(aggregateRoundTrips(fills || []))
   })
 
   // ── POST /api/kraken/trades/sync ──────────────────────────
