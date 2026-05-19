@@ -229,6 +229,7 @@ interface RoundTripOptions {
 function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
   round_trips: any[]
   open_positions: any[]
+  skipped_pre_window: number
 } {
   const { allowShort = true, groupByQuote = false } = options
 
@@ -241,6 +242,7 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
 
   const trips: any[] = []
   const openPositions: any[] = []
+  let skippedPreWindow = 0
 
   for (const [, groupFills] of Object.entries(groups)) {
     const sorted = [...groupFills].sort(
@@ -254,7 +256,23 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
       const qty = Number(fill.quantity) || 0
       const signedQty = fill.side === "BUY" ? qty : -qty
 
-      if (!allowShort && positionQty === 0 && signedQty < 0) continue
+      if (!allowShort) {
+        // Position in short territory — skip fills until we recover to 0
+        if (positionQty < -1e-8) {
+          positionQty += signedQty
+          if (positionQty > -1e-8) positionQty = 0
+          skippedPreWindow++
+          continue
+        }
+        // Sell would push position negative — track but skip
+        if (signedQty < 0 && positionQty + signedQty < -1e-8) {
+          positionQty += signedQty
+          skippedPreWindow++
+          continue
+        }
+      }
+
+      if (Math.abs(positionQty) < 1e-8) positionQty = 0
 
       if (positionQty === 0) {
         const direction = signedQty > 0 ? "LONG" : "SHORT"
@@ -289,8 +307,6 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
       trip.fill_ids.push(fill.id || fill.kraken_trade_id)
       positionQty += signedQty
 
-      if (!allowShort && positionQty < -1e-8) positionQty = 0
-
       if (Math.abs(positionQty) < 1e-8) {
         trip.close_date = fill.trade_date
         const totalFees = trip.open_fees + trip.close_fees
@@ -315,6 +331,8 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
           realized_pnl_net_eur: netPnl * fxRate,
           nb_fills: trip.fill_ids.length,
           fill_ids: trip.fill_ids,
+          holding_fees: 0,
+          holding_fees_count: 0,
         })
         trip = null
         positionQty = 0
@@ -334,10 +352,171 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
     }
   }
 
+  if (skippedPreWindow > 0) {
+    console.log(`[round-trips] Skipped ${skippedPreWindow} fills without cost basis (pre-window)`)
+  }
+
   return {
     round_trips: trips.sort((a, b) => +new Date(b.close_date) - +new Date(a.close_date)),
     open_positions: openPositions,
+    skipped_pre_window: skippedPreWindow,
   }
+}
+
+// ── Holding fees (in-memory, no DB table) ──
+
+interface HoldingFee {
+  id: string
+  time: number
+  amount: number
+  asset: string
+  type: string
+}
+
+async function fetchSpotHoldingFees(
+  config: KrakenConfig,
+  fromDate: Date,
+  toDate: Date
+): Promise<HoldingFee[]> {
+  const fees: HoldingFee[] = []
+
+  for (const ledgerType of ["rollover", "margin"]) {
+    let offset = 0
+    do {
+      const result = await krakenPrivateRequest("Ledgers", {
+        type: ledgerType,
+        start: String(Math.floor(fromDate.getTime() / 1000)),
+        end: String(Math.ceil(toDate.getTime() / 1000)),
+        ofs: String(offset),
+      }, config)
+
+      const ledger = result?.ledger ?? {}
+      const entries = Object.entries(ledger)
+
+      if (offset === 0 && entries.length > 0) {
+        console.log(`[kraken-spot] ledger ${ledgerType} sample:`, JSON.stringify(entries[0]).slice(0, 500))
+      }
+
+      for (const [id, raw] of entries) {
+        const entry = raw as any
+        fees.push({
+          id,
+          time: Number(entry.time) * 1000,
+          amount: Number(entry.amount) || 0,
+          asset: normalizeKrakenTicker(String(entry.asset || "")),
+          type: String(entry.type || ""),
+        })
+      }
+
+      offset += entries.length
+      if (entries.length < 50) break
+      await new Promise(r => setTimeout(r, 1500))
+    } while (true)
+
+    if (fees.length > 0) {
+      console.log(`[kraken-spot] fetched ${fees.length} ${ledgerType} entries [${fromDate.toISOString().slice(0, 10)}..${toDate.toISOString().slice(0, 10)}]`)
+      break
+    }
+  }
+
+  if (fees.length === 0) {
+    console.log("[kraken-spot] no rollover/margin ledger entries found")
+  }
+  return fees
+}
+
+async function fetchFuturesHoldingFees(
+  config: KrakenFuturesConfig,
+  fromDate: Date,
+  toDate: Date
+): Promise<HoldingFee[]> {
+  const allElements: any[] = []
+  let continuationToken: string | undefined
+
+  try {
+    do {
+      const params: Record<string, string> = {
+        since: String(fromDate.getTime()),
+        before: String(toDate.getTime()),
+        sort: "asc",
+      }
+      if (continuationToken) params.continuationToken = continuationToken
+
+      const { url, headers } = buildSignedRequest("/api/history/v2/account-log", params, config)
+      const res = await fetch(url, { method: "GET", headers })
+      const body = await res.text()
+
+      if (!res.ok) {
+        console.warn(`[kraken-futures] /account-log HTTP ${res.status}: ${body.slice(0, 300)}`)
+        break
+      }
+
+      const data = JSON.parse(body)
+      allElements.push(...(data.elements ?? []))
+      continuationToken = data.continuationToken ?? undefined
+      if (continuationToken) await new Promise(r => setTimeout(r, 500))
+    } while (continuationToken)
+  } catch (e: any) {
+    console.warn("[kraken-futures] /account-log failed:", e.message)
+  }
+
+  if (allElements.length > 0) {
+    console.log("[kraken-futures] account-log sample:", JSON.stringify(allElements[0]).slice(0, 500))
+    console.log("[kraken-futures] account-log types:", Array.from(new Set(allElements.map((el: any) => String(el.info || el.type || "")))).join(", "))
+  }
+
+  const fundingEntries = allElements.filter((el: any) => {
+    const info = String(el.info || el.type || "").toLowerCase()
+    return info.includes("funding") || info.includes("rollover")
+  })
+
+  console.log(`[kraken-futures] account-log: ${allElements.length} total, ${fundingEntries.length} funding entries`)
+
+  return fundingEntries.map((el: any) => {
+    const newBal = Number(el.new_balance ?? el.amount ?? 0)
+    const oldBal = Number(el.old_balance ?? 0)
+    return {
+      id: String(el.uid || el.id || ""),
+      time: Number(el.timestamp || el.time || 0),
+      amount: el.amount != null ? Number(el.amount) : newBal - oldBal,
+      asset: "USD",
+      type: String(el.info || el.type || ""),
+    }
+  })
+}
+
+function attributeHoldingFees(trips: any[], holdingFees: HoldingFee[]): number {
+  let orphanTotal = 0
+  const attributed = new Set<string>()
+
+  for (const trip of trips) {
+    const openMs = +new Date(trip.open_date)
+    const closeMs = +new Date(trip.close_date)
+    let tripHoldingFees = 0
+    let tripHoldingCount = 0
+
+    for (const fee of holdingFees) {
+      if (fee.time >= openMs && fee.time <= closeMs && !attributed.has(fee.id)) {
+        tripHoldingFees += Math.abs(fee.amount)
+        tripHoldingCount++
+        attributed.add(fee.id)
+      }
+    }
+
+    trip.holding_fees = tripHoldingFees
+    trip.holding_fees_count = tripHoldingCount
+    trip.total_fees = trip.open_fees + trip.close_fees + tripHoldingFees
+    trip.realized_pnl_net = trip.gross_pnl - trip.total_fees
+    trip.realized_pnl_net_eur = trip.realized_pnl_net * (trip.fx_rate_to_eur || 1)
+  }
+
+  for (const fee of holdingFees) {
+    if (!attributed.has(fee.id)) {
+      orphanTotal += Math.abs(fee.amount)
+    }
+  }
+
+  return orphanTotal
 }
 
 export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClient) {
@@ -401,9 +580,10 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     const userClient = userScopedClient((req as any).userToken)
 
     const { data: accounts } = await userClient
-      .from("accounts").select("id").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
-    if (!accounts || accounts.length === 0) return res.json({ round_trips: [], open_position: null })
+      .from("accounts").select("*, kraken_futures_config(*)").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ round_trips: [], open_positions: [] })
 
+    const account = accounts[0]
     const accountIds = accounts.map((a: any) => a.id)
     const { data: fills, error } = await userClient
       .from("kraken_trades")
@@ -413,7 +593,23 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
       .order("trade_date", { ascending: true })
 
     if (error) return res.status(500).json({ error: error.message })
-    return res.json(aggregateRoundTrips(fills || []))
+    const result = aggregateRoundTrips(fills || [])
+
+    let orphanHoldingFees = 0
+    const futConfig = account.kraken_futures_config?.[0] || account.kraken_futures_config
+    if (futConfig?.api_key && futConfig?.api_secret && result.round_trips.length > 0) {
+      try {
+        const futCfg: KrakenFuturesConfig = { api_key: futConfig.api_key, api_secret: futConfig.api_secret }
+        const minDate = new Date(Math.min(...result.round_trips.map((t: any) => +new Date(t.open_date))))
+        const maxDate = new Date(Math.max(...result.round_trips.map((t: any) => +new Date(t.close_date))))
+        const holdingFees = await fetchFuturesHoldingFees(futCfg, minDate, maxDate)
+        orphanHoldingFees = attributeHoldingFees(result.round_trips, holdingFees)
+      } catch (e: any) {
+        console.warn("[kraken-futures] holding fees fetch failed:", e.message)
+      }
+    }
+
+    return res.json({ ...result, orphan_holding_fees_total: orphanHoldingFees })
   })
 
   // ── GET /api/kraken/trades/spot/round-trips ──────────────
@@ -423,9 +619,10 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     const includeFiat = req.query.include_fiat === "true"
 
     const { data: accounts } = await userClient
-      .from("accounts").select("id").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+      .from("accounts").select("*, kraken_config(*)").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
     if (!accounts || accounts.length === 0) return res.json({ round_trips: [], open_positions: [] })
 
+    const account = accounts[0]
     const accountIds = accounts.map((a: any) => a.id)
     const { data: fills, error } = await userClient
       .from("kraken_trades")
@@ -440,7 +637,23 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
       ? (fills || [])
       : (fills || []).filter((f: any) => !isFiatFiatTrade(f))
 
-    return res.json(aggregateRoundTrips(filtered, { allowShort: false, groupByQuote: true }))
+    const result = aggregateRoundTrips(filtered, { allowShort: false, groupByQuote: true })
+
+    let orphanHoldingFees = 0
+    const spotConfig = account.kraken_config?.[0] || account.kraken_config
+    if (spotConfig?.api_key && spotConfig?.api_secret && result.round_trips.length > 0) {
+      try {
+        const krakenCfg: KrakenConfig = { apiKey: spotConfig.api_key, apiSecret: spotConfig.api_secret }
+        const minDate = new Date(Math.min(...result.round_trips.map((t: any) => +new Date(t.open_date))))
+        const maxDate = new Date(Math.max(...result.round_trips.map((t: any) => +new Date(t.close_date))))
+        const holdingFees = await fetchSpotHoldingFees(krakenCfg, minDate, maxDate)
+        orphanHoldingFees = attributeHoldingFees(result.round_trips, holdingFees)
+      } catch (e: any) {
+        console.warn("[kraken-spot] holding fees fetch failed:", e.message)
+      }
+    }
+
+    return res.json({ ...result, orphan_holding_fees_total: orphanHoldingFees })
   })
 
   // ── POST /api/kraken/trades/sync ──────────────────────────

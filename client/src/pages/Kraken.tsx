@@ -84,6 +84,8 @@ export default function Kraken() {
   const [openSpotPositions, setOpenSpotPositions] = useState<any[]>([])
   const [spotView, setSpotView] = useState<"round-trips" | "fills">("round-trips")
   const [includeFiat, setIncludeFiat] = useState(false)
+  const [orphanFuturesFees, setOrphanFuturesFees] = useState(0)
+  const [orphanSpotFees, setOrphanSpotFees] = useState(0)
 
   async function fetchPortfolio() {
     setLoading(true); setError(null)
@@ -212,7 +214,11 @@ export default function Kraken() {
   function loadRoundTrips() {
     authFetch("/api/kraken/trades/futures/round-trips")
       .then(r => r.ok ? r.json() : { round_trips: [], open_positions: [] })
-      .then(d => { setRoundTrips(d.round_trips || []); setOpenFuturesPositions(d.open_positions || []) })
+      .then(d => {
+        setRoundTrips(d.round_trips || [])
+        setOpenFuturesPositions(d.open_positions || [])
+        setOrphanFuturesFees(d.orphan_holding_fees_total || 0)
+      })
       .catch(() => {})
   }
 
@@ -220,7 +226,11 @@ export default function Kraken() {
     const qs = new URLSearchParams({ include_fiat: String(fiat) })
     authFetch(`/api/kraken/trades/spot/round-trips?${qs}`)
       .then(r => r.ok ? r.json() : { round_trips: [], open_positions: [] })
-      .then(d => { setSpotRoundTrips(d.round_trips || []); setOpenSpotPositions(d.open_positions || []) })
+      .then(d => {
+        setSpotRoundTrips(d.round_trips || [])
+        setOpenSpotPositions(d.open_positions || [])
+        setOrphanSpotFees(d.orphan_holding_fees_total || 0)
+      })
       .catch(() => {})
   }
 
@@ -819,7 +829,7 @@ export default function Kraken() {
                       <th style={thStyle(true)}>Qté</th>
                       <th style={thStyle(true)}>Prix open</th>
                       <th style={thStyle(true)}>Prix close</th>
-                      <th style={thStyle(true)}>Frais</th>
+                      <th style={thStyle(true)}><span title="Frais d'exécution + funding rates sur la durée de tenue">Frais</span></th>
                       <th style={thStyle(true)}>PnL net $</th>
                     </tr>
                   </thead>
@@ -873,6 +883,11 @@ export default function Kraken() {
               <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
                 PnL = (closes − opens) − fees
               </div>
+              {orphanFuturesFees > 0 && (
+                <div style={{ fontSize: 10, color: "var(--at-neg)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+                  {fmtCcy(orphanFuturesFees, "USD")} de frais de tenue sur positions ouvertes (non attribués)
+                </div>
+              )}
             </>
           )
         })() : tradesTab === "spot" && spotView === "round-trips" ? (() => {
@@ -903,7 +918,7 @@ export default function Kraken() {
                       <th style={thStyle(true)}>Qté</th>
                       <th style={thStyle(true)}>Prix open</th>
                       <th style={thStyle(true)}>Prix close</th>
-                      <th style={thStyle(true)}>Frais</th>
+                      <th style={thStyle(true)}><span title="Frais d'exécution + rollovers margin sur la durée de tenue">Frais</span></th>
                       <th style={thStyle(true)}>PnL net</th>
                     </tr>
                   </thead>
@@ -959,6 +974,11 @@ export default function Kraken() {
               <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
                 PnL = (closes − opens) − fees · Total converti en EUR au taux fixe
               </div>
+              {orphanSpotFees > 0 && (
+                <div style={{ fontSize: 10, color: "var(--at-neg)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+                  {fmtEur(orphanSpotFees)} de frais de tenue sur positions ouvertes (non attribués)
+                </div>
+              )}
             </>
           )
         })() : (krakenTrades.length === 0 ? (
