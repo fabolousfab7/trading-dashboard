@@ -94,9 +94,11 @@ async function fetchFuturesExecutionsV2(config: KrakenFuturesConfig, sinceMs: nu
     if (continuationToken) params.continuationToken = continuationToken
 
     const { url, headers } = buildSignedRequest("/api/history/v2/executions", params, config)
-    console.log(`[kraken-futures-fills] calling /api/history/v2/executions (token=${continuationToken ?? "none"})`)
     const res = await fetch(url, { method: "GET", headers })
     const body = await res.text()
+    console.log("[kraken-debug] === RESPONSE (history v2) ===")
+    console.log("[kraken-debug] status:", res.status)
+    console.log("[kraken-debug] body (first 500):", body.slice(0, 500))
 
     if (!res.ok) {
       throw new Error(`Kraken Futures /api/history/v2/executions HTTP ${res.status}: ${body.slice(0, 300)}`)
