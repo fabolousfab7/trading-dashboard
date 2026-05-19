@@ -772,32 +772,6 @@ export default function Kraken() {
           </div>
         </div>
 
-        {/* Open position banners */}
-        {tradesTab === "futures" && openFuturesPositions.map((op: any, i: number) => (
-          <div key={i} style={{
-            padding: "10px 14px", marginBottom: 10, borderRadius: 4,
-            background: "var(--at-surface)", border: "1px solid var(--rule)",
-            fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink2)",
-          }}>
-            Position ouverte : {op.qty.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {op.ticker}{" "}
-            <span style={{ fontWeight: 700, color: op.direction === "LONG" ? "var(--at-pos)" : "var(--at-neg)" }}>
-              {op.direction}
-            </span>
-            {" "}depuis {formatTradeDate(op.open_date).date} · prix moy. {fmtCcy(op.avg_open_price, op.quote_currency || "USD")}
-          </div>
-        ))}
-        {tradesTab === "spot" && openSpotPositions.map((op: any, i: number) => (
-          <div key={i} style={{
-            padding: "10px 14px", marginBottom: 10, borderRadius: 4,
-            background: "var(--at-surface)", border: "1px solid var(--rule)",
-            fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink2)",
-          }}>
-            Position ouverte : {op.qty.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {op.ticker}/{op.quote_currency}{" "}
-            <span style={{ fontWeight: 700, color: "var(--at-pos)" }}>LONG</span>
-            {" "}depuis {formatTradeDate(op.open_date).date} · prix moy. {fmtCcy(op.avg_open_price, op.quote_currency || "USD")}
-          </div>
-        ))}
-
         {tradesTab === "futures" && futuresView === "round-trips" ? (() => {
           if (roundTrips.length === 0) return (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
