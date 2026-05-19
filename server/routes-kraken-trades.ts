@@ -376,6 +376,15 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
             raw_data: f,
           }
 
+          console.log("[kraken-debug-row] === ROW BEFORE INSERT ===")
+          console.log("[kraken-debug-row] kraken_trade_id:", row.kraken_trade_id)
+          console.log("[kraken-debug-row] trade_date:", row.trade_date)
+          console.log("[kraken-debug-row] pair:", row.pair, "| ticker:", row.ticker, "| quote:", row.quote_currency)
+          console.log("[kraken-debug-row] side:", row.side, "| fillType:", fillType, "| rawSide:", rawSide)
+          console.log("[kraken-debug-row] qty:", row.quantity, "| price:", row.price, "| cost:", row.cost)
+          console.log("[kraken-debug-row] realized_pnl:", row.realized_pnl, "| fee:", row.fee)
+          console.log("[kraken-debug-row] raw fill (200):", JSON.stringify(f).substring(0, 200))
+
           const { data: existing } = await userClient
             .from("kraken_trades")
             .select("id")
@@ -384,11 +393,21 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
             .maybeSingle()
 
           if (existing) {
-            await userClient.from("kraken_trades").update(row).eq("id", existing.id)
-            futuresResult.updated++
+            const { error: updErr } = await userClient.from("kraken_trades").update(row).eq("id", existing.id)
+            if (updErr) {
+              console.error("[kraken-insert-error] UPDATE PG error:", JSON.stringify(updErr))
+              console.error("[kraken-insert-error] code:", updErr.code, "| details:", updErr.details)
+            } else {
+              futuresResult.updated++
+            }
           } else {
-            await userClient.from("kraken_trades").insert(row)
-            futuresResult.inserted++
+            const { error: insErr } = await userClient.from("kraken_trades").insert(row)
+            if (insErr) {
+              console.error("[kraken-insert-error] INSERT PG error:", JSON.stringify(insErr))
+              console.error("[kraken-insert-error] code:", insErr.code, "| details:", insErr.details)
+            } else {
+              futuresResult.inserted++
+            }
           }
         }
       } catch (e: any) {
