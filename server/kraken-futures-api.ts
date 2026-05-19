@@ -17,30 +17,28 @@ function signRequest(endpointPath: string, postData: string, nonce: string, apiS
   return hmac.digest("base64")
 }
 
-// https://docs.futures.kraken.com/#http-server-authentication (updated Feb 2024: QS included in sigPath)
+// Ref: github.com/CryptoFacilities/REST-v3-Python — postData = raw QS (no URL encoding)
+// SHA256(postData + nonce + endpointPath) → HMAC-SHA512(hash, base64_decode(secret))
 export function buildSignedRequest(
   endpoint: string,
   params: Record<string, string>,
   config: KrakenFuturesConfig
 ): { url: string; headers: Record<string, string> } {
   const nonce = Date.now().toString()
-  const qs = new URLSearchParams(params).toString()
+  const rawQs = Object.entries(params).map(([k, v]) => `${k}=${v}`).join("&")
   const sigPath = endpoint.startsWith("/derivatives")
     ? endpoint.slice("/derivatives".length)
     : endpoint
-  // QS goes into postData (1st arg of SHA-256), NOT appended to sigPath
-  const signature = signRequest(sigPath, qs, nonce, config.api_secret)
-  const finalUrl = `${BASE_URL}${endpoint}${qs ? "?" + qs : ""}`
+  const signature = signRequest(sigPath, rawQs, nonce, config.api_secret)
+  const finalUrl = `${BASE_URL}${endpoint}${rawQs ? "?" + rawQs : ""}`
 
   console.log("[kraken-debug] === REQUEST ===")
   console.log("[kraken-debug] endpoint:", endpoint)
-  console.log("[kraken-debug] queryString:", qs || "(none)")
-  console.log("[kraken-debug] sigPath (string signed):", sigPath)
-  console.log("[kraken-debug] postData:", "(none)")
+  console.log("[kraken-debug] sigPath:", sigPath)
+  console.log("[kraken-debug] postData (raw QS for HMAC):", rawQs || "(none)")
   console.log("[kraken-debug] nonce:", nonce)
   console.log("[kraken-debug] final URL:", finalUrl)
   console.log("[kraken-debug] Authent (first 20):", signature.substring(0, 20) + "...")
-  console.log("[kraken-debug] APIKey (last 4):", "****" + config.api_key.slice(-4))
 
   return {
     url: finalUrl,
