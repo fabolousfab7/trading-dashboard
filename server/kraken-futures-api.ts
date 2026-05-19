@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 const BASE_URL = "https://futures.kraken.com"
 
-interface KrakenFuturesConfig {
+export interface KrakenFuturesConfig {
   api_key: string
   api_secret: string
 }
@@ -17,21 +17,38 @@ function signRequest(endpointPath: string, postData: string, nonce: string, apiS
   return hmac.digest("base64")
 }
 
-async function callFutures(endpoint: string, config: KrakenFuturesConfig, signaturePath?: string) {
+// https://docs.futures.kraken.com/#http-server-authentication (updated Feb 2024: QS included in sigPath)
+export function buildSignedRequest(
+  endpoint: string,
+  params: Record<string, string>,
+  config: KrakenFuturesConfig
+): { url: string; headers: Record<string, string> } {
   const nonce = Date.now().toString()
-  const postData = ""
-  const sigPath = signaturePath ?? endpoint.replace("/derivatives", "")
-  const signature = signRequest(sigPath, postData, nonce, config.api_secret)
+  const qs = new URLSearchParams(params).toString()
+  let sigPath = endpoint.startsWith("/derivatives")
+    ? endpoint.slice("/derivatives".length)
+    : endpoint
+  if (qs) sigPath += "?" + qs
 
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    method: "GET",
+  const signature = signRequest(sigPath, "", nonce, config.api_secret)
+  return {
+    url: `${BASE_URL}${endpoint}${qs ? "?" + qs : ""}`,
     headers: {
       APIKey: config.api_key,
       Nonce: nonce,
       Authent: signature,
       Accept: "application/json",
     },
-  })
+  }
+}
+
+export async function callFutures(
+  endpoint: string,
+  config: KrakenFuturesConfig,
+  params: Record<string, string> = {}
+): Promise<Record<string, unknown>> {
+  const { url, headers } = buildSignedRequest(endpoint, params, config)
+  const res = await fetch(url, { method: "GET", headers })
 
   if (!res.ok) {
     const text = await res.text()
@@ -54,7 +71,7 @@ export async function fetchFuturesOpenPositions(config: KrakenFuturesConfig) {
 }
 
 export async function fetchFuturesAccountLog(config: KrakenFuturesConfig) {
-  return callFutures("/api/history/v2/account-log", config, "/api/history/v2/account-log")
+  return callFutures("/api/history/v2/account-log", config)
 }
 
 export async function fetchFuturesTickers(): Promise<Array<{ symbol: string; markPrice: number }>> {

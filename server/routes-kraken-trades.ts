@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@supabase/supabase-js"
 import { krakenPrivateRequest, normalizeKrakenTicker, KrakenConfig } from "./kraken-api.js"
 import { recalcFifoForAccount } from "./fifo-pnl.js"
+import { buildSignedRequest, callFutures, type KrakenFuturesConfig } from "./kraken-futures-api.js"
 
 const QUASI_FIAT = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI"])
 const FIAT_LIKE_RAW = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI", "ZEUR", "ZUSD", "ZGBP", "ZJPY", "ZCHF"])
@@ -47,72 +48,111 @@ function parseKrakenPair(pair: string): { ticker: string; quote: string } | null
 }
 
 function classifyError(msg: string): string {
-  if (/rate.?limit|too many|EAPI:Rate/i.test(msg)) return "RATE_LIMIT"
-  if (/invalid.?key|permission|EAPI:Invalid key/i.test(msg)) return "INVALID_TOKEN"
-  if (/timeout|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(msg)) return "NETWORK"
+  if (/rate.?limit|too many|EAPI:Rate|apiLimitExceeded/i.test(msg)) return "RATE_LIMIT"
+  if (/invalid.?key|EAPI:Invalid key/i.test(msg)) return "INVALID_TOKEN"
+  if (/authenticationError|permission|insufficientPermissions/i.test(msg)) return "PERMISSION_DENIED"
+  if (/invalidArgument/i.test(msg)) return "PARSE_ERROR"
+  if (/timeout|ECONNREFUSED|ENOTFOUND|fetch failed|nonceDuplicate/i.test(msg)) return "NETWORK"
   return "UNKNOWN"
 }
 
 interface FuturesFill {
   fill_id: string
   side: string
+  fillType?: string
   fillTime: string
   price: number
   size: number
   symbol: string
   fee?: number
   fee_currency?: string
+  paidPnL?: number
+  collateralCurrency?: string
 }
 
-function signFutures(endpointPath: string, postData: string, nonce: string, apiSecret: string): string {
-  const crypto = require("crypto")
-  const message = postData + nonce + endpointPath
-  const sha256Hash = crypto.createHash("sha256").update(message).digest()
-  const hmac = crypto.createHmac("sha512", Buffer.from(apiSecret, "base64"))
-  hmac.update(sha256Hash)
-  return hmac.digest("base64")
-}
-
-async function callFuturesEndpoint(endpoint: string, sigPath: string, config: { api_key: string; api_secret: string }, qs = ""): Promise<any> {
-  const nonce = Date.now().toString()
-  const signature = signFutures(sigPath, "", nonce, config.api_secret)
-  const url = `https://futures.kraken.com${endpoint}${qs ? "?" + qs : ""}`
-  console.log(`[kraken-futures-fills] calling ${endpoint}${qs ? "?" + qs : ""}`)
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { APIKey: config.api_key, Nonce: nonce, Authent: signature, Accept: "application/json" },
+async function fetchFuturesFillsV3(config: KrakenFuturesConfig): Promise<FuturesFill[]> {
+  const since = new Date(Date.now() - 30 * 86400_000)
+  console.log(`[kraken-futures-fills] trying /derivatives/api/v3/fills since ${since.toISOString()}`)
+  const data = await callFutures("/derivatives/api/v3/fills", config, {
+    lastFillTime: since.toISOString(),
   })
-  const body = await res.text()
-  if (!res.ok) {
-    throw new Error(`Kraken Futures ${endpoint} HTTP ${res.status}: ${body.slice(0, 300)}`)
-  }
-  const data = JSON.parse(body)
-  if (data.result === "error" || data.error) {
-    throw new Error(`Kraken Futures ${endpoint}: ${JSON.stringify(data.error ?? data.errors ?? data)}`)
-  }
-  return data
+  const fills = (data.fills ?? []) as FuturesFill[]
+  console.log(`[kraken-futures-fills] /fills returned ${fills.length} fills`)
+  return fills
 }
 
-async function fetchFuturesFills(config: { api_key: string; api_secret: string }): Promise<FuturesFill[]> {
-  const since = new Date(Date.now() - 365 * 86400_000)
+async function fetchFuturesExecutionsV2(config: KrakenFuturesConfig, sinceMs: number): Promise<FuturesFill[]> {
+  const allFills: FuturesFill[] = []
+  let continuationToken: string | undefined
 
-  const endpoints = [
-    { path: "/derivatives/api/v3/fills", sigPath: "/api/v3/fills", qsKey: "lastFillTime" },
-    { path: "/api/history/v3/fills", sigPath: "/api/history/v3/fills", qsKey: "lastFillTime" },
-  ]
-
-  for (const ep of endpoints) {
-    try {
-      const data = await callFuturesEndpoint(ep.path, ep.sigPath, config, `${ep.qsKey}=${since.toISOString()}`)
-      const fills = (data.fills ?? []) as FuturesFill[]
-      console.log(`[kraken-futures-fills] ${ep.path} returned ${fills.length} fills`)
-      return fills
-    } catch (e: any) {
-      console.warn(`[kraken-futures-fills] ${ep.path} failed: ${e.message}`)
-      if (ep === endpoints[endpoints.length - 1]) throw e
+  do {
+    const params: Record<string, string> = {
+      since: String(sinceMs),
+      before: String(Date.now()),
+      sort: "asc",
     }
+    if (continuationToken) params.continuationToken = continuationToken
+
+    const { url, headers } = buildSignedRequest("/api/history/v2/executions", params, config)
+    console.log(`[kraken-futures-fills] calling /api/history/v2/executions (token=${continuationToken ?? "none"})`)
+    const res = await fetch(url, { method: "GET", headers })
+    const body = await res.text()
+
+    if (!res.ok) {
+      throw new Error(`Kraken Futures /api/history/v2/executions HTTP ${res.status}: ${body.slice(0, 300)}`)
+    }
+
+    const data = JSON.parse(body)
+    const elements = (data.elements ?? []) as Array<Record<string, unknown>>
+    for (const el of elements) {
+      const exec = (el.event as Record<string, unknown>) ?? el
+      allFills.push({
+        fill_id: String(exec.uid ?? exec.executionId ?? el.uid ?? ""),
+        side: String(exec.direction ?? exec.side ?? "").toLowerCase(),
+        fillType: String(exec.fillType ?? exec.executionType ?? ""),
+        fillTime: String(exec.timestamp ?? el.timestamp ?? ""),
+        price: Number(exec.price) || 0,
+        size: Number(exec.quantity ?? exec.size) || 0,
+        symbol: String(exec.instrument ?? exec.symbol ?? ""),
+        fee: Number(exec.fee) || 0,
+        paidPnL: exec.realizedPnl != null ? Number(exec.realizedPnl) : undefined,
+        collateralCurrency: exec.collateral ? String(exec.collateral) : undefined,
+      })
+    }
+
+    continuationToken = data.continuationToken ?? undefined
+    if (continuationToken) await new Promise(r => setTimeout(r, 500))
+  } while (continuationToken)
+
+  console.log(`[kraken-futures-fills] /executions returned ${allFills.length} fills total`)
+  return allFills
+}
+
+async function fetchFuturesFills(config: KrakenFuturesConfig): Promise<FuturesFill[]> {
+  const fillsById = new Map<string, FuturesFill>()
+
+  try {
+    const recentFills = await fetchFuturesFillsV3(config)
+    for (const f of recentFills) fillsById.set(f.fill_id, f)
+  } catch (primaryErr: any) {
+    console.error("[kraken-futures-fills] /fills failed:", primaryErr.message)
   }
-  return []
+
+  const historySinceMs = Date.now() - 365 * 86400_000
+  try {
+    const histFills = await fetchFuturesExecutionsV2(config, historySinceMs)
+    for (const f of histFills) {
+      if (!fillsById.has(f.fill_id)) fillsById.set(f.fill_id, f)
+    }
+  } catch (histErr: any) {
+    console.error("[kraken-futures-fills] /executions failed:", histErr.message)
+  }
+
+  if (fillsById.size === 0) {
+    throw new Error("Kraken Futures: aucun fill récupéré (fills + executions échoués)")
+  }
+
+  return Array.from(fillsById.values())
 }
 
 function futuresTickerFromSymbol(symbol: string): string {
@@ -303,14 +343,21 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
         for (const f of fills) {
           const ticker = futuresTickerFromSymbol(f.symbol)
           const quote = futuresQuoteFromSymbol(f.symbol)
-          const fxToEur = HARDCODED_FX[quote] ?? 1
-          const side = (f.side || "").toLowerCase() === "sell" ? "SELL" : "BUY"
+          const pnlCurrency = f.collateralCurrency?.toUpperCase() || quote
+          const fxToEur = HARDCODED_FX[pnlCurrency] ?? HARDCODED_FX[quote] ?? 1
+          const rawSide = (f.side || "").toLowerCase()
+          const fillType = (f.fillType || "").toLowerCase()
+          const isClose = fillType === "close" || fillType === "liquidation"
+          const side = isClose
+            ? (rawSide === "buy" ? "CLOSE_SHORT" : "CLOSE_LONG")
+            : (rawSide === "sell" ? "SELL" : "BUY")
           const cost = f.price * f.size
+          const realizedPnl = isClose && f.paidPnL != null ? f.paidPnL : null
 
           const row = {
             account_id: account.id,
             kraken_trade_id: f.fill_id,
-            market_type: "futures",
+            market_type: "futures" as const,
             trade_date: f.fillTime || new Date().toISOString(),
             pair: f.symbol,
             ticker,
@@ -320,7 +367,8 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
             price: f.price,
             cost,
             fee: f.fee ?? 0,
-            net_cash: side === "SELL" ? cost - (f.fee ?? 0) : -(cost + (f.fee ?? 0)),
+            net_cash: rawSide === "sell" ? cost - (f.fee ?? 0) : -(cost + (f.fee ?? 0)),
+            realized_pnl: realizedPnl,
             fx_rate_to_eur: fxToEur,
             source: "api_fills",
             raw_data: f,
@@ -351,15 +399,20 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
 
     const ok = errors.length === 0
     let error_code: string | undefined
+    let user_message: string | undefined
     if (!ok) {
       const msg = errors.join(" ")
       error_code = classifyError(msg)
+      if (error_code === "PERMISSION_DENIED") {
+        user_message = "Activer 'Query Open Orders & Trades' sur la clé API Futures Kraken"
+      }
     }
 
     return res.json({
       ok,
       error: ok ? undefined : errors.join("; "),
       error_code,
+      user_message,
       spot: spotResult,
       futures: futuresResult,
     })
