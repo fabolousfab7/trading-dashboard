@@ -50,9 +50,11 @@ export const KRAKEN_TO_COINGECKO: Record<string, string> = {
 }
 
 export function normalizeKrakenTicker(asset: string): string {
-  if (asset.startsWith("X") && asset.length === 4 && asset !== "XDAO") return asset.slice(1)
-  if (asset.startsWith("Z") && asset.length === 4) return asset.slice(1)
-  return asset
+  let ticker = asset
+  if (ticker.startsWith("X") && ticker.length === 4 && ticker !== "XDAO") ticker = ticker.slice(1)
+  if (ticker.startsWith("Z") && ticker.length === 4) ticker = ticker.slice(1)
+  const REMAP: Record<string, string> = { XBT: "BTC" }
+  return REMAP[ticker] || ticker
 }
 
 const FIAT_ASSETS = ["ZUSD", "ZEUR", "ZGBP", "ZJPY", "USD", "EUR", "GBP", "JPY"]

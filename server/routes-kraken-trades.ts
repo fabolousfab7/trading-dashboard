@@ -10,6 +10,17 @@ const FIAT_LIKE_RAW = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC"
 
 const HARDCODED_FX: Record<string, number> = { EUR: 1, USD: 0.92, GBP: 1.17, CHF: 1.05, JPY: 0.006, USDT: 0.92, USDC: 0.92, DAI: 0.92 }
 
+function normalizeTicker(raw: string): string {
+  const REMAP: Record<string, string> = { XBT: "BTC" }
+  return REMAP[raw] || raw
+}
+
+const FIAT_TICKERS = new Set(["EUR", "USD", "GBP", "JPY", "CHF"])
+
+function isFiatFiatTrade(trade: any): boolean {
+  return FIAT_TICKERS.has(trade.ticker) && QUASI_FIAT.has(trade.quote_currency)
+}
+
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
     process.env.SUPABASE_URL!,
@@ -60,7 +71,7 @@ function classifyError(msg: string): string {
 
 function extractFuturesTicker(tradeable: string): string {
   const match = tradeable.match(/^(?:P[FI]|F[IF])_([A-Z]+?)(?:USD|EUR|GBP)(?:_.+)?$/)
-  return match ? match[1] : tradeable
+  return normalizeTicker(match ? match[1] : tradeable)
 }
 
 function extractFuturesQuote(tradeable: string): string {
@@ -210,22 +221,29 @@ function mapExecutionV2ToRow(element: any, accountId: string): FuturesTradeRow |
   }
 }
 
-function aggregateRoundTrips(fills: any[]): {
+interface RoundTripOptions {
+  allowShort?: boolean
+  groupByQuote?: boolean
+}
+
+function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
   round_trips: any[]
-  open_position: any | null
+  open_positions: any[]
 } {
-  const byTicker: Record<string, any[]> = {}
+  const { allowShort = true, groupByQuote = false } = options
+
+  const groups: Record<string, any[]> = {}
   for (const f of fills) {
-    const t = f.ticker || ""
-    if (!byTicker[t]) byTicker[t] = []
-    byTicker[t].push(f)
+    const key = groupByQuote ? `${f.ticker}|${f.quote_currency}` : (f.ticker || "")
+    if (!groups[key]) groups[key] = []
+    groups[key].push(f)
   }
 
   const trips: any[] = []
-  let openPosition: any = null
+  const openPositions: any[] = []
 
-  for (const [ticker, tickerFills] of Object.entries(byTicker)) {
-    const sorted = [...tickerFills].sort(
+  for (const [, groupFills] of Object.entries(groups)) {
+    const sorted = [...groupFills].sort(
       (a, b) => +new Date(a.trade_date) - +new Date(b.trade_date)
     )
 
@@ -236,10 +254,15 @@ function aggregateRoundTrips(fills: any[]): {
       const qty = Number(fill.quantity) || 0
       const signedQty = fill.side === "BUY" ? qty : -qty
 
+      if (!allowShort && positionQty === 0 && signedQty < 0) continue
+
       if (positionQty === 0) {
+        const direction = signedQty > 0 ? "LONG" : "SHORT"
+        if (!allowShort && direction === "SHORT") continue
         trip = {
-          ticker, pair: fill.pair, quote_currency: fill.quote_currency || "USD",
-          direction: signedQty > 0 ? "LONG" : "SHORT",
+          ticker: fill.ticker, pair: fill.pair,
+          quote_currency: fill.quote_currency || "USD",
+          direction,
           open_date: fill.trade_date, close_date: null,
           open_qty: 0, close_qty: 0,
           open_proceeds: 0, close_proceeds: 0,
@@ -266,6 +289,8 @@ function aggregateRoundTrips(fills: any[]): {
       trip.fill_ids.push(fill.id || fill.kraken_trade_id)
       positionQty += signedQty
 
+      if (!allowShort && positionQty < -1e-8) positionQty = 0
+
       if (Math.abs(positionQty) < 1e-8) {
         trip.close_date = fill.trade_date
         const totalFees = trip.open_fees + trip.close_fees
@@ -276,8 +301,8 @@ function aggregateRoundTrips(fills: any[]): {
         const fxRate = HARDCODED_FX[trip.quote_currency] ?? 1
 
         trips.push({
-          id: `${ticker}-${trip.open_date}`,
-          ticker, pair: trip.pair, direction: trip.direction,
+          id: `${trip.ticker}-${trip.quote_currency}-${trip.open_date}`,
+          ticker: trip.ticker, pair: trip.pair, direction: trip.direction,
           open_date: trip.open_date, close_date: trip.close_date,
           duration_hours: Math.round((+new Date(trip.close_date) - +new Date(trip.open_date)) / 3_600_000 * 10) / 10,
           qty: trip.open_qty,
@@ -297,20 +322,21 @@ function aggregateRoundTrips(fills: any[]): {
     }
 
     if (trip && Math.abs(positionQty) >= 1e-8) {
-      openPosition = {
-        ticker, pair: trip.pair, direction: trip.direction,
+      openPositions.push({
+        ticker: trip.ticker, pair: trip.pair, direction: trip.direction,
+        quote_currency: trip.quote_currency,
         open_date: trip.open_date,
         qty: Math.abs(positionQty),
         avg_open_price: trip.open_qty > 0 ? trip.open_proceeds / trip.open_qty : 0,
         open_fees: trip.open_fees,
         nb_fills: trip.fill_ids.length,
-      }
+      })
     }
   }
 
   return {
     round_trips: trips.sort((a, b) => +new Date(b.close_date) - +new Date(a.close_date)),
-    open_position: openPosition,
+    open_positions: openPositions,
   }
 }
 
@@ -390,6 +416,33 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     return res.json(aggregateRoundTrips(fills || []))
   })
 
+  // ── GET /api/kraken/trades/spot/round-trips ──────────────
+  app.get("/api/kraken/trades/spot/round-trips", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const includeFiat = req.query.include_fiat === "true"
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.json({ round_trips: [], open_positions: [] })
+
+    const accountIds = accounts.map((a: any) => a.id)
+    const { data: fills, error } = await userClient
+      .from("kraken_trades")
+      .select("*")
+      .in("account_id", accountIds)
+      .eq("market_type", "spot")
+      .order("trade_date", { ascending: true })
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    const filtered = includeFiat
+      ? (fills || [])
+      : (fills || []).filter((f: any) => !isFiatFiatTrade(f))
+
+    return res.json(aggregateRoundTrips(filtered, { allowShort: false, groupByQuote: true }))
+  })
+
   // ── POST /api/kraken/trades/sync ──────────────────────────
   app.post("/api/kraken/trades/sync", auth, async (req: Request, res: Response) => {
     const userId = (req as any).userId
@@ -453,7 +506,7 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
             market_type: "spot",
             trade_date: tradeTime,
             pair: t.pair,
-            ticker: parsed.ticker,
+            ticker: normalizeTicker(parsed.ticker),
             quote_currency: parsed.quote,
             side,
             quantity: Number(t.vol) || 0,
