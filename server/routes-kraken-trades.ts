@@ -106,6 +106,16 @@ async function fetchFuturesExecutionsV2(config: KrakenFuturesConfig, sinceMs: nu
 
     const data = JSON.parse(body)
     const elements = (data.elements ?? []) as Array<Record<string, unknown>>
+
+    if (elements.length > 0 && allFills.length === 0) {
+      console.log("[kraken-debug-exec-raw] first element (3000 chars):",
+        JSON.stringify(elements[0]).substring(0, 3000))
+      if (elements.length > 1) {
+        console.log("[kraken-debug-exec-raw] second element (3000 chars):",
+          JSON.stringify(elements[1]).substring(0, 3000))
+      }
+    }
+
     for (const el of elements) {
       const exec = (el.event as Record<string, unknown>) ?? el
       allFills.push({
