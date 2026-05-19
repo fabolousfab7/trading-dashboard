@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { parseISO, format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { supabase } from "@/lib/supabase"
-import { RefreshCw } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import PositionNoteModal from "@/components/PositionNoteModal"
 import AllocBar from "@/components/AllocBar"
@@ -108,12 +107,7 @@ export default function Ibkr() {
   const [account, setAccount] = useState<Account | null>(null)
   const [data, setData] = useState<PortfolioData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
-  const [syncError, setSyncError] = useState<string | null>(null)
-  const [syncSuccess, setSyncSuccess] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
   const [comptaCapital, setComptaCapital] = useState<number | null>(null)
   const [trades, setTrades] = useState<any[]>([])
@@ -143,47 +137,6 @@ export default function Ibkr() {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
     } finally { setLoading(false) }
-  }
-
-  async function refreshPrices() {
-    setRefreshing(true); setRefreshError(null)
-    try {
-      const r = await authFetch("/api/portfolio/refresh-prices")
-      const result = await r.json()
-      if (!r.ok) throw new Error(result.error || "Refresh failed")
-      await loadData()
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setRefreshError(msg)
-    } finally { setRefreshing(false) }
-  }
-
-  async function syncIbkr(force = false) {
-    if (!account?.id) return
-    setSyncing(true); setSyncError(null); setSyncSuccess(null)
-    try {
-      const url = `/api/accounts/${account.id}/sync${force ? "?force=true" : ""}`
-      const r = await authFetch(url, { method: "POST" })
-      const text = await r.text()
-      let result: { error?: string; positionsCount?: number; syncedAt?: string }
-      try {
-        result = JSON.parse(text)
-      } catch {
-        if (text.includes("timed out") || text.includes("Timeout")) {
-          throw new Error("Timeout réseau côté IBKR, réessaie dans quelques minutes.")
-        }
-        throw new Error(`Erreur serveur (HTTP ${r.status})`)
-      }
-      if (!r.ok) throw new Error(result.error || `Sync failed (HTTP ${r.status})`)
-      const time = result.syncedAt
-        ? new Date(result.syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-        : new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      setSyncSuccess(`Sync OK · ${result.positionsCount ?? "?"} positions · ${time}`)
-      await loadData()
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setSyncError(msg)
-    } finally { setSyncing(false) }
   }
 
   useEffect(() => { loadData() }, [])
@@ -300,21 +253,7 @@ export default function Ibkr() {
           </h1>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={refreshPrices} disabled={refreshing}
-              style={{
-                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                background: "var(--at-surface)", border: "1px solid var(--rule)", color: "var(--ink)", borderRadius: 3,
-                cursor: refreshing ? "wait" : "pointer", opacity: refreshing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6,
-                transition: "background .15s",
-              }}
-              onMouseEnter={e => { if (!refreshing) e.currentTarget.style.background = "var(--at-bg)" }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--at-surface)" }}>
-              <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-              Rafraîchir prix
-            </button>
-          </div>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)", marginTop: 6 }}>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)" }}>
             {syncTimeStr
               ? <>Synced à {syncTimeStr} &middot; base {account?.currency_base || "EUR"}</>
               : <>base {account?.currency_base || "EUR"}</>
@@ -324,13 +263,6 @@ export default function Ibkr() {
       </div>
 
       {/* ── ERRORS ────────────────────────────────────────────── */}
-      {refreshError && (
-        <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{refreshError}</span>
-          <button onClick={() => setRefreshError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
-        </div>
-      )}
-
       {/* ── KPI ROW ───────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid var(--rule)", marginBottom: 28 }}>
         {/* NLV */}
