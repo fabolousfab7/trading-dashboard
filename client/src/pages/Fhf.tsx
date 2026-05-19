@@ -546,57 +546,10 @@ export default function Fhf() {
           <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)" }}>Admin</span>
         </div>
         <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Snapshot manuel</div>
-              <p style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: "var(--ink2)", marginTop: 6, lineHeight: 1.5, margin: "6px 0 0" }}>
-                Lance la routine quotidienne en direct : sync Kraken + IBKR, refresh prix, snapshot patrimoine.
-                Utile pour diagnostiquer le cron Vercel et forcer une mise à jour.
-              </p>
-            </div>
-            <button onClick={triggerCron} disabled={cronTriggering}
-              style={{
-                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
-                cursor: cronTriggering ? "wait" : "pointer", opacity: cronTriggering ? 0.5 : 1, transition: "opacity .15s", flexShrink: 0,
-              }}>
-              {cronTriggering ? "Exécution…" : "Lancer le cron"}
-            </button>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, color: "var(--ink2)", lineHeight: 1.5 }}>
+            Synchronisation centralisée via <a href="/settings/connexions" style={{ color: "var(--at-accent)", textDecoration: "underline" }}>/settings/connexions</a> ou le bouton « Tout synchroniser » en page d'accueil.
+            <br />Cron automatique quotidien à 22h UTC inchangé.
           </div>
-          {cronResult && (
-            <div style={{ borderTop: "1px dotted var(--rule)", paddingTop: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12, fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                <span style={{ color: cronResult.success ? "var(--at-pos)" : "var(--at-neg)" }}>
-                  {cronResult.success ? "✓ Succès" : "✗ Échec"} (HTTP {cronResult.status})
-                </span>
-                {cronResult.durationMs !== undefined && (
-                  <span style={{ color: "var(--ink2)" }}>Durée : {(cronResult.durationMs / 1000).toFixed(1)}s</span>
-                )}
-                {cronResult.date && <span style={{ color: "var(--ink2)" }}>Date : {cronResult.date}</span>}
-              </div>
-              {cronResult.error && (
-                <div style={{ color: "var(--at-neg)", fontFamily: "var(--font-mono)", fontSize: 12, marginBottom: 8 }}>Erreur : {cronResult.error}</div>
-              )}
-              {cronResult.results && cronResult.results.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {cronResult.results.map((r: any, i: number) => (
-                    <details key={i} style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 12, background: "var(--at-surface)" }}>
-                      <summary style={{ fontFamily: "var(--font-mono)", fontSize: 12, cursor: "pointer" }}>
-                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{r.account}</span>
-                        <span style={{ color: "var(--ink2)", marginLeft: 8 }}>({r.broker})</span>
-                        <span style={{ color: "var(--ink3)", marginLeft: 8 }}>— {r.actions?.length || 0} action(s)</span>
-                      </summary>
-                      <ul style={{ marginTop: 8, paddingLeft: 16, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink2)", listStyle: "none" }}>
-                        {r.actions?.map((a: string, j: number) => (
-                          <li key={j} style={{ padding: "2px 0", color: a.includes("fail") || a.includes("error") ? "var(--at-neg)" : undefined }}>{a}</li>
-                        ))}
-                      </ul>
-                    </details>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { Plus, Pin, Trash2, Image, X } from "lucide-react"
 import InfoTip from "@/components/InfoTip"
 import { getPositionValueEur, isDerivative } from "@/lib/portfolio-math"
 import NotePanel from "@/components/NotePanel"
+import SyncStatusRow from "@/components/SyncStatusRow"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -349,6 +350,10 @@ export default function Home() {
       </div>
 
       <div style={{ textAlign: "center", margin: "24px 0", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash; &#10086; &mdash;</div>
+
+      <SyncStatusRow />
+
+      <div style={{ textAlign: "center", margin: "16px 0 24px", color: "var(--ink3)", fontFamily: "var(--font-serif)", fontSize: 14 }}>&mdash;</div>
 
       {/* ── 2. LEAD — Brut + Courbe ─────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, paddingBottom: 28, borderBottom: "1px solid var(--rule)", marginBottom: 0 }}>

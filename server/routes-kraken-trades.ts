@@ -361,6 +361,168 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
   }
 }
 
+export async function syncKrakenTradesForAccount(
+  userClient: SupabaseClient,
+  account: any,
+): Promise<{
+  spot: { inserted: number; updated: number; realized_recalc: number }
+  futures: { inserted: number; updated: number }
+  errors: string[]
+}> {
+  const spotResult = { inserted: 0, updated: 0, realized_recalc: 0 }
+  const futuresResult = { inserted: 0, updated: 0 }
+  const errors: string[] = []
+
+  const spotConfig = account.kraken_config?.[0] || account.kraken_config
+  if (spotConfig?.api_key && spotConfig?.api_secret) {
+    try {
+      const krakenCfg: KrakenConfig = { apiKey: spotConfig.api_key, apiSecret: spotConfig.api_secret }
+      const now = Math.floor(Date.now() / 1000)
+      const start = now - 365 * 86400
+      let offset = 0
+      let total = 0
+      const allTrades: Array<{ id: string; data: any }> = []
+
+      do {
+        const result = await krakenPrivateRequest("TradesHistory", {
+          start: String(start),
+          end: String(now),
+          ofs: String(offset),
+        }, krakenCfg)
+
+        const trades = result?.trades ?? {}
+        const entries = Object.entries(trades)
+        total = Number(result?.count) || 0
+
+        for (const [tradeId, raw] of entries) {
+          allTrades.push({ id: tradeId, data: raw })
+        }
+
+        offset += entries.length
+        if (entries.length < 50) break
+        await new Promise(r => setTimeout(r, 1500))
+      } while (offset < total)
+
+      console.log(`[kraken-trades-sync] spot: fetched ${allTrades.length} trades`)
+
+      for (const { id: tradeId, data: t } of allTrades) {
+        const parsed = parseKrakenPair(t.pair || "")
+        if (!parsed) continue
+        if (!QUASI_FIAT.has(parsed.quote)) continue
+        if (QUASI_FIAT.has(parsed.ticker) || FIAT_LIKE_RAW.has(parsed.ticker)) continue
+
+        const fxToEur = HARDCODED_FX[parsed.quote] ?? 1
+        const side = (t.type || "").toLowerCase() === "sell" ? "SELL" : "BUY"
+        const tradeTime = new Date(Number(t.time) * 1000).toISOString()
+
+        const row = {
+          account_id: account.id,
+          kraken_trade_id: tradeId,
+          market_type: "spot",
+          trade_date: tradeTime,
+          pair: t.pair,
+          ticker: normalizeTicker(parsed.ticker),
+          quote_currency: parsed.quote,
+          side,
+          quantity: Number(t.vol) || 0,
+          price: Number(t.price) || 0,
+          cost: Number(t.cost) || 0,
+          fee: Number(t.fee) || 0,
+          net_cash: side === "SELL"
+            ? (Number(t.cost) || 0) - (Number(t.fee) || 0)
+            : -((Number(t.cost) || 0) + (Number(t.fee) || 0)),
+          fx_rate_to_eur: fxToEur,
+          source: "api_trades_history",
+          raw_data: t,
+        }
+
+        const { data: existing } = await userClient
+          .from("kraken_trades")
+          .select("id")
+          .eq("account_id", account.id)
+          .eq("kraken_trade_id", tradeId)
+          .maybeSingle()
+
+        if (existing) {
+          await userClient.from("kraken_trades").update(row).eq("id", existing.id)
+          spotResult.updated++
+        } else {
+          await userClient.from("kraken_trades").insert(row)
+          spotResult.inserted++
+        }
+      }
+
+      spotResult.realized_recalc = await recalcFifoForAccount(userClient, account.id)
+      console.log(`[kraken-trades-sync] spot FIFO: ${spotResult.realized_recalc} sells recalculated`)
+    } catch (e: any) {
+      console.error("[kraken-trades-sync] spot error:", e.message)
+      errors.push(`Spot: ${e.message}`)
+    }
+  } else {
+    console.log("[kraken-trades-sync] skipping spot — no credentials")
+  }
+
+  const futConfig = account.kraken_futures_config?.[0] || account.kraken_futures_config
+  if (futConfig?.api_key && futConfig?.api_secret) {
+    try {
+      const futCfg: KrakenFuturesConfig = { api_key: futConfig.api_key, api_secret: futConfig.api_secret }
+      const allRows = new Map<string, FuturesTradeRow>()
+
+      try {
+        const fillsV3 = await fetchFuturesFillsV3(futCfg)
+        for (const fill of fillsV3) {
+          const row = mapFillV3ToRow(fill, account.id)
+          if (row) allRows.set(row.kraken_trade_id, row)
+        }
+      } catch (e: any) {
+        console.error("[kraken-futures] /fills failed:", e.message)
+      }
+
+      try {
+        const elements = await fetchFuturesExecutionsV2Raw(futCfg, Date.now() - 365 * 86400_000)
+        for (const el of elements) {
+          const row = mapExecutionV2ToRow(el, account.id)
+          if (row && !allRows.has(row.kraken_trade_id)) allRows.set(row.kraken_trade_id, row)
+        }
+      } catch (e: any) {
+        console.error("[kraken-futures] /executions failed:", e.message)
+      }
+
+      if (allRows.size === 0) {
+        throw new Error("Kraken Futures: aucun fill récupéré")
+      }
+
+      console.log(`[kraken-futures] ${allRows.size} unique rows to upsert`)
+
+      for (const row of Array.from(allRows.values())) {
+        const { data: existing } = await userClient
+          .from("kraken_trades")
+          .select("id")
+          .eq("account_id", account.id)
+          .eq("kraken_trade_id", row.kraken_trade_id)
+          .maybeSingle()
+
+        if (existing) {
+          const { error: updErr } = await userClient.from("kraken_trades").update(row).eq("id", existing.id)
+          if (updErr) console.error("[kraken-futures] UPDATE error:", updErr.code, updErr.message)
+          else futuresResult.updated++
+        } else {
+          const { error: insErr } = await userClient.from("kraken_trades").insert(row)
+          if (insErr) console.error("[kraken-futures] INSERT error:", insErr.code, insErr.message)
+          else futuresResult.inserted++
+        }
+      }
+    } catch (e: any) {
+      console.error("[kraken-trades-sync] futures error:", e.message)
+      errors.push(`Futures: ${e.message}`)
+    }
+  } else {
+    console.log("[kraken-trades-sync] skipping futures — no credentials")
+  }
+
+  return { spot: spotResult, futures: futuresResult, errors }
+}
+
 export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClient) {
   const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
 
@@ -480,164 +642,13 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     if (!accounts || accounts.length === 0) return res.status(404).json({ error: "No Kraken account found" })
     const account = accounts[0]
 
-    const spotResult = { inserted: 0, updated: 0, realized_recalc: 0 }
-    const futuresResult = { inserted: 0, updated: 0 }
-    const errors: string[] = []
+    const result = await syncKrakenTradesForAccount(userClient, account)
 
-    // ── Spot trades ──
-    const spotConfig = account.kraken_config?.[0] || account.kraken_config
-    if (spotConfig?.api_key && spotConfig?.api_secret) {
-      try {
-        const krakenCfg: KrakenConfig = { apiKey: spotConfig.api_key, apiSecret: spotConfig.api_secret }
-        const now = Math.floor(Date.now() / 1000)
-        const start = now - 365 * 86400
-        let offset = 0
-        let total = 0
-        const allTrades: Array<{ id: string; data: any }> = []
-
-        do {
-          const result = await krakenPrivateRequest("TradesHistory", {
-            start: String(start),
-            end: String(now),
-            ofs: String(offset),
-          }, krakenCfg)
-
-          const trades = result?.trades ?? {}
-          const entries = Object.entries(trades)
-          total = Number(result?.count) || 0
-
-          for (const [tradeId, raw] of entries) {
-            allTrades.push({ id: tradeId, data: raw })
-          }
-
-          offset += entries.length
-          if (entries.length < 50) break
-          await new Promise(r => setTimeout(r, 1500))
-        } while (offset < total)
-
-        console.log(`[kraken-trades-sync] spot: fetched ${allTrades.length} trades`)
-
-        for (const { id: tradeId, data: t } of allTrades) {
-          const parsed = parseKrakenPair(t.pair || "")
-          if (!parsed) continue
-          if (!QUASI_FIAT.has(parsed.quote)) continue
-          if (QUASI_FIAT.has(parsed.ticker) || FIAT_LIKE_RAW.has(parsed.ticker)) continue
-
-          const fxToEur = HARDCODED_FX[parsed.quote] ?? 1
-          const side = (t.type || "").toLowerCase() === "sell" ? "SELL" : "BUY"
-          const tradeTime = new Date(Number(t.time) * 1000).toISOString()
-
-          const row = {
-            account_id: account.id,
-            kraken_trade_id: tradeId,
-            market_type: "spot",
-            trade_date: tradeTime,
-            pair: t.pair,
-            ticker: normalizeTicker(parsed.ticker),
-            quote_currency: parsed.quote,
-            side,
-            quantity: Number(t.vol) || 0,
-            price: Number(t.price) || 0,
-            cost: Number(t.cost) || 0,
-            fee: Number(t.fee) || 0,
-            net_cash: side === "SELL"
-              ? (Number(t.cost) || 0) - (Number(t.fee) || 0)
-              : -((Number(t.cost) || 0) + (Number(t.fee) || 0)),
-            fx_rate_to_eur: fxToEur,
-            source: "api_trades_history",
-            raw_data: t,
-          }
-
-          const { data: existing } = await userClient
-            .from("kraken_trades")
-            .select("id")
-            .eq("account_id", account.id)
-            .eq("kraken_trade_id", tradeId)
-            .maybeSingle()
-
-          if (existing) {
-            await userClient.from("kraken_trades").update(row).eq("id", existing.id)
-            spotResult.updated++
-          } else {
-            await userClient.from("kraken_trades").insert(row)
-            spotResult.inserted++
-          }
-        }
-
-        spotResult.realized_recalc = await recalcFifoForAccount(userClient, account.id)
-        console.log(`[kraken-trades-sync] spot FIFO: ${spotResult.realized_recalc} sells recalculated`)
-      } catch (e: any) {
-        console.error("[kraken-trades-sync] spot error:", e.message)
-        errors.push(`Spot: ${e.message}`)
-      }
-    } else {
-      console.log("[kraken-trades-sync] skipping spot — no credentials")
-    }
-
-    // ── Futures fills ──
-    const futConfig = account.kraken_futures_config?.[0] || account.kraken_futures_config
-    if (futConfig?.api_key && futConfig?.api_secret) {
-      try {
-        const futCfg: KrakenFuturesConfig = { api_key: futConfig.api_key, api_secret: futConfig.api_secret }
-        const allRows = new Map<string, FuturesTradeRow>()
-
-        try {
-          const fillsV3 = await fetchFuturesFillsV3(futCfg)
-          for (const fill of fillsV3) {
-            const row = mapFillV3ToRow(fill, account.id)
-            if (row) allRows.set(row.kraken_trade_id, row)
-          }
-        } catch (e: any) {
-          console.error("[kraken-futures] /fills failed:", e.message)
-        }
-
-        try {
-          const elements = await fetchFuturesExecutionsV2Raw(futCfg, Date.now() - 365 * 86400_000)
-          for (const el of elements) {
-            const row = mapExecutionV2ToRow(el, account.id)
-            if (row && !allRows.has(row.kraken_trade_id)) allRows.set(row.kraken_trade_id, row)
-          }
-        } catch (e: any) {
-          console.error("[kraken-futures] /executions failed:", e.message)
-        }
-
-        if (allRows.size === 0) {
-          throw new Error("Kraken Futures: aucun fill récupéré")
-        }
-
-        console.log(`[kraken-futures] ${allRows.size} unique rows to upsert`)
-
-        for (const row of Array.from(allRows.values())) {
-          const { data: existing } = await userClient
-            .from("kraken_trades")
-            .select("id")
-            .eq("account_id", account.id)
-            .eq("kraken_trade_id", row.kraken_trade_id)
-            .maybeSingle()
-
-          if (existing) {
-            const { error: updErr } = await userClient.from("kraken_trades").update(row).eq("id", existing.id)
-            if (updErr) console.error("[kraken-futures] UPDATE error:", updErr.code, updErr.message)
-            else futuresResult.updated++
-          } else {
-            const { error: insErr } = await userClient.from("kraken_trades").insert(row)
-            if (insErr) console.error("[kraken-futures] INSERT error:", insErr.code, insErr.message)
-            else futuresResult.inserted++
-          }
-        }
-      } catch (e: any) {
-        console.error("[kraken-trades-sync] futures error:", e.message)
-        errors.push(`Futures: ${e.message}`)
-      }
-    } else {
-      console.log("[kraken-trades-sync] skipping futures — no credentials")
-    }
-
-    const ok = errors.length === 0
+    const ok = result.errors.length === 0
     let error_code: string | undefined
     let user_message: string | undefined
     if (!ok) {
-      const msg = errors.join(" ")
+      const msg = result.errors.join(" ")
       error_code = classifyError(msg)
       if (error_code === "PERMISSION_DENIED") {
         user_message = "Activer 'Query Open Orders & Trades' sur la clé API Futures Kraken"
@@ -646,11 +657,11 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
 
     return res.json({
       ok,
-      error: ok ? undefined : errors.join("; "),
+      error: ok ? undefined : result.errors.join("; "),
       error_code,
       user_message,
-      spot: spotResult,
-      futures: futuresResult,
+      spot: result.spot,
+      futures: result.futures,
     })
   })
 }

@@ -13,6 +13,7 @@ import CryptoShared from "@/pages/CryptoShared";
 import Compta from "@/pages/Compta";
 import Kraken from "@/pages/Kraken";
 import Fhf from "@/pages/Fhf";
+import SettingsConnexions from "@/pages/SettingsConnexions";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/crypto-shared" component={CryptoShared} />
         <Route path="/pea" component={Pea} />
         <Route path="/compta" component={Compta} />
+        <Route path="/settings/connexions" component={SettingsConnexions} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

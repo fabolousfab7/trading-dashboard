@@ -313,37 +313,11 @@ export default function Ibkr() {
               <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
               Rafraîchir prix
             </button>
-            <button onClick={() => syncIbkr(false)} disabled={syncing}
-              style={{
-                padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
-                cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6,
-                transition: "opacity .15s",
-              }}>
-              <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
-              Sync IBKR Flex
-            </button>
-            <button onClick={() => syncIbkr(true)} disabled={syncing}
-              style={{
-                padding: "8px 10px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                background: "transparent", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3,
-                cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.5 : 1,
-                transition: "background .15s",
-              }}
-              onMouseEnter={e => { if (!syncing) e.currentTarget.style.background = "var(--at-bg)" }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}>
-              Forcer
-            </button>
           </div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)", marginTop: 6 }}>
-            {syncing
-              ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <RefreshCw size={10} className="animate-spin" style={{ color: "var(--ink3)" }} />
-                  Synchronisation…
-                </span>
-              : syncTimeStr
-                ? <>Synced à {syncTimeStr} &middot; base {account?.currency_base || "EUR"}</>
-                : <>base {account?.currency_base || "EUR"}</>
+            {syncTimeStr
+              ? <>Synced à {syncTimeStr} &middot; base {account?.currency_base || "EUR"}</>
+              : <>base {account?.currency_base || "EUR"}</>
             }
           </div>
         </div>
@@ -354,18 +328,6 @@ export default function Ibkr() {
         <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{refreshError}</span>
           <button onClick={() => setRefreshError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
-        </div>
-      )}
-      {syncError && (
-        <div style={{ background: "color-mix(in srgb, var(--at-neg) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-neg) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "var(--at-neg)", fontSize: 12, fontFamily: "var(--font-mono)" }}>Sync : {syncError}</span>
-          <button onClick={() => setSyncError(null)} style={{ color: "var(--at-neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
-        </div>
-      )}
-      {syncSuccess && (
-        <div style={{ background: "color-mix(in srgb, var(--at-pos) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--at-pos) 30%, transparent)", borderRadius: 4, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "var(--at-pos)", fontSize: 12, fontFamily: "var(--font-mono)" }}>{syncSuccess}</span>
-          <button onClick={() => setSyncSuccess(null)} style={{ color: "var(--at-pos)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>✕</button>
         </div>
       )}
 

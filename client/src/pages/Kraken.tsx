@@ -333,27 +333,8 @@ export default function Kraken() {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={handleSync} disabled={syncing || !portfolio.hasCredentials}
-            style={{
-              padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-              background: "var(--at-accent)", border: "1px solid var(--at-accent)", color: "var(--at-bg)", borderRadius: 3,
-              cursor: syncing ? "wait" : "pointer", opacity: (syncing || !portfolio.hasCredentials) ? 0.5 : 1,
-              display: "flex", alignItems: "center", gap: 6, transition: "opacity .15s",
-            }}>
-            <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "Sync..." : "Sync Spot"}
-          </button>
-          <button onClick={handleFuturesSync} disabled={futuresSyncing || !hasFuturesCreds}
-            style={{
-              padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-              background: "none", border: "1px solid var(--at-accent)", color: "var(--at-accent)", borderRadius: 3,
-              cursor: futuresSyncing ? "wait" : "pointer", opacity: (futuresSyncing || !hasFuturesCreds) ? 0.5 : 1,
-              display: "flex", alignItems: "center", gap: 6, transition: "opacity .15s",
-            }}>
-            <RefreshCw size={12} className={futuresSyncing ? "animate-spin" : ""} />
-            {futuresSyncing ? "Sync..." : "Sync Futures"}
-          </button>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)" }}>
+          Sync via Accueil ou /settings/connexions
         </div>
       </div>
 
@@ -447,16 +428,6 @@ export default function Kraken() {
                 }}>
                 {savingFuturesConfig ? "..." : "Enregistrer"}
               </button>
-              {hasFuturesCreds && (
-                <button onClick={handleFuturesSync} disabled={futuresSyncing}
-                  style={{
-                    padding: "8px 16px", fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, textTransform: "uppercase",
-                    background: "none", border: "1px solid var(--at-accent)", color: "var(--at-accent)", borderRadius: 3,
-                    cursor: futuresSyncing ? "wait" : "pointer", opacity: futuresSyncing ? 0.5 : 1,
-                  }}>
-                  {futuresSyncing ? "..." : "Tester la connexion"}
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -757,25 +728,13 @@ export default function Kraken() {
                 </button>
               ))}
             </div>
-            <button onClick={syncKrakenTrades} disabled={tradesSyncing}
-              style={{
-                padding: "4px 12px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: tradesSyncing ? "wait" : "pointer",
-                border: "1px solid var(--rule)", background: "var(--at-surface)", color: "var(--ink2)", transition: "all .15s", opacity: tradesSyncing ? 0.6 : 1,
-              }}>
-              {tradesSyncing ? "Sync…" : "Sync trades"}
-            </button>
-            {tradesSyncMsg && (
-              <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: tradesSyncMsg.startsWith("⚠") ? "var(--at-neg)" : "var(--at-pos)" }}>
-                {tradesSyncMsg}
-              </span>
-            )}
           </div>
         </div>
 
         {tradesTab === "futures" && futuresView === "round-trips" ? (() => {
           if (roundTrips.length === 0) return (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-              Aucun round-trip Futures clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
+              Aucun round-trip Futures clôturé.<br />Lancez une sync depuis l'Accueil ou /settings/connexions.
             </div>
           )
           const thStyle = (right?: boolean): React.CSSProperties => ({
@@ -858,7 +817,7 @@ export default function Kraken() {
         })() : tradesTab === "spot" && spotView === "round-trips" ? (() => {
           if (spotRoundTrips.length === 0) return (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-              Aucun round-trip Spot clôturé.<br />Cliquez "Sync trades" pour récupérer l'historique.
+              Aucun round-trip Spot clôturé.<br />Lancez une sync depuis l'Accueil ou /settings/connexions.
             </div>
           )
           const thStyle = (right?: boolean): React.CSSProperties => ({
@@ -943,7 +902,7 @@ export default function Kraken() {
           )
         })() : (krakenTrades.length === 0 ? (
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-            Aucun trade {tradesTab === "spot" ? "Spot" : "Futures"} enregistré.<br />Cliquez "Sync trades" pour récupérer l'historique.
+            Aucun trade {tradesTab === "spot" ? "Spot" : "Futures"} enregistré.<br />Lancez une sync depuis l'Accueil ou /settings/connexions.
           </div>
         ) : (() => {
           const thStyle = (right?: boolean): React.CSSProperties => ({

@@ -1,0 +1,288 @@
+import type { Express, Request, Response, NextFunction } from "express"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
+import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
+import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
+import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
+import { runDailySnapshot } from "./routes-portfolio.js"
+
+function userScopedClient(userToken: string): SupabaseClient {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${userToken}` } } }
+  )
+}
+
+function serviceClient(): SupabaseClient {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+async function requireAuth(supabase: SupabaseClient, req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid Authorization header" })
+  }
+  const token = authHeader.replace("Bearer ", "")
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error || !data.user) {
+    return res.status(401).json({ error: "Invalid token" })
+  }
+  ;(req as any).userId = data.user.id
+  ;(req as any).userToken = token
+  next()
+}
+
+interface StepResult {
+  step: string
+  status: "ok" | "error" | "skipped"
+  message?: string
+  durationMs: number
+}
+
+export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
+  const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
+
+  app.post("/api/sync/all", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+    const svcClient = serviceClient()
+    const t0 = Date.now()
+    const steps: StepResult[] = []
+
+    const { data: accounts } = await userClient
+      .from("accounts")
+      .select("*, ibkr_config(*), kraken_config(*), kraken_futures_config(*)")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+
+    if (!accounts || accounts.length === 0) {
+      return res.json({ ok: true, steps: [], durationMs: Date.now() - t0, message: "Aucun compte actif" })
+    }
+
+    const ibkrAccount = accounts.find((a: any) => a.broker === "IBKR")
+    const krakenAccount = accounts.find((a: any) => a.broker === "Kraken")
+
+    // Step 1: IBKR positions
+    {
+      const s0 = Date.now()
+      try {
+        if (!ibkrAccount) {
+          steps.push({ step: "ibkr_positions", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
+        } else {
+          const config = ibkrAccount.ibkr_config?.[0] || ibkrAccount.ibkr_config
+          if (!config?.flex_token || !config?.query_id) {
+            steps.push({ step: "ibkr_positions", status: "skipped", message: "Flex Query non configurée", durationMs: 0 })
+          } else {
+            const { fetchFlexReport, calculateNlvInBase } = await import("./ibkr-flex.js")
+            const data = await fetchFlexReport(config.flex_token, config.query_id)
+            const baseCurrency = ibkrAccount.currency_base || "EUR"
+            const nlv = calculateNlvInBase(data, baseCurrency)
+            const now = new Date().toISOString()
+
+            const hasRealPositions = data.openPositions.some((p: any) => p.quantity !== 0)
+            if (hasRealPositions) {
+              await userClient.from("positions").delete().eq("account_id", ibkrAccount.id)
+              const positionRows = data.openPositions.map((p: any) => ({
+                account_id: ibkrAccount.id,
+                ticker: p.symbol, name: p.description, quantity: p.quantity,
+                currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+              }))
+              await userClient.from("positions").insert(positionRows)
+            }
+
+            await userClient.from("cash_balances").delete().eq("account_id", ibkrAccount.id)
+            if (data.cashBalances.length > 0) {
+              const cashRows = data.cashBalances.map((c: any) => ({
+                account_id: ibkrAccount.id, currency: c.currency,
+                amount: c.endingCash, last_synced_at: now,
+              }))
+              await userClient.from("cash_balances").insert(cashRows)
+            }
+
+            await userClient.from("ibkr_config")
+              .update({ last_synced_at: now, last_sync_status: "success", last_sync_error: null })
+              .eq("account_id", ibkrAccount.id)
+
+            steps.push({ step: "ibkr_positions", status: "ok", message: `${data.openPositions.length} positions`, durationMs: Date.now() - s0 })
+          }
+        }
+      } catch (e: any) {
+        if (ibkrAccount) {
+          try { await userClient.from("ibkr_config").update({ last_sync_status: "error", last_sync_error: e.message }).eq("account_id", ibkrAccount.id) } catch {}
+        }
+        steps.push({ step: "ibkr_positions", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 2: Kraken spot positions
+    {
+      const s0 = Date.now()
+      try {
+        if (!krakenAccount) {
+          steps.push({ step: "kraken_spot_positions", status: "skipped", message: "Pas de compte Kraken", durationMs: 0 })
+        } else {
+          const config = krakenAccount.kraken_config?.[0] || krakenAccount.kraken_config
+          if (!config?.api_key || !config?.api_secret) {
+            steps.push({ step: "kraken_spot_positions", status: "skipped", message: "Clés API Spot non configurées", durationMs: 0 })
+          } else {
+            const krakenCfg: KrakenConfig = { apiKey: config.api_key, apiSecret: config.api_secret }
+            const result = await syncKrakenAccount(svcClient, krakenAccount, krakenCfg)
+            await svcClient.from("kraken_config")
+              .update({ last_sync_status: "success", last_sync_error: null })
+              .eq("account_id", krakenAccount.id)
+            steps.push({ step: "kraken_spot_positions", status: "ok", message: `${result.positions} positions, ${result.fiat} fiat`, durationMs: Date.now() - s0 })
+          }
+        }
+      } catch (e: any) {
+        if (krakenAccount) {
+          try { await svcClient.from("kraken_config").update({ last_sync_status: "error", last_sync_error: e.message }).eq("account_id", krakenAccount.id) } catch {}
+        }
+        steps.push({ step: "kraken_spot_positions", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 3: Kraken trades (spot + futures in one call)
+    {
+      const s0 = Date.now()
+      try {
+        if (!krakenAccount) {
+          steps.push({ step: "kraken_trades", status: "skipped", message: "Pas de compte Kraken", durationMs: 0 })
+        } else {
+          const result = await syncKrakenTradesForAccount(userClient, krakenAccount)
+          const msgs: string[] = []
+          if (result.spot.inserted || result.spot.updated) msgs.push(`Spot: ${result.spot.inserted} new, ${result.spot.updated} upd, ${result.spot.realized_recalc} FIFO`)
+          if (result.futures.inserted || result.futures.updated) msgs.push(`Fut: ${result.futures.inserted} new, ${result.futures.updated} upd`)
+          if (result.errors.length > 0) throw new Error(result.errors.join("; "))
+          steps.push({ step: "kraken_trades", status: "ok", message: msgs.join(" | ") || "Aucun trade", durationMs: Date.now() - s0 })
+        }
+      } catch (e: any) {
+        steps.push({ step: "kraken_trades", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 4: Kraken futures positions
+    {
+      const s0 = Date.now()
+      try {
+        if (!krakenAccount) {
+          steps.push({ step: "kraken_futures_positions", status: "skipped", message: "Pas de compte Kraken", durationMs: 0 })
+        } else {
+          const futConfig = krakenAccount.kraken_futures_config?.[0] || krakenAccount.kraken_futures_config
+          if (!futConfig?.api_key || !futConfig?.api_secret) {
+            steps.push({ step: "kraken_futures_positions", status: "skipped", message: "Clés API Futures non configurées", durationMs: 0 })
+          } else {
+            const result = await syncKrakenFuturesAccount(svcClient, krakenAccount.id)
+            steps.push({ step: "kraken_futures_positions", status: "ok", message: `${result.positionsCount} positions`, durationMs: Date.now() - s0 })
+          }
+        }
+      } catch (e: any) {
+        if (krakenAccount) {
+          try { await svcClient.from("kraken_futures_config").update({ last_sync_status: "error", last_sync_error: e.message }).eq("account_id", krakenAccount.id) } catch {}
+        }
+        steps.push({ step: "kraken_futures_positions", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 5: Refresh prices + daily snapshot
+    {
+      const s0 = Date.now()
+      try {
+        const snapshotResult = await runDailySnapshot(svcClient)
+        if (!snapshotResult.success) throw new Error(snapshotResult.error || "Snapshot failed")
+        steps.push({ step: "daily_snapshot", status: "ok", message: `${snapshotResult.results.length} comptes, ${snapshotResult.durationMs}ms`, durationMs: Date.now() - s0 })
+      } catch (e: any) {
+        steps.push({ step: "daily_snapshot", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    const durationMs = Date.now() - t0
+    const allOk = steps.every(s => s.status !== "error")
+    console.log(`[sync/all] done in ${durationMs}ms, ${steps.filter(s => s.status === "ok").length}/${steps.length} ok`)
+
+    return res.json({ ok: allOk, steps, durationMs })
+  })
+
+  app.get("/api/sync/status", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts")
+      .select("*, ibkr_config(*), kraken_config(*), kraken_futures_config(*)")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+
+    if (!accounts) return res.json({ cards: [] })
+
+    const cards: any[] = []
+    const ONE_DAY = 86400_000
+
+    function syncStatus(lastSyncedAt: string | null, lastSyncStatus: string | null): "green" | "orange" | "red" | "manual" {
+      if (!lastSyncedAt) return "manual"
+      if (lastSyncStatus === "error") return "red"
+      const age = Date.now() - new Date(lastSyncedAt).getTime()
+      if (age < ONE_DAY) return "green"
+      if (age < 3 * ONE_DAY) return "orange"
+      return "red"
+    }
+
+    for (const account of accounts) {
+      if (account.broker === "IBKR") {
+        const cfg = account.ibkr_config?.[0] || account.ibkr_config
+        cards.push({
+          id: account.id,
+          label: account.label,
+          broker: "IBKR",
+          type: "positions",
+          status: syncStatus(cfg?.last_synced_at, cfg?.last_sync_status),
+          last_synced_at: cfg?.last_synced_at || null,
+          last_sync_error: cfg?.last_sync_error || null,
+        })
+      }
+
+      if (account.broker === "Kraken") {
+        const spotCfg = account.kraken_config?.[0] || account.kraken_config
+        cards.push({
+          id: account.id,
+          label: account.label,
+          broker: "Kraken",
+          type: "spot",
+          status: syncStatus(spotCfg?.last_synced_at, spotCfg?.last_sync_status),
+          last_synced_at: spotCfg?.last_synced_at || null,
+          last_sync_error: spotCfg?.last_sync_error || null,
+        })
+
+        const futCfg = account.kraken_futures_config?.[0] || account.kraken_futures_config
+        cards.push({
+          id: account.id,
+          label: account.label,
+          broker: "Kraken",
+          type: "futures",
+          status: syncStatus(futCfg?.last_synced_at, futCfg?.last_sync_status),
+          last_synced_at: futCfg?.last_synced_at || null,
+          last_sync_error: futCfg?.last_sync_error || null,
+        })
+      }
+
+      if (account.broker === "Qonto") {
+        cards.push({
+          id: account.id,
+          label: account.label,
+          broker: "Qonto",
+          type: "bank",
+          status: "manual" as const,
+          last_synced_at: null,
+          last_sync_error: null,
+        })
+      }
+    }
+
+    return res.json({ cards })
+  })
+}
