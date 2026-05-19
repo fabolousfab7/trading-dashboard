@@ -30,18 +30,9 @@ export function buildSignedRequest(
     ? endpoint.slice("/derivatives".length)
     : endpoint
   const signature = signRequest(sigPath, rawQs, nonce, config.api_secret)
-  const finalUrl = `${BASE_URL}${endpoint}${rawQs ? "?" + rawQs : ""}`
-
-  console.log("[kraken-debug] === REQUEST ===")
-  console.log("[kraken-debug] endpoint:", endpoint)
-  console.log("[kraken-debug] sigPath:", sigPath)
-  console.log("[kraken-debug] postData (raw QS for HMAC):", rawQs || "(none)")
-  console.log("[kraken-debug] nonce:", nonce)
-  console.log("[kraken-debug] final URL:", finalUrl)
-  console.log("[kraken-debug] Authent (first 20):", signature.substring(0, 20) + "...")
 
   return {
-    url: finalUrl,
+    url: `${BASE_URL}${endpoint}${rawQs ? "?" + rawQs : ""}`,
     headers: {
       APIKey: config.api_key,
       Nonce: nonce,
@@ -58,17 +49,13 @@ export async function callFutures(
 ): Promise<Record<string, unknown>> {
   const { url, headers } = buildSignedRequest(endpoint, params, config)
   const res = await fetch(url, { method: "GET", headers })
-  const rawBody = await res.text()
-  console.log("[kraken-debug] === RESPONSE ===")
-  console.log("[kraken-debug] endpoint:", endpoint)
-  console.log("[kraken-debug] status:", res.status)
-  console.log("[kraken-debug] body (first 500):", rawBody.slice(0, 500))
 
   if (!res.ok) {
-    throw new Error(`Kraken Futures ${endpoint} HTTP ${res.status}: ${rawBody.slice(0, 300)}`)
+    const text = await res.text()
+    throw new Error(`Kraken Futures ${endpoint} HTTP ${res.status}: ${text.slice(0, 300)}`)
   }
 
-  const data: Record<string, unknown> = JSON.parse(rawBody)
+  const data: Record<string, unknown> = await res.json()
   if (data.result === "error" || data.error) {
     throw new Error(`Kraken Futures API error: ${JSON.stringify(data.error ?? data)}`)
   }

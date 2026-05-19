@@ -56,33 +56,86 @@ function classifyError(msg: string): string {
   return "UNKNOWN"
 }
 
-interface FuturesFill {
-  fill_id: string
-  side: string
-  fillType?: string
-  fillTime: string
-  price: number
-  size: number
-  symbol: string
-  fee?: number
-  fee_currency?: string
-  paidPnL?: number
-  collateralCurrency?: string
+// ── Futures helpers ──
+
+function extractFuturesTicker(tradeable: string): string {
+  const match = tradeable.match(/^(?:P[FI]|F[IF])_([A-Z]+?)(?:USD|EUR|GBP)(?:_.+)?$/)
+  return match ? match[1] : tradeable
 }
 
-async function fetchFuturesFillsV3(config: KrakenFuturesConfig): Promise<FuturesFill[]> {
+function extractFuturesQuote(tradeable: string): string {
+  const match = tradeable.match(/(USD|EUR|GBP)/)
+  return match ? match[1] : "USD"
+}
+
+interface FuturesTradeRow {
+  account_id: string
+  kraken_trade_id: string
+  market_type: "futures"
+  trade_date: string
+  pair: string
+  ticker: string
+  quote_currency: string
+  side: string
+  quantity: number
+  price: number
+  cost: number
+  fee: number
+  net_cash: number
+  realized_pnl: number | null
+  fx_rate_to_eur: number
+  source: string
+  raw_data: any
+}
+
+// ── V3 /fills mapper (flat structure) ──
+
+async function fetchFuturesFillsV3(config: KrakenFuturesConfig): Promise<any[]> {
   const since = new Date(Date.now() - 30 * 86400_000)
-  console.log(`[kraken-futures-fills] trying /derivatives/api/v3/fills since ${since.toISOString()}`)
+  console.log(`[kraken-futures] trying /fills since ${since.toISOString()}`)
   const data = await callFutures("/derivatives/api/v3/fills", config, {
     lastFillTime: since.toISOString(),
   })
-  const fills = (data.fills ?? []) as FuturesFill[]
-  console.log(`[kraken-futures-fills] /fills returned ${fills.length} fills`)
-  return fills
+  const fills = data.fills ?? []
+  console.log(`[kraken-futures] /fills returned ${(fills as any[]).length} fills`)
+  return fills as any[]
 }
 
-async function fetchFuturesExecutionsV2(config: KrakenFuturesConfig, sinceMs: number): Promise<FuturesFill[]> {
-  const allFills: FuturesFill[] = []
+function mapFillV3ToRow(fill: any, accountId: string): FuturesTradeRow | null {
+  const ticker = extractFuturesTicker(fill.symbol || "")
+  const quote = extractFuturesQuote(fill.symbol || "")
+  const rawSide = String(fill.side || "").toUpperCase()
+  if (rawSide !== "BUY" && rawSide !== "SELL") return null
+  const quantity = Number(fill.size) || 0
+  const price = Number(fill.price) || 0
+  if (!quantity || !price || !fill.fill_id) return null
+
+  const cost = price * quantity
+  return {
+    account_id: accountId,
+    kraken_trade_id: String(fill.fill_id),
+    market_type: "futures",
+    trade_date: fill.fillTime || new Date().toISOString(),
+    pair: fill.symbol,
+    ticker,
+    quote_currency: quote,
+    side: rawSide,
+    quantity,
+    price,
+    cost,
+    fee: Number(fill.fee) || 0,
+    net_cash: rawSide === "SELL" ? cost - (Number(fill.fee) || 0) : -(cost + (Number(fill.fee) || 0)),
+    realized_pnl: fill.paidPnL != null ? Number(fill.paidPnL) : null,
+    fx_rate_to_eur: HARDCODED_FX[quote] ?? 1,
+    source: "api_fills",
+    raw_data: fill,
+  }
+}
+
+// ── V2 /executions mapper (nested structure: element.event.execution.execution) ──
+
+async function fetchFuturesExecutionsV2Raw(config: KrakenFuturesConfig, sinceMs: number): Promise<any[]> {
+  const allElements: any[] = []
   let continuationToken: string | undefined
 
   do {
@@ -96,94 +149,65 @@ async function fetchFuturesExecutionsV2(config: KrakenFuturesConfig, sinceMs: nu
     const { url, headers } = buildSignedRequest("/api/history/v2/executions", params, config)
     const res = await fetch(url, { method: "GET", headers })
     const body = await res.text()
-    console.log("[kraken-debug] === RESPONSE (history v2) ===")
-    console.log("[kraken-debug] status:", res.status)
-    console.log("[kraken-debug] body (first 500):", body.slice(0, 500))
 
     if (!res.ok) {
-      throw new Error(`Kraken Futures /api/history/v2/executions HTTP ${res.status}: ${body.slice(0, 300)}`)
+      throw new Error(`Kraken Futures /executions HTTP ${res.status}: ${body.slice(0, 300)}`)
     }
 
     const data = JSON.parse(body)
-    const elements = (data.elements ?? []) as Array<Record<string, unknown>>
-
-    if (elements.length > 0 && allFills.length === 0) {
-      console.log("[kraken-debug-exec-raw] first element (3000 chars):",
-        JSON.stringify(elements[0]).substring(0, 3000))
-      if (elements.length > 1) {
-        console.log("[kraken-debug-exec-raw] second element (3000 chars):",
-          JSON.stringify(elements[1]).substring(0, 3000))
-      }
-    }
-
-    for (const el of elements) {
-      const exec = (el.event as Record<string, unknown>) ?? el
-      allFills.push({
-        fill_id: String(exec.uid ?? exec.executionId ?? el.uid ?? ""),
-        side: String(exec.direction ?? exec.side ?? "").toLowerCase(),
-        fillType: String(exec.fillType ?? exec.executionType ?? ""),
-        fillTime: String(exec.timestamp ?? el.timestamp ?? ""),
-        price: Number(exec.price) || 0,
-        size: Number(exec.quantity ?? exec.size) || 0,
-        symbol: String(exec.instrument ?? exec.symbol ?? ""),
-        fee: Number(exec.fee) || 0,
-        paidPnL: exec.realizedPnl != null ? Number(exec.realizedPnl) : undefined,
-        collateralCurrency: exec.collateral ? String(exec.collateral) : undefined,
-      })
-    }
+    allElements.push(...(data.elements ?? []))
 
     continuationToken = data.continuationToken ?? undefined
     if (continuationToken) await new Promise(r => setTimeout(r, 500))
   } while (continuationToken)
 
-  console.log(`[kraken-futures-fills] /executions returned ${allFills.length} fills total`)
-  return allFills
+  console.log(`[kraken-futures] /executions returned ${allElements.length} elements`)
+  return allElements
 }
 
-async function fetchFuturesFills(config: KrakenFuturesConfig): Promise<FuturesFill[]> {
-  const fillsById = new Map<string, FuturesFill>()
+function mapExecutionV2ToRow(element: any, accountId: string): FuturesTradeRow | null {
+  const exec = element?.event?.execution?.execution
+  const order = exec?.order
+  if (!exec || !order) return null
 
-  try {
-    const recentFills = await fetchFuturesFillsV3(config)
-    for (const f of recentFills) fillsById.set(f.fill_id, f)
-  } catch (primaryErr: any) {
-    console.error("[kraken-futures-fills] /fills failed:", primaryErr.message)
-  }
+  const tradeable = String(order.tradeable || "")
+  const ticker = extractFuturesTicker(tradeable)
+  const quote = extractFuturesQuote(tradeable)
 
-  const historySinceMs = Date.now() - 365 * 86400_000
-  try {
-    const histFills = await fetchFuturesExecutionsV2(config, historySinceMs)
-    for (const f of histFills) {
-      if (!fillsById.has(f.fill_id)) fillsById.set(f.fill_id, f)
-    }
-  } catch (histErr: any) {
-    console.error("[kraken-futures-fills] /executions failed:", histErr.message)
-  }
+  const ts = element.timestamp
+  const tradeDate = new Date(typeof ts === "number" ? ts : Number(ts))
+  if (isNaN(tradeDate.getTime())) return null
+  const tradeDateIso = tradeDate.toISOString()
 
-  if (fillsById.size === 0) {
-    throw new Error("Kraken Futures: aucun fill récupéré (fills + executions échoués)")
-  }
+  const direction = String(order.direction || "").toUpperCase()
+  if (direction !== "BUY" && direction !== "SELL") return null
 
-  return Array.from(fillsById.values())
-}
+  const quantity = parseFloat(exec.quantity || "0")
+  const price = parseFloat(exec.price || "0")
+  if (quantity === 0 || price === 0) return null
 
-function futuresTickerFromSymbol(symbol: string): string {
-  let s = symbol.toUpperCase()
-  for (const prefix of ["PF_", "PI_", "FI_", "FF_"]) {
-    if (s.startsWith(prefix)) s = s.slice(prefix.length)
-  }
-  for (const suffix of ["USD", "EUR", "GBP"]) {
-    if (s.endsWith(suffix)) return s.slice(0, s.length - suffix.length)
-  }
-  return s
-}
+  const cost = parseFloat(exec.usdValue || "0") || quantity * price
+  const fee = parseFloat(exec?.orderData?.fee || "0")
 
-function futuresQuoteFromSymbol(symbol: string): string {
-  const s = symbol.toUpperCase()
-  for (const suffix of ["USD", "EUR", "GBP"]) {
-    if (s.endsWith(suffix)) return suffix
+  return {
+    account_id: accountId,
+    kraken_trade_id: String(element.uid || ""),
+    market_type: "futures",
+    trade_date: tradeDateIso,
+    pair: tradeable,
+    ticker,
+    quote_currency: quote,
+    side: direction,
+    quantity,
+    price,
+    cost,
+    fee,
+    net_cash: direction === "SELL" ? cost - fee : -(cost + fee),
+    realized_pnl: null,
+    fx_rate_to_eur: HARDCODED_FX[quote] ?? 1,
+    source: "api_executions",
+    raw_data: element,
   }
-  return "USD"
 }
 
 export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClient) {
@@ -349,75 +373,51 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     const futConfig = account.kraken_futures_config?.[0] || account.kraken_futures_config
     if (futConfig?.api_key && futConfig?.api_secret) {
       try {
-        const fills = await fetchFuturesFills({ api_key: futConfig.api_key, api_secret: futConfig.api_secret })
-        console.log(`[kraken-trades-sync] futures: fetched ${fills.length} fills`)
+        const futCfg: KrakenFuturesConfig = { api_key: futConfig.api_key, api_secret: futConfig.api_secret }
+        const allRows = new Map<string, FuturesTradeRow>()
 
-        for (const f of fills) {
-          const ticker = futuresTickerFromSymbol(f.symbol)
-          const quote = futuresQuoteFromSymbol(f.symbol)
-          const pnlCurrency = f.collateralCurrency?.toUpperCase() || quote
-          const fxToEur = HARDCODED_FX[pnlCurrency] ?? HARDCODED_FX[quote] ?? 1
-          const rawSide = (f.side || "").toLowerCase()
-          const fillType = (f.fillType || "").toLowerCase()
-          const isClose = fillType === "close" || fillType === "liquidation"
-          const side = isClose
-            ? (rawSide === "buy" ? "CLOSE_SHORT" : "CLOSE_LONG")
-            : (rawSide === "sell" ? "SELL" : "BUY")
-          const cost = f.price * f.size
-          const realizedPnl = isClose && f.paidPnL != null ? f.paidPnL : null
-
-          const row = {
-            account_id: account.id,
-            kraken_trade_id: f.fill_id,
-            market_type: "futures" as const,
-            trade_date: f.fillTime || new Date().toISOString(),
-            pair: f.symbol,
-            ticker,
-            quote_currency: quote,
-            side,
-            quantity: f.size,
-            price: f.price,
-            cost,
-            fee: f.fee ?? 0,
-            net_cash: rawSide === "sell" ? cost - (f.fee ?? 0) : -(cost + (f.fee ?? 0)),
-            realized_pnl: realizedPnl,
-            fx_rate_to_eur: fxToEur,
-            source: "api_fills",
-            raw_data: f,
+        try {
+          const fillsV3 = await fetchFuturesFillsV3(futCfg)
+          for (const fill of fillsV3) {
+            const row = mapFillV3ToRow(fill, account.id)
+            if (row) allRows.set(row.kraken_trade_id, row)
           }
+        } catch (e: any) {
+          console.error("[kraken-futures] /fills failed:", e.message)
+        }
 
-          console.log("[kraken-debug-row] === ROW BEFORE INSERT ===")
-          console.log("[kraken-debug-row] kraken_trade_id:", row.kraken_trade_id)
-          console.log("[kraken-debug-row] trade_date:", row.trade_date)
-          console.log("[kraken-debug-row] pair:", row.pair, "| ticker:", row.ticker, "| quote:", row.quote_currency)
-          console.log("[kraken-debug-row] side:", row.side, "| fillType:", fillType, "| rawSide:", rawSide)
-          console.log("[kraken-debug-row] qty:", row.quantity, "| price:", row.price, "| cost:", row.cost)
-          console.log("[kraken-debug-row] realized_pnl:", row.realized_pnl, "| fee:", row.fee)
-          console.log("[kraken-debug-row] raw fill (200):", JSON.stringify(f).substring(0, 200))
+        try {
+          const elements = await fetchFuturesExecutionsV2Raw(futCfg, Date.now() - 365 * 86400_000)
+          for (const el of elements) {
+            const row = mapExecutionV2ToRow(el, account.id)
+            if (row && !allRows.has(row.kraken_trade_id)) allRows.set(row.kraken_trade_id, row)
+          }
+        } catch (e: any) {
+          console.error("[kraken-futures] /executions failed:", e.message)
+        }
 
+        if (allRows.size === 0) {
+          throw new Error("Kraken Futures: aucun fill récupéré")
+        }
+
+        console.log(`[kraken-futures] ${allRows.size} unique rows to upsert`)
+
+        for (const row of Array.from(allRows.values())) {
           const { data: existing } = await userClient
             .from("kraken_trades")
             .select("id")
             .eq("account_id", account.id)
-            .eq("kraken_trade_id", f.fill_id)
+            .eq("kraken_trade_id", row.kraken_trade_id)
             .maybeSingle()
 
           if (existing) {
             const { error: updErr } = await userClient.from("kraken_trades").update(row).eq("id", existing.id)
-            if (updErr) {
-              console.error("[kraken-insert-error] UPDATE PG error:", JSON.stringify(updErr))
-              console.error("[kraken-insert-error] code:", updErr.code, "| details:", updErr.details)
-            } else {
-              futuresResult.updated++
-            }
+            if (updErr) console.error("[kraken-futures] UPDATE error:", updErr.code, updErr.message)
+            else futuresResult.updated++
           } else {
             const { error: insErr } = await userClient.from("kraken_trades").insert(row)
-            if (insErr) {
-              console.error("[kraken-insert-error] INSERT PG error:", JSON.stringify(insErr))
-              console.error("[kraken-insert-error] code:", insErr.code, "| details:", insErr.details)
-            } else {
-              futuresResult.inserted++
-            }
+            if (insErr) console.error("[kraken-futures] INSERT error:", insErr.code, insErr.message)
+            else futuresResult.inserted++
           }
         }
       } catch (e: any) {
