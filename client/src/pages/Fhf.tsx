@@ -9,6 +9,7 @@ const PCG_LABELS: Record<string, string> = {
   "626100": "Télécom",
   "627000": "Frais bancaires",
   "627100": "Frais d'actes",
+  "627200": "Frais courtage Kraken",
   "606300": "Fournitures",
   "625100": "Déplacements",
   "625600": "Missions",
@@ -54,6 +55,7 @@ interface SimData {
   revenus_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
   charges_brutes: number
   charges_ht_ytd: number
+  frais_courtage_kraken: number
   avoirs_total: number
   avoirs_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
   charges_by_category: { category: string; total_ht: number }[]
@@ -340,7 +342,7 @@ export default function Fhf() {
             <div style={{ borderTop: "1px solid var(--rule)", paddingTop: 10, marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
               <span style={{ display: "flex", alignItems: "center" }}>
                 Total charges net
-                <InfoTip text={`Charges brutes ${EUR.format(data.charges_brutes)} − Avoirs ${EUR.format(data.avoirs_total)} = ${EUR.format(data.charges_ht_ytd)}. Source : factures compta (hors 455000/512100/512200/101000).`} />
+                <InfoTip text={`Charges brutes ${EUR.format(data.charges_brutes)} − Avoirs ${EUR.format(data.avoirs_total)} = ${EUR.format(data.charges_ht_ytd)}. Inclut ${EUR.format(data.frais_courtage_kraken || 0)} de frais courtage Kraken (sync auto kraken_trades.fee, hors facture compta). Sources : factures fhf_invoices + kraken_trades.`} />
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{EUR.format(data.charges_ht_ytd)}</span>
             </div>

@@ -834,7 +834,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         .gte("invoice_date", startDate).lte("invoice_date", endDate)
 
       const chargeItems = (expenseInvoices || []).filter(i => !NON_CHARGE.includes(i.category))
-      const charges_brutes = chargeItems.reduce((s, i) => s + Number(i.amount_ht), 0)
+      let charges_brutes = chargeItems.reduce((s, i) => s + Number(i.amount_ht), 0)
 
       const catMap: Record<string, number> = {}
       for (const i of chargeItems) {
@@ -856,7 +856,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
       const revenus_compta = vraisRevenus.reduce((s, i) => s + Number(i.amount_ht), 0)
       const avoirs_total = avoirs.reduce((s, i) => s + Number(i.amount_ht), 0)
-      const charges_ht_ytd = charges_brutes - avoirs_total
+      let charges_ht_ytd = charges_brutes - avoirs_total
 
       const revenus_detail = vraisRevenus.map(i => ({
         party_name: i.party_name,
@@ -929,22 +929,32 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       let pnl_realise_kraken = 0
       let nb_trades_kraken_clos = 0
       let nb_trades_kraken_total = 0
+      let frais_courtage_kraken = 0
 
       if (krakenAccountIds.length > 0) {
         const { data: ktrades } = await userClient
           .from("kraken_trades")
-          .select("realized_pnl, fx_rate_to_eur, trade_date")
+          .select("realized_pnl, fee, fx_rate_to_eur, trade_date")
           .in("account_id", krakenAccountIds)
           .gte("trade_date", yearStart)
           .lte("trade_date", yearEnd)
 
         for (const t of (ktrades || [])) {
+          const fx = Number(t.fx_rate_to_eur ?? 1)
           nb_trades_kraken_total++
+          frais_courtage_kraken += Number(t.fee ?? 0) * fx
           if (t.realized_pnl !== null && t.realized_pnl !== undefined) {
-            pnl_realise_kraken += Number(t.realized_pnl) * Number(t.fx_rate_to_eur ?? 1)
+            pnl_realise_kraken += Number(t.realized_pnl) * fx
             nb_trades_kraken_clos++
           }
         }
+      }
+
+      if (frais_courtage_kraken > 0) {
+        charges_by_category.push({ category: "627200", total_ht: frais_courtage_kraken })
+        charges_by_category.sort((a: any, b: any) => b.total_ht - a.total_ht)
+        charges_brutes += frais_courtage_kraken
+        charges_ht_ytd = charges_brutes - avoirs_total
       }
 
       // Total P&L trading
@@ -994,6 +1004,7 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         pnl_realise_kraken,
         nb_trades_kraken_clos,
         nb_trades_kraken_total,
+        frais_courtage_kraken,
         capital_kraken,
         revenus_compta,
         revenus_detail,
