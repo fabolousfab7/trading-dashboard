@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
+import { aggregateRoundTrips } from "./routes-kraken-trades.js"
 
 const fxCache: Record<string, { rate: number; ts: number }> = {}
 
@@ -926,7 +927,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         .from("accounts").select("id").eq("broker", "Kraken").eq("is_active", true)
       const krakenAccountIds = (krakenAccounts || []).map((a: any) => a.id)
 
-      let pnl_realise_kraken = 0
+      let pnl_realise_kraken_spot = 0
+      let pnl_realise_kraken_futures = 0
       let nb_trades_kraken_clos = 0
       let nb_trades_kraken_total = 0
       let frais_courtage_kraken = 0
@@ -934,21 +936,37 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       if (krakenAccountIds.length > 0) {
         const { data: ktrades } = await userClient
           .from("kraken_trades")
-          .select("realized_pnl, fee, fx_rate_to_eur, trade_date")
+          .select("id, market_type, realized_pnl_gross, realized_pnl, fee, fx_rate_to_eur, " +
+                  "ticker, quote_currency, pair, side, quantity, price, trade_date, kraken_trade_id")
           .in("account_id", krakenAccountIds)
           .gte("trade_date", yearStart)
           .lte("trade_date", yearEnd)
 
+        const futuresFills: any[] = []
         for (const t of (ktrades || [])) {
           const fx = Number(t.fx_rate_to_eur ?? 1)
           nb_trades_kraken_total++
           frais_courtage_kraken += Number(t.fee ?? 0) * fx
-          if (t.realized_pnl !== null && t.realized_pnl !== undefined) {
-            pnl_realise_kraken += Number(t.realized_pnl) * fx
+          if (t.market_type === "spot") {
+            if (t.realized_pnl_gross !== null && t.realized_pnl_gross !== undefined) {
+              pnl_realise_kraken_spot += Number(t.realized_pnl_gross) * fx
+              nb_trades_kraken_clos++
+            }
+          } else if (t.market_type === "futures") {
+            futuresFills.push(t)
+          }
+        }
+
+        if (futuresFills.length > 0) {
+          const { round_trips } = aggregateRoundTrips(futuresFills, { allowShort: true })
+          for (const trip of round_trips) {
+            pnl_realise_kraken_futures += Number(trip.gross_pnl_eur ?? 0)
             nb_trades_kraken_clos++
           }
         }
       }
+
+      const pnl_realise_kraken = pnl_realise_kraken_spot + pnl_realise_kraken_futures
 
       if (frais_courtage_kraken > 0) {
         charges_by_category.push({ category: "627200", total_ht: frais_courtage_kraken })
@@ -1002,6 +1020,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         nb_positions_ibkr: ibkr_positions.length,
         capital_ibkr,
         pnl_realise_kraken,
+        pnl_realise_kraken_spot,
+        pnl_realise_kraken_futures,
         nb_trades_kraken_clos,
         nb_trades_kraken_total,
         frais_courtage_kraken,

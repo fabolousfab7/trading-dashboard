@@ -227,7 +227,7 @@ interface RoundTripOptions {
   groupByQuote?: boolean
 }
 
-function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
+export function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
   round_trips: any[]
   open_positions: any[]
   skipped_pre_window: number
@@ -327,6 +327,7 @@ function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}): {
           avg_close_price: trip.close_qty > 0 ? trip.close_proceeds / trip.close_qty : 0,
           open_fees: trip.open_fees, close_fees: trip.close_fees, total_fees: totalFees,
           gross_pnl: grossPnl, realized_pnl_net: netPnl,
+          gross_pnl_eur: grossPnl * fxRate,
           quote_currency: trip.quote_currency,
           fx_rate_to_eur: fxRate,
           realized_pnl_net_eur: netPnl * fxRate,
@@ -747,5 +748,22 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
     }
 
     return res.json({ ok: errors.length === 0, ...backfillResult, errors })
+  })
+
+  // ── POST /api/admin/recompute-fifo-pnl ──────────────────
+  app.post("/api/admin/recompute-fifo-pnl", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("id, label").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.status(404).json({ error: "No Kraken account found" })
+
+    const results: { account: string; recalculated: number }[] = []
+    for (const account of accounts) {
+      const recalculated = await recalcFifoForAccount(userClient, account.id)
+      results.push({ account: account.label || account.id, recalculated })
+    }
+    return res.json({ ok: true, results })
   })
 }

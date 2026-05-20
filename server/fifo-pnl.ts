@@ -43,11 +43,13 @@ export async function recalcFifoForAccount(client: SupabaseClient, accountId: st
 
       let qtyToSell = qty
       let costBasis = 0
+      let costBasisGross = 0
 
       while (qtyToSell > 0 && queue.length > 0) {
         const lot = queue[0]
         const consumed = Math.min(lot.qtyRemaining, qtyToSell)
         costBasis += consumed * (lot.price + lot.feePerUnit)
+        costBasisGross += consumed * lot.price
         lot.qtyRemaining -= consumed
         qtyToSell -= consumed
         if (lot.qtyRemaining <= 1e-12) queue.shift()
@@ -57,17 +59,21 @@ export async function recalcFifoForAccount(client: SupabaseClient, accountId: st
         console.warn(`[fifo] ${ticker}: SELL with incomplete cost basis (missing ${qtyToSell} units)`)
         await client.from("kraken_trades").update({
           realized_pnl: null,
+          realized_pnl_gross: null,
           cost_basis_used: null,
         }).eq("id", t.id)
         continue
       }
 
       const realizedPnl = (price * qty - fee) - costBasis
+      const realizedPnlGross = price * qty - costBasisGross
 
       await client.from("kraken_trades").update({
         realized_pnl: realizedPnl,
+        realized_pnl_gross: realizedPnlGross,
         cost_basis_used: costBasis,
         realized_pnl_currency: t.quote_currency,
+        realized_pnl_gross_currency: t.quote_currency,
       }).eq("id", t.id)
       recalculated++
     }

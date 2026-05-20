@@ -48,6 +48,8 @@ interface SimData {
   nb_positions_ibkr: number
   capital_ibkr: number
   pnl_realise_kraken: number
+  pnl_realise_kraken_spot: number
+  pnl_realise_kraken_futures: number
   nb_trades_kraken_clos: number
   nb_trades_kraken_total: number
   capital_kraken: number
@@ -258,7 +260,7 @@ export default function Fhf() {
           {/* Kraken — Trading Actif */}
           <div style={{ borderTop: "1px dotted var(--rule)", paddingTop: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)", marginBottom: 8 }}>Kraken — Trading Actif</div>
-            <Row label={`P&L réalisé (${data.nb_trades_kraken_clos}/${data.nb_trades_kraken_total} trades clos)`} value={data.pnl_realise_kraken} tooltip="Somme des realized_pnl FIFO Spot (trades de clôture) + paidPnL Futures (quand dispo). Source : table kraken_trades, sync API Kraken Pro. Conversion FX appliquée par trade avant sommation." />
+            <Row label={`P&L réalisé brut (${data.nb_trades_kraken_clos}/${data.nb_trades_kraken_total} trades clos)`} value={data.pnl_realise_kraken} tooltip={`Spot ${EUR.format(data.pnl_realise_kraken_spot)} (FIFO brut) + Futures ${EUR.format(data.pnl_realise_kraken_futures)} (round-trips bruts). Les ${EUR.format(data.frais_courtage_kraken)} de frais courtage sont en charges PCG 627200, pas déduits ici.`} />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink2)", padding: "4px 0" }}>
               <span style={{ display: "flex", alignItems: "center", fontFamily: "var(--font-mono)" }}>Capital investi<InfoTip text="Somme nette des virements FHF → Kraken (catégorie 512200 dans compta). Source : factures compta validées." /></span>
               <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{EUR.format(data.capital_kraken)}</span>
