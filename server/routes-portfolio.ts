@@ -11,9 +11,9 @@ import { yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchCoinGeckoPrices, fetchCoinGeckoHistory } from "./coingecko.js"
 import { fetchYahooPrice, fetchYahooHistory } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
-import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
+import { syncKrakenAccount, krakenPrivateRequest, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
-import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
+import { syncKrakenFuturesAccount, callFutures, type KrakenFuturesConfig } from "./kraken-futures-api.js"
 import { getPositionValueEur, normalizeTicker } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
@@ -1284,6 +1284,95 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     )
     const result = await runDailySnapshot(serviceClient)
     return res.status(result.success ? 200 : 500).json(result)
+  })
+
+  // ⚠️ TEMPORARY DIAGNOSTIC — to be removed after holding fees discovery (Phase A)
+  app.post("/api/admin/diag-kraken-fees", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    console.log("[diag-kraken-fees]", "called by user", userId)
+
+    const serviceClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: accounts } = await serviceClient
+      .from("accounts")
+      .select("id, label")
+      .eq("broker", "Kraken").eq("is_active", true).limit(1)
+    if (!accounts || accounts.length === 0) {
+      return res.status(404).json({ error: "No active Kraken account" })
+    }
+    const account = accounts[0]
+
+    const { data: spotCfg } = await serviceClient
+      .from("kraken_config")
+      .select("api_key, api_secret").eq("account_id", account.id).maybeSingle()
+    const { data: futCfg } = await serviceClient
+      .from("kraken_futures_config")
+      .select("api_key, api_secret").eq("account_id", account.id).maybeSingle()
+
+    const sinceSec = Math.floor((Date.now() - 120 * 86400000) / 1000)
+
+    const spot: any = { total_entries: 0, types_counts: {}, samples_per_type: {} }
+    if (spotCfg?.api_key && spotCfg?.api_secret) {
+      try {
+        const krakenCfg: KrakenConfig = { apiKey: spotCfg.api_key, apiSecret: spotCfg.api_secret }
+        let ofs = 0
+        const allEntries: any[] = []
+        let total = 0
+        do {
+          const result = await krakenPrivateRequest("Ledgers", {
+            start: String(sinceSec),
+            ofs: String(ofs),
+          }, krakenCfg)
+          total = Number(result?.count) || 0
+          const ledger = result?.ledger || {}
+          const batch = Object.entries(ledger)
+          if (batch.length === 0) break
+          for (const [id, entry] of batch) allEntries.push({ ledger_id: id, ...(entry as any) })
+          ofs += batch.length
+          if (batch.length < 50) break
+          await new Promise(r => setTimeout(r, 1500))
+        } while (ofs < Math.min(total, 2000))
+        spot.total_entries = allEntries.length
+        spot.expected_total = total
+        for (const e of allEntries) {
+          const t = e.type || "?"
+          spot.types_counts[t] = (spot.types_counts[t] || 0) + 1
+          if (!spot.samples_per_type[t]) spot.samples_per_type[t] = []
+          if (spot.samples_per_type[t].length < 3) spot.samples_per_type[t].push(e)
+        }
+      } catch (e: any) { spot.error = e.message }
+    } else { spot.error = "no spot credentials" }
+
+    const fut: any = { total_entries: 0, types_counts: {}, samples_per_type: {} }
+    if (futCfg?.api_key && futCfg?.api_secret) {
+      try {
+        const futuresCfg: KrakenFuturesConfig = { api_key: futCfg.api_key, api_secret: futCfg.api_secret }
+        const sinceISO = new Date(sinceSec * 1000).toISOString()
+        const data = await callFutures("/api/history/v2/account-log", futuresCfg, { since: sinceISO })
+        const entries: any[] = (data as any).logs || (data as any).elements || (data as any).account_log || []
+        fut.total_entries = entries.length
+        fut.payload_top_level_keys = Object.keys(data || {})
+        for (const e of entries) {
+          const t = e.info || e.type || e.event_type || "?"
+          fut.types_counts[t] = (fut.types_counts[t] || 0) + 1
+          if (!fut.samples_per_type[t]) fut.samples_per_type[t] = []
+          if (fut.samples_per_type[t].length < 3) fut.samples_per_type[t].push(e)
+        }
+      } catch (e: any) { fut.error = e.message }
+    } else { fut.error = "no futures credentials" }
+
+    console.log("[diag-kraken-fees] spot types:", Object.keys(spot.types_counts || {}))
+    console.log("[diag-kraken-fees] futures types:", Object.keys(fut.types_counts || {}))
+
+    return res.json({
+      account: { id: account.id, label: account.label },
+      window_days: 120,
+      spot_ledger: spot,
+      futures_log: fut,
+    })
   })
 
   app.post("/api/accounts/:id/refresh-prices", auth, async (req: Request, res: Response) => {
