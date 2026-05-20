@@ -1274,6 +1274,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
     return res.status(result.success ? 200 : 500).json(result)
   })
 
+  // Deprecated: use POST /api/sync/all instead (includes COT + all steps)
   app.post("/api/admin/trigger-cron", auth, async (req: Request, res: Response) => {
     const userId = (req as any).userId
     console.log("[admin-trigger-cron]", "called by user", userId)

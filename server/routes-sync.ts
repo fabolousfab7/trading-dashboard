@@ -9,6 +9,7 @@ import { fetchYahooPrice, yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
 import { normalizeTicker } from "./utils/portfolio-math.js"
+import { syncCotReports } from "./cot-cftc.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -325,6 +326,18 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
         steps.push({ step: "daily_snapshot", status: "ok", message: `${snapshotResult.results.length} comptes, ${snapshotResult.durationMs}ms`, durationMs: Date.now() - s0 })
       } catch (e: any) {
         steps.push({ step: "daily_snapshot", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 7: COT reports (CFTC)
+    {
+      const s0 = Date.now()
+      try {
+        const cotResult = await syncCotReports(svcClient)
+        if (cotResult.errors.length > 0) throw new Error(cotResult.errors.join("; "))
+        steps.push({ step: "cot_reports", status: "ok", message: `${cotResult.fetched} instruments`, durationMs: Date.now() - s0 })
+      } catch (e: any) {
+        steps.push({ step: "cot_reports", status: "error", message: e.message, durationMs: Date.now() - s0 })
       }
     }
 
