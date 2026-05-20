@@ -1314,36 +1314,50 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
 
     const sinceSec = Math.floor((Date.now() - 120 * 86400000) / 1000)
 
-    const spot: any = { total_entries: 0, types_counts: {}, samples_per_type: {} }
+    const spot: any = { by_type_filtered: {}, generic_first_batch: null }
     if (spotCfg?.api_key && spotCfg?.api_secret) {
-      try {
-        const krakenCfg: KrakenConfig = { apiKey: spotCfg.api_key, apiSecret: spotCfg.api_secret }
-        let ofs = 0
-        const allEntries: any[] = []
-        let total = 0
-        do {
+      const krakenCfg: KrakenConfig = { apiKey: spotCfg.api_key, apiSecret: spotCfg.api_secret }
+      const typesToScan = ["rollover", "margin", "settled", "transfer", "trade", "deposit", "withdrawal"]
+
+      for (const type of typesToScan) {
+        try {
           const result = await krakenPrivateRequest("Ledgers", {
             start: String(sinceSec),
-            ofs: String(ofs),
+            type,
           }, krakenCfg)
-          total = Number(result?.count) || 0
           const ledger = result?.ledger || {}
-          const batch = Object.entries(ledger)
-          if (batch.length === 0) break
-          for (const [id, entry] of batch) allEntries.push({ ledger_id: id, ...(entry as any) })
-          ofs += batch.length
-          if (batch.length < 50) break
+          const total = Number(result?.count) || 0
+          const entries = Object.entries(ledger).map(([id, e]: any) => ({ ledger_id: id, ...e }))
+          spot.by_type_filtered[type] = {
+            count_returned: entries.length,
+            count_total: total,
+            sample_first_5: entries.slice(0, 5),
+            sum_amount: entries.reduce((s: number, e: any) => s + Number(e.amount || 0), 0),
+            sum_fee: entries.reduce((s: number, e: any) => s + Number(e.fee || 0), 0),
+            assets_seen: [...new Set(entries.map((e: any) => e.asset))],
+          }
           await new Promise(r => setTimeout(r, 1500))
-        } while (ofs < Math.min(total, 2000))
-        spot.total_entries = allEntries.length
-        spot.expected_total = total
-        for (const e of allEntries) {
-          const t = e.type || "?"
-          spot.types_counts[t] = (spot.types_counts[t] || 0) + 1
-          if (!spot.samples_per_type[t]) spot.samples_per_type[t] = []
-          if (spot.samples_per_type[t].length < 3) spot.samples_per_type[t].push(e)
+        } catch (e: any) {
+          spot.by_type_filtered[type] = { error: e.message }
         }
-      } catch (e: any) { spot.error = e.message }
+      }
+
+      try {
+        const result = await krakenPrivateRequest("Ledgers", {
+          start: String(sinceSec),
+        }, krakenCfg)
+        const ledger = result?.ledger || {}
+        const entries = Object.entries(ledger).map(([id, e]: any) => ({ ledger_id: id, ...e }))
+        const typesCounts: Record<string, number> = {}
+        for (const e of entries) { typesCounts[(e as any).type || "?"] = (typesCounts[(e as any).type || "?"] || 0) + 1 }
+        spot.generic_first_batch = {
+          count_returned: entries.length,
+          count_total: Number(result?.count) || 0,
+          types_counts: typesCounts,
+        }
+      } catch (e: any) {
+        spot.generic_first_batch = { error: e.message }
+      }
     } else { spot.error = "no spot credentials" }
 
     const fut: any = { total_entries: 0, types_counts: {}, samples_per_type: {} }
@@ -1364,7 +1378,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       } catch (e: any) { fut.error = e.message }
     } else { fut.error = "no futures credentials" }
 
-    console.log("[diag-kraken-fees] spot types:", Object.keys(spot.types_counts || {}))
+    console.log("[diag-kraken-fees] spot types scanned:", Object.keys(spot.by_type_filtered || {}))
     console.log("[diag-kraken-fees] futures types:", Object.keys(fut.types_counts || {}))
 
     return res.json({
