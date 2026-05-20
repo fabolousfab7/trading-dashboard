@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 const INSTRUMENTS: { key: string; label: string; cftcCode: string; searchName: string }[] = [
   { key: "BTC", label: "BTC future", cftcCode: "133741", searchName: "BITCOIN" },
-  { key: "ETH", label: "ETH future", cftcCode: "244601", searchName: "ETHER" },
+  { key: "ETH", label: "ETH future", cftcCode: "146021", searchName: "ETHER" },
   { key: "SP500", label: "S&P 500 e-mini", cftcCode: "13874A", searchName: "E-MINI S&P 500" },
   { key: "NASDAQ", label: "Nasdaq 100", cftcCode: "209742", searchName: "NASDAQ-100" },
   { key: "RUSSELL", label: "Russell 2000", cftcCode: "239742", searchName: "RUSSELL 2000" },
