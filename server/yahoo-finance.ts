@@ -1,3 +1,14 @@
+export function yahooSuffix(currency: string, ticker: string): string | null {
+  if (ticker.includes(".")) return null
+  if (currency === "USD") return ""
+  if (currency === "EUR") return "PA"
+  if (currency === "GBP") return "L"
+  if (currency === "CHF") return "SW"
+  return null
+}
+
+export const YAHOO_DE_TICKERS = new Set(["P911", "SAP", "SIE", "ALV", "BAS", "BMW", "DAI", "DTE", "MRK"])
+
 export async function fetchYahooHistory(
   ticker: string,
   suffix: string = "PA",

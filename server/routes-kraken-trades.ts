@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { krakenPrivateRequest, normalizeKrakenTicker, KrakenConfig } from "./kraken-api.js"
 import { recalcFifoForAccount } from "./fifo-pnl.js"
 import { buildSignedRequest, callFutures, type KrakenFuturesConfig } from "./kraken-futures-api.js"
+import { upsertCryptoCryptoSwap } from "./crypto-crypto-swaps.js"
 
 const QUASI_FIAT = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI"])
 const FIAT_LIKE_RAW = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI", "ZEUR", "ZUSD", "ZGBP", "ZJPY", "ZCHF"])
@@ -367,10 +368,12 @@ export async function syncKrakenTradesForAccount(
 ): Promise<{
   spot: { inserted: number; updated: number; realized_recalc: number }
   futures: { inserted: number; updated: number }
+  crypto_swaps: { inserted: number; updated: number; needs_review: number }
   errors: string[]
 }> {
   const spotResult = { inserted: 0, updated: 0, realized_recalc: 0 }
   const futuresResult = { inserted: 0, updated: 0 }
+  const cryptoSwapsResult = { inserted: 0, updated: 0, needs_review: 0 }
   const errors: string[] = []
 
   const spotConfig = account.kraken_config?.[0] || account.kraken_config
@@ -408,8 +411,19 @@ export async function syncKrakenTradesForAccount(
       for (const { id: tradeId, data: t } of allTrades) {
         const parsed = parseKrakenPair(t.pair || "")
         if (!parsed) continue
-        if (!QUASI_FIAT.has(parsed.quote)) continue
         if (QUASI_FIAT.has(parsed.ticker) || FIAT_LIKE_RAW.has(parsed.ticker)) continue
+        if (!QUASI_FIAT.has(parsed.quote)) {
+          try {
+            const r = await upsertCryptoCryptoSwap(userClient, account.id, tradeId, parsed, t)
+            if (r.inserted) cryptoSwapsResult.inserted++
+            if (r.updated) cryptoSwapsResult.updated++
+            if (r.needs_review) cryptoSwapsResult.needs_review++
+          } catch (e: any) {
+            console.error("[kraken-trades-sync] crypto-crypto upsert error:", e.message)
+            errors.push(`Crypto-swap ${tradeId}: ${e.message}`)
+          }
+          continue
+        }
 
         const fxToEur = HARDCODED_FX[parsed.quote] ?? 1
         const side = (t.type || "").toLowerCase() === "sell" ? "SELL" : "BUY"
@@ -520,7 +534,7 @@ export async function syncKrakenTradesForAccount(
     console.log("[kraken-trades-sync] skipping futures — no credentials")
   }
 
-  return { spot: spotResult, futures: futuresResult, errors }
+  return { spot: spotResult, futures: futuresResult, crypto_swaps: cryptoSwapsResult, errors }
 }
 
 export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClient) {
@@ -662,6 +676,76 @@ export function registerKrakenTradesRoutes(app: Express, supabase: SupabaseClien
       user_message,
       spot: result.spot,
       futures: result.futures,
+      crypto_swaps: result.crypto_swaps,
     })
+  })
+
+  // ── POST /api/compta/crypto-swaps/backfill ─────────────────
+  app.post("/api/compta/crypto-swaps/backfill", auth, async (req: Request, res: Response) => {
+    const userId = (req as any).userId
+    const userClient = userScopedClient((req as any).userToken)
+
+    const { data: accounts } = await userClient
+      .from("accounts").select("*, kraken_config(*)").eq("user_id", userId).eq("broker", "Kraken").eq("is_active", true)
+    if (!accounts || accounts.length === 0) return res.status(404).json({ error: "No Kraken account found" })
+    const account = accounts[0]
+
+    const spotConfig = account.kraken_config?.[0] || account.kraken_config
+    if (!spotConfig?.api_key || !spotConfig?.api_secret) {
+      return res.status(400).json({ error: "Missing Kraken spot API credentials" })
+    }
+
+    const krakenCfg: KrakenConfig = { apiKey: spotConfig.api_key, apiSecret: spotConfig.api_secret }
+    const now = Math.floor(Date.now() / 1000)
+    const start = now - 365 * 86400
+    let offset = 0
+    let total = 0
+    const allTrades: Array<{ id: string; data: any }> = []
+
+    try {
+      do {
+        const result = await krakenPrivateRequest("TradesHistory", {
+          start: String(start),
+          end: String(now),
+          ofs: String(offset),
+        }, krakenCfg)
+
+        const trades = result?.trades ?? {}
+        const entries = Object.entries(trades)
+        total = Number(result?.count) || 0
+
+        for (const [tradeId, raw] of entries) {
+          allTrades.push({ id: tradeId, data: raw })
+        }
+
+        offset += entries.length
+        if (entries.length < 50) break
+        await new Promise(r => setTimeout(r, 1500))
+      } while (offset < total)
+    } catch (e: any) {
+      return res.status(500).json({ error: `Kraken API error: ${e.message}` })
+    }
+
+    const backfillResult = { inserted: 0, updated: 0, needs_review: 0, total_scanned: allTrades.length }
+    const errors: string[] = []
+
+    for (const { id: tradeId, data: t } of allTrades) {
+      const parsed = parseKrakenPair(t.pair || "")
+      if (!parsed) continue
+      if (QUASI_FIAT.has(parsed.ticker) || FIAT_LIKE_RAW.has(parsed.ticker)) continue
+      if (QUASI_FIAT.has(parsed.quote)) continue
+
+      try {
+        const r = await upsertCryptoCryptoSwap(userClient, account.id, tradeId, parsed, t)
+        if (r.inserted) backfillResult.inserted++
+        if (r.updated) backfillResult.updated++
+        if (r.needs_review) backfillResult.needs_review++
+      } catch (e: any) {
+        console.error("[kraken-backfill] crypto-crypto upsert error:", e.message)
+        errors.push(`Crypto-swap ${tradeId}: ${e.message}`)
+      }
+    }
+
+    return res.json({ ok: errors.length === 0, ...backfillResult, errors })
   })
 }

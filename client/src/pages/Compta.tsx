@@ -85,6 +85,9 @@ export default function Compta() {
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [bankBalance, setBankBalance] = useState<{ balance: number; lastDate: string | null; nbTransactions: number } | null>(null)
+  const [swapsData, setSwapsData] = useState<{ rows: any[]; total_eur: number; needs_review_count: number } | null>(null)
+  const [swapsLoading, setSwapsLoading] = useState(false)
+  const [swapOverrides, setSwapOverrides] = useState<Record<string, { override: string; note: string }>>({})
   const { toast } = useToast()
 
   const loadData = useCallback(async () => {
@@ -109,6 +112,19 @@ export default function Compta() {
       authFetch("/api/compta/bank-balance")
         .then(r => r.ok ? r.json() : null)
         .then(d => setBankBalance(d))
+        .catch(() => {})
+      const ytdFrom = `${new Date().getFullYear()}-01-01`
+      const ytdTo = new Date().toISOString().slice(0, 10)
+      authFetch(`/api/compta/crypto-swaps?from=${ytdFrom}&to=${ytdTo}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          setSwapsData(d)
+          if (d?.rows) {
+            const init: Record<string, { override: string; note: string }> = {}
+            for (const r of d.rows) init[r.id] = { override: r.valuation_eur_override ?? "", note: r.override_note ?? "" }
+            setSwapOverrides(init)
+          }
+        })
         .catch(() => {})
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
@@ -286,6 +302,36 @@ export default function Compta() {
       body: JSON.stringify({ status: "unmatched" }),
     })
     await loadData()
+  }
+
+  async function patchSwap(id: string, body: any) {
+    try {
+      const r = await authFetch(`/api/compta/crypto-swaps/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) { const err = await r.json().catch(() => ({})); toast({ title: "Erreur", description: err.error || "Echec du PATCH" }); return }
+      const ytdFrom = `${new Date().getFullYear()}-01-01`
+      const ytdTo = new Date().toISOString().slice(0, 10)
+      const refR = await authFetch(`/api/compta/crypto-swaps?from=${ytdFrom}&to=${ytdTo}`)
+      if (refR.ok) {
+        const d = await refR.json()
+        setSwapsData(d)
+      }
+    } catch (e: any) { toast({ title: "Erreur", description: e.message }) }
+  }
+
+  async function handleBackfill() {
+    if (!confirm("Lancer le backfill rétroactif crypto-crypto ? Cela va re-scanner 365 jours de trades Kraken.")) return
+    setSwapsLoading(true)
+    try {
+      const r = await authFetch("/api/compta/crypto-swaps/backfill", { method: "POST" })
+      const d = await r.json()
+      if (!r.ok) { toast({ title: "Erreur backfill", description: d.error || "Echec" }); return }
+      toast({ title: "Backfill terminé", description: `${d.inserted} insérés, ${d.updated} mis à jour, ${d.needs_review} à vérifier` })
+      await loadData()
+    } catch (e: any) { toast({ title: "Erreur", description: e.message }) }
+    finally { setSwapsLoading(false) }
   }
 
   async function handleQuickCategory(tx: any, category: string, labelDebit: string, labelCredit: string) {
@@ -790,6 +836,121 @@ export default function Compta() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* ── ÉVÈNEMENTS IMPOSABLES CRYPTO-CRYPTO ────────────── */}
+      {swapsData && (
+        <div style={{ border: "1px solid var(--rule)", borderRadius: 4, padding: 20, background: "var(--at-surface)", marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 18, fontWeight: 700, color: "var(--ink)" }}>
+                Évènements imposables FHF — swaps crypto-crypto
+                <span style={{ marginLeft: 10, fontSize: 10, fontFamily: "var(--font-mono)", letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", verticalAlign: "middle" }}>YTD {new Date().getFullYear()}</span>
+              </div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink3)", marginTop: 4 }}>
+                Cas 2 doc 04 / art. 38-2 CGI — chaque échange crypto-crypto = événement imposable au bilan
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={async () => {
+                const ytdFrom = `${new Date().getFullYear()}-01-01`
+                const ytdTo = new Date().toISOString().slice(0, 10)
+                try {
+                  const r = await authFetch(`/api/compta/crypto-swaps/export.csv?from=${ytdFrom}&to=${ytdTo}`)
+                  if (!r.ok) { toast({ title: "Erreur export" }); return }
+                  const blob = await r.blob()
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement("a")
+                  a.href = url; a.download = `evenements_imposables_fhf_${ytdFrom}_${ytdTo}.csv`; a.click()
+                  URL.revokeObjectURL(url)
+                } catch (e: any) { toast({ title: "Erreur", description: e.message }) }
+              }} style={{ padding: "6px 12px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", background: "var(--at-bg)", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3, cursor: "pointer" }}>
+                Exporter CSV
+              </button>
+              <button onClick={handleBackfill} disabled={swapsLoading}
+                style={{ padding: "6px 12px", fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", background: "var(--at-bg)", border: "1px solid var(--rule)", color: "var(--ink2)", borderRadius: 3, cursor: "pointer", opacity: swapsLoading ? 0.5 : 1 }}>
+                {swapsLoading ? "Backfill..." : "Backfill historique"}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0, borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)", marginBottom: 16 }}>
+            <div style={{ padding: "12px 16px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Total EUR YTD</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{fmtEur(swapsData.total_eur)}</div>
+            </div>
+            <div style={{ padding: "12px 16px", borderRight: "1px solid var(--rule)" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>Lignes</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{swapsData.rows.length}</div>
+            </div>
+            <div style={{ padding: "12px 16px" }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)" }}>À vérifier</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 700, color: swapsData.needs_review_count > 0 ? "var(--at-neg)" : "var(--ink)", marginTop: 4 }}>{swapsData.needs_review_count}</div>
+            </div>
+          </div>
+
+          {swapsData.rows.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--ink)" }}>
+                    {["Date", "Paire", "Side", "Qty", "Quote remise", "Valo EUR snap", "Valo EUR override", "Note", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 500 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {swapsData.rows.map((r: any) => {
+                    const local = swapOverrides[r.id] || { override: r.valuation_eur_override ?? "", note: r.override_note ?? "" }
+                    return (
+                      <tr key={r.id} style={{ borderBottom: "1px solid var(--rule)" }}>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{fmtDate(r.trade_date)}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.pair}</td>
+                        <td style={{ padding: "6px 8px", color: r.side === "BUY" ? "var(--at-pos)" : "var(--at-neg)" }}>{r.side}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{Number(r.quantity).toFixed(6)}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{r.cost_quote != null ? `${Number(r.cost_quote).toFixed(4)} ${r.ticker_quote}` : "—"}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right", color: "var(--ink2)" }}>{r.valuation_eur_snapshot != null ? fmtEur(r.valuation_eur_snapshot) : "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>
+                          <input
+                            type="number" step="0.01" placeholder="—"
+                            value={local.override}
+                            onChange={e => setSwapOverrides(prev => ({ ...prev, [r.id]: { ...prev[r.id], override: e.target.value } }))}
+                            onBlur={() => {
+                              const val = local.override === "" ? null : Number(local.override)
+                              patchSwap(r.id, { valuation_eur_override: val, override_note: local.note || null })
+                            }}
+                            style={{ ...inputStyle, width: 100, textAlign: "right", padding: "3px 6px" }}
+                          />
+                        </td>
+                        <td style={{ padding: "6px 8px" }}>
+                          <input
+                            type="text" placeholder="—"
+                            value={local.note}
+                            onChange={e => setSwapOverrides(prev => ({ ...prev, [r.id]: { ...prev[r.id], note: e.target.value } }))}
+                            onBlur={() => {
+                              const val = local.override === "" ? null : Number(local.override)
+                              patchSwap(r.id, { valuation_eur_override: val, override_note: local.note || null })
+                            }}
+                            style={{ ...inputStyle, width: 120, padding: "3px 6px" }}
+                          />
+                        </td>
+                        <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                          {r.needs_review && <span style={{ color: "var(--at-neg)", fontSize: 14 }} title="Valorisation manquante — override requis">⚠</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--ink)" }}>
+                    <td colSpan={5} style={{ padding: "8px 8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, fontSize: 10 }}>Total</td>
+                    <td colSpan={4} style={{ padding: "8px 8px", fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, textAlign: "right" }}>{fmtEur(swapsData.total_eur)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

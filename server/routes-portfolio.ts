@@ -7,6 +7,7 @@ import {
 } from "../shared/schema.js"
 import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
+import { yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchCoinGeckoPrices, fetchCoinGeckoHistory } from "./coingecko.js"
 import { fetchYahooPrice, fetchYahooHistory } from "./yahoo-finance.js"
 import { fetchHighImpactEvents } from "./forex-factory.js"
@@ -113,7 +114,9 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
 
         if (positions && positions.length > 0) {
           const cryptoPositions = positions.filter((p: any) => p.coingecko_id)
-          const stockPositions = positions.filter((p: any) => !p.coingecko_id && p.stooq_symbol)
+          const stockPositions = positions.filter((p: any) =>
+            !p.coingecko_id && (p.asset_class === "STK" || p.asset_class === "stock")
+          )
 
           if (cryptoPositions.length > 0) {
             const ids = [...new Set(cryptoPositions.map((p: any) => p.coingecko_id))]
@@ -134,27 +137,44 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
 
           for (const p of stockPositions) {
             try {
-              let price = await fetchStooqPrice(p.stooq_symbol)
-              if (price === null && p.stooq_symbol) {
-                if (p.stooq_symbol.endsWith(".fr")) {
-                  price = await fetchYahooPrice(p.ticker, "PA")
-                } else if (p.stooq_symbol.endsWith(".de")) {
-                  price = await fetchYahooPrice(p.ticker, "DE")
-                } else if (p.stooq_symbol.endsWith(".us")) {
-                  price = await fetchYahooPrice(p.ticker, "")
+              const ticker = p.ticker as string
+              const currency = (p.currency as string) || "USD"
+              if (ticker.includes(".") || Number(p.quantity) === 0) continue
+
+              let suffix = yahooSuffix(currency, ticker)
+              if (suffix === null) continue
+              if (currency === "EUR" && YAHOO_DE_TICKERS.has(ticker)) suffix = "DE"
+
+              let price = await fetchYahooPrice(ticker, suffix)
+              if (price === null && currency === "EUR" && suffix === "PA") {
+                price = await fetchYahooPrice(ticker, "DE")
+              }
+              if (price === null && currency === "EUR" && suffix === "DE") {
+                price = await fetchYahooPrice(ticker, "PA")
+              }
+
+              if (price === null || price === 0) {
+                const stooqSym = (p.stooq_symbol as string) || defaultStooqSymbol(ticker, currency)
+                const stooqPrice = await fetchStooqPrice(stooqSym).catch(() => null)
+                if (stooqPrice !== null && stooqPrice > 0) {
+                  price = stooqPrice
+                  console.log(`[cron] Stooq fallback for ${ticker}: ${stooqPrice}`)
                 }
               }
-              if (price) {
+
+              if (price !== null && price > 0) {
                 await serviceClient.from("positions").update({
                   market_price: price,
                   last_synced_at: new Date().toISOString(),
                 }).eq("id", p.id)
+              } else {
+                console.warn(`[cron] no price for ${ticker} (${currency}) — Yahoo and Stooq both failed`)
               }
             } catch {}
           }
           if (stockPositions.length > 0) {
-            accountResult.actions.push(`stooq_refreshed: ${stockPositions.length}`)
-            console.log("[cron]", "action", account.label, `stooq_refreshed: ${stockPositions.length}`)
+            accountResult.actions.push(`stock_prices_refreshed: ${stockPositions.length}`)
+            console.log("[cron]", "action", account.label, `stock_prices_refreshed: ${stockPositions.length}`)
           }
         }
 
@@ -1292,18 +1312,32 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         }
       }),
       ...stockPositions.map(async (p: any) => {
-        const stooqSym = p.stooq_symbol || defaultStooqSymbol(p.ticker, p.currency)
-        let price = await fetchStooqPrice(stooqSym).catch(() => null)
-        if (price === null) {
-          if (stooqSym.endsWith(".fr")) {
-            price = await fetchYahooPrice(p.ticker, "PA")
-          } else if (stooqSym.endsWith(".de")) {
-            price = await fetchYahooPrice(p.ticker, "DE")
-          } else if (stooqSym.endsWith(".us")) {
-            price = await fetchYahooPrice(p.ticker, "")
-          }
+        const ticker = p.ticker as string
+        const currency = (p.currency as string) || "USD"
+        if (ticker.includes(".") || Number(p.quantity) === 0) {
+          return { id: p.id, ticker, price: null, priceUsd: null as number | null }
         }
-        return { id: p.id, ticker: p.ticker, price, priceUsd: null as number | null }
+
+        let suffix = yahooSuffix(currency, ticker)
+        if (suffix === null) {
+          return { id: p.id, ticker, price: null, priceUsd: null as number | null }
+        }
+        if (currency === "EUR" && YAHOO_DE_TICKERS.has(ticker)) suffix = "DE"
+
+        let price = await fetchYahooPrice(ticker, suffix)
+        if (price === null && currency === "EUR" && suffix === "PA") {
+          price = await fetchYahooPrice(ticker, "DE")
+        }
+        if (price === null && currency === "EUR" && suffix === "DE") {
+          price = await fetchYahooPrice(ticker, "PA")
+        }
+
+        if (price === null || price === 0) {
+          const stooqSym = (p.stooq_symbol as string) || defaultStooqSymbol(ticker, currency)
+          price = await fetchStooqPrice(stooqSym).catch(() => null)
+        }
+
+        return { id: p.id, ticker, price, priceUsd: null as number | null }
       }),
     ])
     const updates = results.filter((r) => r.price !== null)
@@ -1343,21 +1377,35 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       .from("positions")
       .select("*")
       .in("account_id", accounts.map((a: any) => a.id))
-      .not("stooq_symbol", "is", null)
     if (posErr) return res.status(500).json({ error: posErr.message })
-    if (!positions || positions.length === 0) return res.json({ updated: 0 })
+    const stockPositions = (positions || []).filter((p: any) =>
+      !p.coingecko_id && (p.asset_class === "STK" || p.asset_class === "stock")
+    )
+    if (stockPositions.length === 0) return res.json({ updated: 0 })
 
     let updated = 0
     const touchedAccounts = new Set<string>()
-    for (const p of positions) {
+    for (const p of stockPositions) {
       try {
-        let price: number | null = null
-        if (p.stooq_symbol.endsWith(".fr")) {
-          price = await fetchYahooPrice(p.ticker, "PA")
-        } else if (p.stooq_symbol.endsWith(".de")) {
-          price = await fetchYahooPrice(p.ticker, "DE")
-        } else if (p.stooq_symbol.endsWith(".us")) {
-          price = await fetchYahooPrice(p.ticker, "")
+        const ticker = p.ticker as string
+        const currency = (p.currency as string) || "USD"
+        if (ticker.includes(".") || Number(p.quantity) === 0) continue
+
+        let suffix = yahooSuffix(currency, ticker)
+        if (suffix === null) continue
+        if (currency === "EUR" && YAHOO_DE_TICKERS.has(ticker)) suffix = "DE"
+
+        let price = await fetchYahooPrice(ticker, suffix)
+        if (price === null && currency === "EUR" && suffix === "PA") {
+          price = await fetchYahooPrice(ticker, "DE")
+        }
+        if (price === null && currency === "EUR" && suffix === "DE") {
+          price = await fetchYahooPrice(ticker, "PA")
+        }
+
+        if (price === null || price === 0) {
+          const stooqSym = (p.stooq_symbol as string) || defaultStooqSymbol(ticker, currency)
+          price = await fetchStooqPrice(stooqSym).catch(() => null)
         }
         if (price !== null) {
           await userClient.from("positions").update({

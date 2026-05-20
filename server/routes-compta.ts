@@ -745,6 +745,80 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
     }
   })
 
+  // Crypto-crypto swaps — liste filtrée YTD
+  app.get("/api/compta/crypto-swaps", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const from = (req.query.from as string) || `${new Date().getFullYear()}-01-01`
+    const to = (req.query.to as string) || new Date().toISOString().slice(0, 10)
+    const { data, error } = await userClient
+      .from("kraken_crypto_crypto_swaps")
+      .select("*")
+      .gte("trade_date", `${from}T00:00:00Z`)
+      .lte("trade_date", `${to}T23:59:59Z`)
+      .order("trade_date", { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    const total_eur = (data || []).reduce(
+      (s: number, r: any) => s + Number(r.valuation_eur_override ?? r.valuation_eur_snapshot ?? 0), 0
+    )
+    const needs_review_count = (data || []).filter((r: any) => r.needs_review).length
+    res.json({ rows: data || [], total_eur, needs_review_count })
+  })
+
+  // Crypto-crypto swaps — override manuel
+  app.patch("/api/compta/crypto-swaps/:id", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const id = req.params.id
+    const { valuation_eur_override, override_note } = req.body || {}
+    const update: any = {
+      valuation_eur_override: valuation_eur_override === null ? null : Number(valuation_eur_override),
+      override_note: override_note ?? null,
+      override_set_at: valuation_eur_override == null ? null : new Date().toISOString(),
+      needs_review: false,
+    }
+    const { data, error } = await userClient
+      .from("kraken_crypto_crypto_swaps")
+      .update(update)
+      .eq("id", id)
+      .select()
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    res.json(data)
+  })
+
+  // Crypto-crypto swaps — export CSV
+  app.get("/api/compta/crypto-swaps/export.csv", auth, async (req: Request, res: Response) => {
+    const userClient = userScopedClient((req as any).userToken)
+    const from = (req.query.from as string) || `${new Date().getFullYear()}-01-01`
+    const to = (req.query.to as string) || new Date().toISOString().slice(0, 10)
+    const { data, error } = await userClient
+      .from("kraken_crypto_crypto_swaps")
+      .select("*")
+      .gte("trade_date", `${from}T00:00:00Z`)
+      .lte("trade_date", `${to}T23:59:59Z`)
+      .order("trade_date", { ascending: true })
+    if (error) return res.status(500).send(error.message)
+    const headers = [
+      "date","pair","side","quantity","ticker_base","ticker_quote",
+      "price_quote","cost_quote","valuation_eur_snapshot","valuation_eur_override",
+      "valuation_eur_effective","valuation_source","needs_review","override_note","kraken_trade_id"
+    ]
+    const lines = [headers.join(",")]
+    for (const r of data || []) {
+      const eff = r.valuation_eur_override ?? r.valuation_eur_snapshot ?? ""
+      const row = [
+        r.trade_date.slice(0, 10), r.pair, r.side, r.quantity,
+        r.ticker_base, r.ticker_quote, r.price_quote, r.cost_quote,
+        r.valuation_eur_snapshot ?? "", r.valuation_eur_override ?? "",
+        eff, r.valuation_source ?? "", r.needs_review,
+        (r.override_note ?? "").replace(/[",\n]/g, " "), r.kraken_trade_id
+      ]
+      lines.push(row.join(","))
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8")
+    res.setHeader("Content-Disposition", `attachment; filename="evenements_imposables_fhf_${from}_${to}.csv"`)
+    res.send(lines.join("\n"))
+  })
+
   // FHF Simulation fiscale
   app.get("/api/fhf/simulation", auth, async (req: Request, res: Response) => {
     const userClient = userScopedClient((req as any).userToken)

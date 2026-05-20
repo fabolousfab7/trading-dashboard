@@ -5,7 +5,8 @@ import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
 import { runDailySnapshot } from "./routes-portfolio.js"
-import { fetchYahooPrice } from "./yahoo-finance.js"
+import { fetchYahooPrice, yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
+import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
 import { normalizeTicker } from "./utils/portfolio-math.js"
 
@@ -39,16 +40,6 @@ async function requireAuth(supabase: SupabaseClient, req: Request, res: Response
   next()
 }
 
-function yahooSuffix(currency: string, ticker: string): string | null {
-  if (ticker.includes(".")) return null
-  if (currency === "USD") return ""
-  if (currency === "EUR") return "PA"
-  if (currency === "GBP") return "L"
-  if (currency === "CHF") return "SW"
-  return null
-}
-
-const YAHOO_DE_TICKERS = new Set(["P911", "SAP", "SIE", "ALV", "BAS", "BMW", "DAI", "DTE", "MRK"])
 
 async function refreshAllPositionPrices(
   svcClient: SupabaseClient,
@@ -112,6 +103,17 @@ async function refreshAllPositionPrices(
         price = await fetchYahooPrice(ticker, "PA")
       }
 
+      let source = "yahoo"
+      if (price === null || price === 0) {
+        const stooqSym = (p.stooq_symbol as string) || defaultStooqSymbol(ticker, currency)
+        const stooqPrice = await fetchStooqPrice(stooqSym).catch(() => null)
+        if (stooqPrice !== null && stooqPrice > 0) {
+          price = stooqPrice
+          source = "stooq"
+          console.log(`[refresh-prices] Stooq fallback for ${ticker}: ${stooqPrice}`)
+        }
+      }
+
       if (price !== null && price > 0) {
         await svcClient.from("positions").update({
           market_price: String(price),
@@ -125,12 +127,12 @@ async function refreshAllPositionPrices(
           market_price: price,
           currency: currency,
           fx_rate_to_eur: p.fx_rate_to_base || null,
-          source: "yahoo",
+          source,
         }, { onConflict: "ticker,price_date" })
 
         stocks++
       } else {
-        console.warn(`[refresh-prices] no Yahoo price for ${ticker} (${currency}, suffix=${suffix})`)
+        console.warn(`[refresh-prices] no price for ${ticker} (${currency}) — Yahoo and Stooq both failed`)
         skipped++
       }
     } catch (e: any) {
@@ -270,6 +272,7 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
           const msgs: string[] = []
           if (result.spot.inserted || result.spot.updated) msgs.push(`Spot: ${result.spot.inserted} new, ${result.spot.updated} upd, ${result.spot.realized_recalc} FIFO`)
           if (result.futures.inserted || result.futures.updated) msgs.push(`Fut: ${result.futures.inserted} new, ${result.futures.updated} upd`)
+          if (result.crypto_swaps.inserted || result.crypto_swaps.updated) msgs.push(`Crypto-swaps: ${result.crypto_swaps.inserted} new, ${result.crypto_swaps.updated} upd, ${result.crypto_swaps.needs_review} review`)
           if (result.errors.length > 0) throw new Error(result.errors.join("; "))
           steps.push({ step: "kraken_trades", status: "ok", message: msgs.join(" | ") || "Aucun trade", durationMs: Date.now() - s0 })
         }
