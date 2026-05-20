@@ -47,7 +47,8 @@ interface SimData {
   nb_positions_ibkr: number
   capital_ibkr: number
   pnl_realise_kraken: number
-  nb_trades_kraken: number
+  nb_trades_kraken_clos: number
+  nb_trades_kraken_total: number
   capital_kraken: number
   revenus_compta: number
   revenus_detail: { party_name: string; amount_ht: number; date: string; category: string }[]
@@ -184,7 +185,7 @@ export default function Fhf() {
         <div style={{ padding: "16px 22px", borderRight: "1px solid var(--rule)" }}>
           <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--ink3)", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center" }}>
             Résultat avant IS
-            <InfoTip text="Résultat = P&L réalisé IBKR (cash − capital investi) + P&L latent IBKR (positions ouvertes) + P&L Kraken (journal) − Charges HT nettes (après avoirs). C'est le bénéfice (ou déficit) fiscal de FHF pour l'année." wide />
+            <InfoTip text="Résultat = P&L réalisé IBKR (cash − capital investi) + P&L latent IBKR (positions ouvertes) + P&L Kraken (FIFO Spot + Futures) − Charges HT nettes (après avoirs). C'est le bénéfice (ou déficit) fiscal de FHF pour l'année." wide />
           </div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 700, color: resultat_avant_is_local >= 0 ? "var(--at-pos)" : "var(--at-neg)", marginTop: 6, letterSpacing: -0.5 }}>
             {EUR.format(resultat_avant_is_local)}
@@ -255,12 +256,11 @@ export default function Fhf() {
           {/* Kraken — Trading Actif */}
           <div style={{ borderTop: "1px dotted var(--rule)", paddingTop: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "var(--font-mono)", color: "var(--ink3)", marginBottom: 8 }}>Kraken — Trading Actif</div>
-            <Row label={`P&L réalisé (${data.nb_trades_kraken} trades)`} value={data.pnl_realise_kraken} tooltip="Somme des profits des trades Kraken saisis manuellement dans la page Trading Actif. Source : table trades, filtre compte = Kraken." />
+            <Row label={`P&L réalisé (${data.nb_trades_kraken_clos}/${data.nb_trades_kraken_total} trades clos)`} value={data.pnl_realise_kraken} tooltip="Somme des realized_pnl FIFO Spot (trades de clôture) + paidPnL Futures (quand dispo). Source : table kraken_trades, sync API Kraken Pro. Conversion FX appliquée par trade avant sommation." />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink2)", padding: "4px 0" }}>
               <span style={{ display: "flex", alignItems: "center", fontFamily: "var(--font-mono)" }}>Capital investi<InfoTip text="Somme nette des virements FHF → Kraken (catégorie 512200 dans compta). Source : factures compta validées." /></span>
               <span style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>{EUR.format(data.capital_kraken)}</span>
             </div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 4 }}>P&L Kraken = trades saisis manuellement dans Trading Actif</div>
           </div>
 
           {/* Sous-total */}

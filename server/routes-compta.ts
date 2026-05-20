@@ -918,15 +918,34 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         pnl_realise_ibkr = ibkr_nlv - capital_ibkr - pnl_latent_ibkr
       }
 
-      // Kraken — trading actif, P&L depuis le journal
-      const { data: allTrades } = await userClient
-        .from("trades").select("profit, compte, date")
+      // Kraken — P&L réalisé YTD depuis kraken_trades (Spot FIFO + Futures paidPnL si dispo)
+      const yearStart = `${year}-01-01T00:00:00Z`
+      const yearEnd = `${year}-12-31T23:59:59Z`
 
-      const krakenTrades = (allTrades || []).filter(t => {
-        const tradeYear = new Date(t.date).getFullYear().toString()
-        return tradeYear === year && t.compte?.toUpperCase().includes("KRAKEN")
-      })
-      const pnl_realise_kraken = krakenTrades.reduce((s, t) => s + Number(t.profit), 0)
+      const { data: krakenAccounts } = await userClient
+        .from("accounts").select("id").eq("broker", "Kraken").eq("is_active", true)
+      const krakenAccountIds = (krakenAccounts || []).map((a: any) => a.id)
+
+      let pnl_realise_kraken = 0
+      let nb_trades_kraken_clos = 0
+      let nb_trades_kraken_total = 0
+
+      if (krakenAccountIds.length > 0) {
+        const { data: ktrades } = await userClient
+          .from("kraken_trades")
+          .select("realized_pnl, fx_rate_to_eur, trade_date")
+          .in("account_id", krakenAccountIds)
+          .gte("trade_date", yearStart)
+          .lte("trade_date", yearEnd)
+
+        for (const t of (ktrades || [])) {
+          nb_trades_kraken_total++
+          if (t.realized_pnl !== null && t.realized_pnl !== undefined) {
+            pnl_realise_kraken += Number(t.realized_pnl) * Number(t.fx_rate_to_eur ?? 1)
+            nb_trades_kraken_clos++
+          }
+        }
+      }
 
       // Total P&L trading
       const total_produits_trading = pnl_realise_ibkr + pnl_latent_ibkr + pnl_realise_kraken
@@ -973,7 +992,8 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         nb_positions_ibkr: ibkr_positions.length,
         capital_ibkr,
         pnl_realise_kraken,
-        nb_trades_kraken: krakenTrades.length,
+        nb_trades_kraken_clos,
+        nb_trades_kraken_total,
         capital_kraken,
         revenus_compta,
         revenus_detail,
