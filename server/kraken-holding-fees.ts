@@ -71,7 +71,7 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
               const currency = String(entry.asset || "ZEUR")
               const tsISO = new Date(Number(entry.time) * 1000).toISOString()
               const fx = await getHistoricalFxToEur(currency, tsISO)
-              const amountEur = feeVal * fx
+              const amountEur = fx !== null ? feeVal * fx : null
 
               const { error } = await serviceClient
                 .from("kraken_holding_fees")
@@ -129,7 +129,7 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
           const currency = String(entry.asset || "USD").toUpperCase()
           const tsISO = entry.date || new Date().toISOString()
           const fx = await getHistoricalFxToEur(currency, tsISO)
-          const amountEur = Math.abs(realizedFunding) * fx
+          const amountEur = fx !== null ? Math.abs(realizedFunding) * fx : null
           const isPositive = realizedFunding > 0
           const pcgCode = isPositive ? "768000" : "668000"
 

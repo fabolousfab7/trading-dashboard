@@ -15,7 +15,7 @@ import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenHoldingFees } from "./kraken-holding-fees.js"
-import { getHistoricalFxToEur, preWarmCryptoFx } from "./fx-historical.js"
+import { getHistoricalFxToEur, preWarmCryptoDates } from "./fx-historical.js"
 import { getPositionValueEur, normalizeTicker } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
@@ -1306,20 +1306,38 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const stats = { holding_fees_updated: 0, trades_updated: 0, errors: [] as string[] }
+    const FIAT_CURRENCIES = new Set(["EUR", "USD", "GBP", "CHF", "JPY", "ZEUR", "ZUSD", "ZGBP", "ZCHF", "ZJPY", "USDT", "USDC", "DAI"])
+    const stats = {
+      holding_fees_updated: 0,
+      trades_updated: 0,
+      crypto_fx_failures: [] as { currency: string; ts: string }[],
+      errors: [] as string[],
+    }
 
     try {
-      // Pre-warm crypto FX cache (1 bulk call per crypto instead of hundreds)
-      const { data: cryptoCurrencies } = await svcClient
+      // 1. Collect unique crypto (currency, date) pairs from holding fees
+      const { data: cryptoFees } = await svcClient
         .from("kraken_holding_fees")
-        .select("currency")
-      const uniqueCryptos = [...new Set((cryptoCurrencies || []).map((r: any) => r.currency))]
-        .filter(c => !["EUR", "USD", "GBP", "CHF", "JPY", "ZEUR", "ZUSD", "ZGBP", "ZCHF", "ZJPY", "USDT", "USDC", "DAI"].includes(c))
-      if (uniqueCryptos.length > 0) {
-        await preWarmCryptoFx(uniqueCryptos)
+        .select("currency, ts")
+      const cryptoDatesByCurrency: Record<string, Set<string>> = {}
+      for (const row of (cryptoFees || [])) {
+        if (FIAT_CURRENCIES.has(row.currency)) continue
+        const day = String(row.ts).slice(0, 10)
+        if (!cryptoDatesByCurrency[row.currency]) cryptoDatesByCurrency[row.currency] = new Set()
+        cryptoDatesByCurrency[row.currency].add(day)
       }
 
-      // 1. Recompute kraken_holding_fees
+      // Pre-warm crypto FX via per-date /history calls
+      for (const [currency, datesSet] of Object.entries(cryptoDatesByCurrency)) {
+        const dates = [...datesSet].sort()
+        console.log(`[recompute-fx] pre-warming ${currency}: ${dates.length} unique dates`)
+        const { failed } = await preWarmCryptoDates(currency, dates)
+        for (const day of failed) {
+          stats.crypto_fx_failures.push({ currency, ts: day })
+        }
+      }
+
+      // 2. Recompute kraken_holding_fees
       const { data: fees } = await svcClient
         .from("kraken_holding_fees")
         .select("id, currency, ts, amount_native")
@@ -1328,18 +1346,25 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       for (const fee of (fees || [])) {
         try {
           const fx = await getHistoricalFxToEur(fee.currency, fee.ts)
-          const amountEur = Math.abs(Number(fee.amount_native)) * fx
-          await svcClient
-            .from("kraken_holding_fees")
-            .update({ fx_rate_to_eur: fx, amount_eur: amountEur })
-            .eq("id", fee.id)
+          if (fx !== null) {
+            const amountEur = Math.abs(Number(fee.amount_native)) * fx
+            await svcClient
+              .from("kraken_holding_fees")
+              .update({ fx_rate_to_eur: fx, amount_eur: amountEur })
+              .eq("id", fee.id)
+          } else {
+            await svcClient
+              .from("kraken_holding_fees")
+              .update({ fx_rate_to_eur: null, amount_eur: null })
+              .eq("id", fee.id)
+          }
           stats.holding_fees_updated++
         } catch (e: any) {
           stats.errors.push(`fee ${fee.id}: ${e.message}`)
         }
       }
 
-      // 2. Recompute kraken_trades
+      // 3. Recompute kraken_trades
       const { data: trades } = await svcClient
         .from("kraken_trades")
         .select("id, quote_currency, trade_date")
@@ -1358,7 +1383,8 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         }
       }
 
-      return res.json({ ok: stats.errors.length === 0, ...stats })
+      const ok = stats.errors.length === 0 && stats.crypto_fx_failures.length === 0
+      return res.json({ ok, ...stats })
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: e.message, ...stats })
     }

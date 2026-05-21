@@ -94,7 +94,7 @@ interface FuturesTradeRow {
   fee: number
   net_cash: number
   realized_pnl: number | null
-  fx_rate_to_eur: number
+  fx_rate_to_eur: number | null
   source: string
   raw_data: any
 }

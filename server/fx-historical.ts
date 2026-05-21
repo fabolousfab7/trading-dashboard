@@ -1,5 +1,3 @@
-import { fetchCoinGeckoHistory } from "./coingecko.js"
-
 const fxCache: Record<string, number> = {}
 
 const CRYPTO_CG_MAP: Record<string, string> = {
@@ -20,6 +18,12 @@ const FIAT_SET = new Set([
   "ZEUR", "ZUSD", "ZGBP", "ZJPY", "ZCHF",
   "USDT", "USDC", "DAI",
 ])
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
+function cgIdFor(currency: string): string | null {
+  return CRYPTO_CG_MAP[currency] || CRYPTO_CG_MAP[currency.replace(/^X/, "")] || null
+}
 
 async function getFiatToEur(currency: string, dateISO: string): Promise<number> {
   if (currency === "EUR" || currency === "ZEUR") return 1
@@ -46,58 +50,81 @@ async function getFiatToEur(currency: string, dateISO: string): Promise<number> 
   }
 }
 
-async function getCryptoToEur(currency: string, dateISO: string): Promise<number> {
-  const day = dateISO.slice(0, 10)
-  const cur = currency.replace(/^X/, "")
-  const cgId = CRYPTO_CG_MAP[currency] || CRYPTO_CG_MAP[cur]
-  if (!cgId) {
-    console.warn(`[fx-historical] no cgId for crypto ${currency}, using 0`)
-    return 0
-  }
+async function fetchCgHistoryDate(cgId: string, day: string): Promise<number | null> {
   const key = `crypto:${cgId}:${day}`
   if (key in fxCache) return fxCache[key]
-  try {
-    const [yyyy, mm, dd] = day.split("-")
-    const r = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${cgId}/history?date=${dd}-${mm}-${yyyy}&localization=false`
-    )
-    if (!r.ok) throw new Error(`CG ${r.status}`)
-    const data = await r.json()
-    const price = data?.market_data?.current_price?.eur
-    if (!price) throw new Error("no EUR price")
-    fxCache[key] = price
-    return price
-  } catch (e: any) {
-    console.warn(`[fx-historical] CoinGecko fallback for ${currency} ${day}: ${e.message}`)
-    return 0
+
+  const [yyyy, mm, dd] = day.split("-")
+  let lastError = ""
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(2000 * Math.pow(2, attempt - 1))
+    try {
+      const r = await fetch(
+        `https://api.coingecko.com/api/v3/coins/${cgId}/history?date=${dd}-${mm}-${yyyy}&localization=false`
+      )
+      if (r.status === 429) {
+        lastError = "429 rate limit"
+        continue
+      }
+      if (!r.ok) throw new Error(`CG ${r.status}`)
+      const data = await r.json()
+      const price = data?.market_data?.current_price?.eur
+      if (!price) throw new Error("no EUR price in response")
+      fxCache[key] = price
+      return price
+    } catch (e: any) {
+      lastError = e.message
+    }
   }
+
+  console.warn(`[fx-historical] CoinGecko failed for ${cgId} ${day} after 3 attempts: ${lastError}`)
+  return null
+}
+
+async function getCryptoToEur(currency: string, dateISO: string): Promise<number | null> {
+  const day = dateISO.slice(0, 10)
+  const cgId = cgIdFor(currency)
+  if (!cgId) {
+    console.warn(`[fx-historical] no cgId for crypto ${currency}`)
+    return null
+  }
+  return fetchCgHistoryDate(cgId, day)
 }
 
 export async function getHistoricalFxToEur(
   currency: string,
   dateISO: string
-): Promise<number> {
+): Promise<number | null> {
   if (FIAT_SET.has(currency)) {
     return getFiatToEur(currency, dateISO)
   }
   return getCryptoToEur(currency, dateISO)
 }
 
-export async function preWarmCryptoFx(currencies: string[]): Promise<void> {
-  const seen = new Set<string>()
-  for (const cur of currencies) {
-    const cgId = CRYPTO_CG_MAP[cur] || CRYPTO_CG_MAP[cur.replace(/^X/, "")]
-    if (!cgId || seen.has(cgId)) continue
-    seen.add(cgId)
-    try {
-      const history = await fetchCoinGeckoHistory(cgId, 400)
-      for (const point of history) {
-        fxCache[`crypto:${cgId}:${point.date}`] = point.price
-      }
-      console.log(`[fx-historical] pre-warmed ${cgId}: ${history.length} days`)
-    } catch (e: any) {
-      console.warn(`[fx-historical] pre-warm failed for ${cgId}: ${e.message}`)
+export async function preWarmCryptoDates(
+  currency: string,
+  dates: string[]
+): Promise<{ warmed: number; failed: string[] }> {
+  const cgId = cgIdFor(currency)
+  if (!cgId) return { warmed: 0, failed: dates }
+
+  let warmed = 0
+  const failed: string[] = []
+
+  for (const day of dates) {
+    const key = `crypto:${cgId}:${day}`
+    if (key in fxCache) { warmed++; continue }
+
+    const price = await fetchCgHistoryDate(cgId, day)
+    if (price !== null) {
+      warmed++
+    } else {
+      failed.push(day)
     }
-    await new Promise(r => setTimeout(r, 1500))
+    await sleep(1500)
   }
+
+  console.log(`[fx-historical] pre-warmed ${cgId}: ${warmed} dates, ${failed.length} failed`)
+  return { warmed, failed }
 }
