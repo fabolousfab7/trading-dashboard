@@ -1,17 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { krakenPrivateRequest, KrakenConfig } from "./kraken-api.js"
 import { callFutures, type KrakenFuturesConfig } from "./kraken-futures-api.js"
-
-const HARDCODED_FX: Record<string, number> = {
-  EUR: 1, ZEUR: 1, USD: 0.92, ZUSD: 0.92,
-  USDT: 0.92, USDC: 0.92, DAI: 0.92,
-  GBP: 1.17, ZGBP: 1.17, CHF: 1.05, JPY: 0.006,
-}
-
-function fxToEur(currency: string): number {
-  const upper = currency.toUpperCase()
-  return HARDCODED_FX[upper] ?? 1
-}
+import { getHistoricalFxToEur } from "./fx-historical.js"
 
 function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms))
@@ -79,7 +69,8 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
               if (feeVal === 0) continue
 
               const currency = String(entry.asset || "ZEUR")
-              const fx = fxToEur(currency)
+              const tsISO = new Date(Number(entry.time) * 1000).toISOString()
+              const fx = await getHistoricalFxToEur(currency, tsISO)
               const amountEur = feeVal * fx
 
               const { error } = await serviceClient
@@ -88,7 +79,7 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
                   account_id: account.id,
                   source: "spot_ledger",
                   kraken_ref_id: entry.ledger_id,
-                  ts: new Date(Number(entry.time) * 1000).toISOString(),
+                  ts: tsISO,
                   fee_type: feeType,
                   pcg_code: pcgCode,
                   amount_native: feeVal,
@@ -136,7 +127,8 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
           if (realizedFunding === 0) continue
 
           const currency = String(entry.asset || "USD").toUpperCase()
-          const fx = fxToEur(currency)
+          const tsISO = entry.date || new Date().toISOString()
+          const fx = await getHistoricalFxToEur(currency, tsISO)
           const amountEur = Math.abs(realizedFunding) * fx
           const isPositive = realizedFunding > 0
           const pcgCode = isPositive ? "768000" : "668000"
@@ -147,7 +139,7 @@ export async function syncKrakenHoldingFees(serviceClient: SupabaseClient): Prom
               account_id: account.id,
               source: "futures_log",
               kraken_ref_id: String(entry.booking_uid),
-              ts: entry.date || new Date().toISOString(),
+              ts: tsISO,
               fee_type: "funding",
               pcg_code: pcgCode,
               amount_native: Math.abs(realizedFunding),

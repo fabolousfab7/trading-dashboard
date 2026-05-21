@@ -5,11 +5,10 @@ import { krakenPrivateRequest, normalizeKrakenTicker, KrakenConfig } from "./kra
 import { recalcFifoForAccount } from "./fifo-pnl.js"
 import { buildSignedRequest, callFutures, type KrakenFuturesConfig } from "./kraken-futures-api.js"
 import { upsertCryptoCryptoSwap } from "./crypto-crypto-swaps.js"
+import { getHistoricalFxToEur } from "./fx-historical.js"
 
 const QUASI_FIAT = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI"])
 const FIAT_LIKE_RAW = new Set(["EUR", "USD", "GBP", "JPY", "CHF", "USDT", "USDC", "DAI", "ZEUR", "ZUSD", "ZGBP", "ZJPY", "ZCHF"])
-
-const HARDCODED_FX: Record<string, number> = { EUR: 1, USD: 0.92, GBP: 1.17, CHF: 1.05, JPY: 0.006, USDT: 0.92, USDC: 0.92, DAI: 0.92 }
 
 function normalizeTicker(raw: string): string {
   const REMAP: Record<string, string> = { XBT: "BTC" }
@@ -138,7 +137,7 @@ function mapFillV3ToRow(fill: any, accountId: string): FuturesTradeRow | null {
     fee: Number(fill.fee) || 0,
     net_cash: rawSide === "SELL" ? cost - (Number(fill.fee) || 0) : -(cost + (Number(fill.fee) || 0)),
     realized_pnl: fill.paidPnL != null ? Number(fill.paidPnL) : null,
-    fx_rate_to_eur: HARDCODED_FX[quote] ?? 1,
+    fx_rate_to_eur: 1,
     source: "api_fills",
     raw_data: fill,
   }
@@ -216,7 +215,7 @@ function mapExecutionV2ToRow(element: any, accountId: string): FuturesTradeRow |
     fee,
     net_cash: direction === "SELL" ? cost - fee : -(cost + fee),
     realized_pnl: null,
-    fx_rate_to_eur: HARDCODED_FX[quote] ?? 1,
+    fx_rate_to_eur: 1,
     source: "api_executions",
     raw_data: element,
   }
@@ -286,6 +285,7 @@ export function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}
           open_qty: 0, close_qty: 0,
           open_proceeds: 0, close_proceeds: 0,
           open_fees: 0, close_fees: 0,
+          last_fx_rate: 1,
           fill_ids: [] as string[],
         }
       }
@@ -306,6 +306,7 @@ export function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}
         trip.close_fees += fee
       }
       trip.fill_ids.push(fill.id || fill.kraken_trade_id)
+      trip.last_fx_rate = Number(fill.fx_rate_to_eur) || 1
       positionQty += signedQty
 
       if (Math.abs(positionQty) < 1e-8) {
@@ -315,7 +316,7 @@ export function aggregateRoundTrips(fills: any[], options: RoundTripOptions = {}
           ? trip.close_proceeds - trip.open_proceeds
           : trip.open_proceeds - trip.close_proceeds
         const netPnl = grossPnl - totalFees
-        const fxRate = HARDCODED_FX[trip.quote_currency] ?? 1
+        const fxRate = trip.last_fx_rate
 
         trips.push({
           id: `${trip.ticker}-${trip.quote_currency}-${trip.open_date}`,
@@ -426,9 +427,9 @@ export async function syncKrakenTradesForAccount(
           continue
         }
 
-        const fxToEur = HARDCODED_FX[parsed.quote] ?? 1
         const side = (t.type || "").toLowerCase() === "sell" ? "SELL" : "BUY"
         const tradeTime = new Date(Number(t.time) * 1000).toISOString()
+        const fxToEur = await getHistoricalFxToEur(parsed.quote, tradeTime)
 
         const row = {
           account_id: account.id,
@@ -510,6 +511,7 @@ export async function syncKrakenTradesForAccount(
       console.log(`[kraken-futures] ${allRows.size} unique rows to upsert`)
 
       for (const row of Array.from(allRows.values())) {
+        row.fx_rate_to_eur = await getHistoricalFxToEur(row.quote_currency, row.trade_date)
         const { data: existing } = await userClient
           .from("kraken_trades")
           .select("id")

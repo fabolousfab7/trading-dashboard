@@ -15,6 +15,7 @@ import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncCotReports, INSTRUMENTS as COT_INSTRUMENTS } from "./cot-cftc.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenHoldingFees } from "./kraken-holding-fees.js"
+import { getHistoricalFxToEur, preWarmCryptoFx } from "./fx-historical.js"
 import { getPositionValueEur, normalizeTicker } from "./utils/portfolio-math.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
@@ -1297,6 +1298,69 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       return res.json({ ok: result.errors.length === 0, ...result })
     } catch (e: any) {
       return res.status(500).json({ ok: false, error: e.message })
+    }
+  })
+
+  app.post("/api/admin/recompute-fx-historical", auth, async (req: Request, res: Response) => {
+    const svcClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const stats = { holding_fees_updated: 0, trades_updated: 0, errors: [] as string[] }
+
+    try {
+      // Pre-warm crypto FX cache (1 bulk call per crypto instead of hundreds)
+      const { data: cryptoCurrencies } = await svcClient
+        .from("kraken_holding_fees")
+        .select("currency")
+      const uniqueCryptos = [...new Set((cryptoCurrencies || []).map((r: any) => r.currency))]
+        .filter(c => !["EUR", "USD", "GBP", "CHF", "JPY", "ZEUR", "ZUSD", "ZGBP", "ZCHF", "ZJPY", "USDT", "USDC", "DAI"].includes(c))
+      if (uniqueCryptos.length > 0) {
+        await preWarmCryptoFx(uniqueCryptos)
+      }
+
+      // 1. Recompute kraken_holding_fees
+      const { data: fees } = await svcClient
+        .from("kraken_holding_fees")
+        .select("id, currency, ts, amount_native")
+        .order("ts", { ascending: true })
+
+      for (const fee of (fees || [])) {
+        try {
+          const fx = await getHistoricalFxToEur(fee.currency, fee.ts)
+          const amountEur = Math.abs(Number(fee.amount_native)) * fx
+          await svcClient
+            .from("kraken_holding_fees")
+            .update({ fx_rate_to_eur: fx, amount_eur: amountEur })
+            .eq("id", fee.id)
+          stats.holding_fees_updated++
+        } catch (e: any) {
+          stats.errors.push(`fee ${fee.id}: ${e.message}`)
+        }
+      }
+
+      // 2. Recompute kraken_trades
+      const { data: trades } = await svcClient
+        .from("kraken_trades")
+        .select("id, quote_currency, trade_date")
+        .order("trade_date", { ascending: true })
+
+      for (const trade of (trades || [])) {
+        try {
+          const fx = await getHistoricalFxToEur(trade.quote_currency, trade.trade_date)
+          await svcClient
+            .from("kraken_trades")
+            .update({ fx_rate_to_eur: fx })
+            .eq("id", trade.id)
+          stats.trades_updated++
+        } catch (e: any) {
+          stats.errors.push(`trade ${trade.id}: ${e.message}`)
+        }
+      }
+
+      return res.json({ ok: stats.errors.length === 0, ...stats })
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, error: e.message, ...stats })
     }
   })
 
