@@ -40,6 +40,7 @@ export interface VatComputed {
   base_ventes_fr: number
   base_acquisitions_intracom: number
   base_achats_hors_ue: number
+  vat_collectee_fr: number
   vat_brute_due: number
   vat_intracom: number
   vat_deductible_fr: number

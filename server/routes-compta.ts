@@ -292,13 +292,14 @@ async function computeVatMonth(client: SupabaseClient, month: string) {
   )
   const base_achats_hors_ue = horsUe.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
 
-  const vat_brute_due = Math.round((base_acquisitions_intracom + base_achats_hors_ue) * 0.20 * 100) / 100
+  const vat_collectee_fr = revenues.reduce((s: number, i) => s + Number(i.amount_vat || 0), 0)
+  const vat_brute_due = Math.round((vat_collectee_fr + (base_acquisitions_intracom + base_achats_hors_ue) * 0.20) * 100) / 100
   const vat_intracom = Math.round(base_acquisitions_intracom * 0.20 * 100) / 100
 
   const deductibleFr = expenses.filter(i => i.vat_deductible && !i.vat_reverse_charge)
   const vat_deductible_fr = deductibleFr.reduce((s: number, i) => s + Number(i.amount_vat || 0), 0)
 
-  const vat_deductible_autoliq = vat_brute_due
+  const vat_deductible_autoliq = Math.round((base_acquisitions_intracom + base_achats_hors_ue) * 0.20 * 100) / 100
   const vat_deductible_total = Math.round((vat_deductible_fr + vat_deductible_autoliq) * 100) / 100
   const vat_credit_or_to_pay = Math.round((vat_deductible_total - vat_brute_due) * 100) / 100
 
@@ -306,6 +307,7 @@ async function computeVatMonth(client: SupabaseClient, month: string) {
     base_ventes_fr,
     base_acquisitions_intracom,
     base_achats_hors_ue,
+    vat_collectee_fr,
     vat_brute_due,
     vat_intracom,
     vat_deductible_fr,
@@ -1250,7 +1252,16 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         priorMonths.push(`${year}-${String(m).padStart(2, "0")}`)
       }
 
+      const alreadyRetroactivelyCovered = new Set<string>()
+      for (const r of returnsArr) {
+        if (r.status === "draft") continue
+        for (const period of (r.retroactive_periods || [])) {
+          alreadyRetroactivelyCovered.add(String(period).slice(0, 7))
+        }
+      }
+
       const retroactiveCandidates = priorMonths.filter(m => {
+        if (alreadyRetroactivelyCovered.has(m)) return false
         const ret = returnsArr.find(r => String(r.period_month).slice(0, 7) === m)
         return !ret || ret.status === "draft"
       })
