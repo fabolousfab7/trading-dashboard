@@ -970,13 +970,43 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
 
       if (frais_courtage_kraken > 0) {
         charges_by_category.push({ category: "627200", total_ht: frais_courtage_kraken })
-        charges_by_category.sort((a: any, b: any) => b.total_ht - a.total_ht)
         charges_brutes += frais_courtage_kraken
         charges_ht_ytd = charges_brutes - avoirs_total
       }
 
+      // Kraken holding fees (rollover, margin, funding)
+      let frais_holding_fees: Record<string, number> = {
+        "661800": 0,
+        "627800": 0,
+        "668000": 0,
+        "768000": 0,
+      }
+      if (krakenAccountIds.length > 0) {
+        const { data: holdingFees } = await userClient
+          .from("kraken_holding_fees")
+          .select("pcg_code, amount_eur, amount_sign")
+          .in("account_id", krakenAccountIds)
+          .gte("ts", yearStart)
+          .lte("ts", yearEnd)
+        for (const f of (holdingFees || [])) {
+          const eur = Math.abs(Number(f.amount_eur ?? 0))
+          frais_holding_fees[f.pcg_code] = (frais_holding_fees[f.pcg_code] ?? 0) + eur
+        }
+      }
+
+      for (const pcg of ["661800", "627800", "668000"]) {
+        if (frais_holding_fees[pcg] > 0) {
+          charges_by_category.push({ category: pcg, total_ht: frais_holding_fees[pcg] })
+          charges_brutes += frais_holding_fees[pcg]
+        }
+      }
+      charges_by_category.sort((a: any, b: any) => b.total_ht - a.total_ht)
+      charges_ht_ytd = charges_brutes - avoirs_total
+
+      const produits_funding_futures = frais_holding_fees["768000"]
+
       // Total P&L trading
-      const total_produits_trading = pnl_realise_ibkr + pnl_latent_ibkr + pnl_realise_kraken
+      const total_produits_trading = pnl_realise_ibkr + pnl_latent_ibkr + pnl_realise_kraken + produits_funding_futures
 
       const { data: ccaInvoices } = await userClient
         .from("fhf_invoices").select("direction, amount_ttc, category, notes")
@@ -1025,6 +1055,10 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
         nb_trades_kraken_clos,
         nb_trades_kraken_total,
         frais_courtage_kraken,
+        frais_interets_margin_kraken: frais_holding_fees["661800"],
+        frais_margin_kraken: frais_holding_fees["627800"],
+        charges_funding_futures: frais_holding_fees["668000"],
+        produits_funding_futures,
         capital_kraken,
         revenus_compta,
         revenus_detail,

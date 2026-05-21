@@ -10,6 +10,7 @@ import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
 import { normalizeTicker } from "./utils/portfolio-math.js"
 import { syncCotReports } from "./cot-cftc.js"
+import { syncKrakenHoldingFees } from "./kraken-holding-fees.js"
 
 function userScopedClient(userToken: string): SupabaseClient {
   return createClient(
@@ -338,6 +339,22 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
         steps.push({ step: "cot_reports", status: "ok", message: `${cotResult.fetched} instruments`, durationMs: Date.now() - s0 })
       } catch (e: any) {
         steps.push({ step: "cot_reports", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 8: Kraken holding fees (rollover, margin, funding)
+    {
+      const s0 = Date.now()
+      try {
+        if (!krakenAccount) {
+          steps.push({ step: "kraken_holding_fees", status: "skipped", message: "Pas de compte Kraken", durationMs: 0 })
+        } else {
+          const r = await syncKrakenHoldingFees(svcClient)
+          if (r.errors.length > 0) throw new Error(r.errors.join("; "))
+          steps.push({ step: "kraken_holding_fees", status: "ok", message: `rollover=${r.spot_rollover} margin=${r.spot_margin} funding=${r.futures_funding}`, durationMs: Date.now() - s0 })
+        }
+      } catch (e: any) {
+        steps.push({ step: "kraken_holding_fees", status: "error", message: e.message, durationMs: Date.now() - s0 })
       }
     }
 
