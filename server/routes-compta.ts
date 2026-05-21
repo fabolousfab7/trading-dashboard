@@ -242,6 +242,79 @@ const manualMatchSchema = z.object({
   bankTransactionId: z.string().uuid(),
 })
 
+const EU_COUNTRIES = new Set([
+  "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
+  "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
+])
+
+const NON_CHARGE_ACCOUNTS = ["101000", "455000", "512100", "512200"]
+
+function vatFilingDeadline(month: string): string {
+  const [y, m] = month.split("-").map(Number)
+  const ny = m === 12 ? y + 1 : y
+  const nm = m === 12 ? 1 : m + 1
+  return `${ny}-${String(nm).padStart(2, "0")}-24`
+}
+
+function previousMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number)
+  const py = m === 1 ? y - 1 : y
+  const pm = m === 1 ? 12 : m - 1
+  return `${py}-${String(pm).padStart(2, "0")}`
+}
+
+function normalizePeriodMonth(val: string): string {
+  if (/^\d{4}-\d{2}$/.test(val)) return `${val}-01`
+  return val
+}
+
+async function computeVatMonth(client: SupabaseClient, month: string) {
+  const { data: invoices } = await client
+    .from("fhf_invoices")
+    .select("direction, party_country, vat_reverse_charge, vat_deductible, amount_ht, amount_vat, category")
+    .eq("status", "validated")
+    .gte("invoice_date", `${month}-01`)
+    .lte("invoice_date", `${month}-31`)
+
+  const items = (invoices || []).filter(i => !NON_CHARGE_ACCOUNTS.includes(i.category))
+  const revenues = items.filter(i => i.direction === "revenue")
+  const expenses = items.filter(i => i.direction === "expense")
+
+  const base_ventes_fr = revenues.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
+
+  const intracom = expenses.filter(i =>
+    i.vat_reverse_charge && EU_COUNTRIES.has(i.party_country) && i.party_country !== "FR"
+  )
+  const base_acquisitions_intracom = intracom.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
+
+  const horsUe = expenses.filter(i =>
+    i.vat_reverse_charge && !EU_COUNTRIES.has(i.party_country)
+  )
+  const base_achats_hors_ue = horsUe.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
+
+  const vat_brute_due = Math.round((base_acquisitions_intracom + base_achats_hors_ue) * 0.20 * 100) / 100
+  const vat_intracom = Math.round(base_acquisitions_intracom * 0.20 * 100) / 100
+
+  const deductibleFr = expenses.filter(i => i.vat_deductible && !i.vat_reverse_charge)
+  const vat_deductible_fr = deductibleFr.reduce((s: number, i) => s + Number(i.amount_vat || 0), 0)
+
+  const vat_deductible_autoliq = vat_brute_due
+  const vat_deductible_total = Math.round((vat_deductible_fr + vat_deductible_autoliq) * 100) / 100
+  const vat_credit_or_to_pay = Math.round((vat_deductible_total - vat_brute_due) * 100) / 100
+
+  return {
+    base_ventes_fr,
+    base_acquisitions_intracom,
+    base_achats_hors_ue,
+    vat_brute_due,
+    vat_intracom,
+    vat_deductible_fr,
+    vat_deductible_autoliq,
+    vat_deductible_total,
+    vat_credit_or_to_pay,
+  }
+}
+
 export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
   const auth = (req: Request, res: Response, next: NextFunction) => requireAuth(supabase, req, res, next)
 
@@ -1085,6 +1158,357 @@ export function registerComptaRoutes(app: Express, supabase: SupabaseClient) {
       })
     } catch (err: any) {
       res.status(500).json({ error: err.message })
+    }
+  })
+
+  // ── VAT Returns (CA3) ──
+
+  app.get("/api/compta/vat-returns", auth, async (req: Request, res: Response) => {
+    try {
+      const userClient = userScopedClient((req as any).userToken)
+      const year = (req.query.year as string) || String(new Date().getFullYear())
+
+      const { data: returns, error } = await userClient
+        .from("fhf_vat_returns")
+        .select("*")
+        .gte("period_month", `${year}-01-01`)
+        .lte("period_month", `${year}-12-31`)
+        .order("period_month", { ascending: false })
+
+      if (error) {
+        console.error("[vat-returns] list error:", error.message)
+        return res.status(500).json({ error: error.message })
+      }
+
+      const enriched = []
+      for (const r of (returns || [])) {
+        let refund_transaction = null
+        if (r.refund_bank_transaction_id) {
+          const { data: tx } = await userClient
+            .from("fhf_bank_transactions")
+            .select("settlement_date, amount, counterparty_name")
+            .eq("id", r.refund_bank_transaction_id)
+            .maybeSingle()
+          refund_transaction = tx || null
+        }
+        enriched.push({ ...r, refund_transaction })
+      }
+
+      res.json({ returns: enriched })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[vat-returns] list error:", msg)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.get("/api/compta/vat-returns/preparation", auth, async (req: Request, res: Response) => {
+    try {
+      const userClient = userScopedClient((req as any).userToken)
+      const month = req.query.month as string
+      if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+        return res.status(400).json({ error: "Paramètre month manquant ou invalide (YYYY-MM)" })
+      }
+
+      const year = month.slice(0, 4)
+      const deadline = vatFilingDeadline(month)
+      const today = new Date().toISOString().slice(0, 10)
+      const [dy, dm] = deadline.split("-").map(Number)
+      const windowStart = `${dy}-${String(dm).padStart(2, "0")}-01`
+      const filing_window_open = today >= windowStart && today <= deadline
+
+      const computed = await computeVatMonth(userClient, month)
+
+      const { data: yearReturns } = await userClient
+        .from("fhf_vat_returns")
+        .select("*")
+        .gte("period_month", `${year}-01-01`)
+        .lte("period_month", `${year}-12-31`)
+
+      const returnsArr = yearReturns || []
+      const existing_return = returnsArr.find(r => String(r.period_month).slice(0, 7) === month) || null
+
+      const prevMonth = previousMonth(month)
+      let prevReturn = returnsArr.find(r => String(r.period_month).slice(0, 7) === prevMonth)
+      if (!prevReturn && prevMonth.slice(0, 4) !== year) {
+        const { data: pr } = await userClient
+          .from("fhf_vat_returns")
+          .select("vat_credit, credit_action")
+          .eq("period_month", `${prevMonth}-01`)
+          .maybeSingle()
+        prevReturn = pr || undefined
+      }
+
+      let credit_reported_from_previous = 0
+      if (prevReturn && prevReturn.credit_action === "reported") {
+        credit_reported_from_previous = Number(prevReturn.vat_credit || 0)
+      }
+
+      const monthNum = parseInt(month.slice(5, 7))
+      const priorMonths: string[] = []
+      for (let m = 1; m < monthNum; m++) {
+        priorMonths.push(`${year}-${String(m).padStart(2, "0")}`)
+      }
+
+      const retroactiveCandidates = priorMonths.filter(m => {
+        const ret = returnsArr.find(r => String(r.period_month).slice(0, 7) === m)
+        return !ret || ret.status === "draft"
+      })
+
+      const retroactive_available: Array<{
+        period_month: string
+        vat_deductible_fr_missed: number
+        base_intracom_missed: number
+        base_hors_ue_missed: number
+        factures_count: number
+      }> = []
+
+      if (retroactiveCandidates.length > 0) {
+        const { data: yearExpenses } = await userClient
+          .from("fhf_invoices")
+          .select("invoice_date, party_country, vat_reverse_charge, vat_deductible, amount_ht, amount_vat, category")
+          .eq("status", "validated")
+          .eq("direction", "expense")
+          .gte("invoice_date", `${year}-01-01`)
+          .lte("invoice_date", `${year}-12-31`)
+
+        const expensesByMonth: Record<string, typeof yearExpenses> = {}
+        for (const inv of (yearExpenses || [])) {
+          const m = String(inv.invoice_date).slice(0, 7)
+          if (!expensesByMonth[m]) expensesByMonth[m] = []
+          expensesByMonth[m]!.push(inv)
+        }
+
+        for (const m of retroactiveCandidates) {
+          const items = (expensesByMonth[m] || []).filter(i => !NON_CHARGE_ACCOUNTS.includes(i.category))
+          if (items.length === 0) continue
+
+          const deductibleFr = items.filter(i => i.vat_deductible && !i.vat_reverse_charge)
+          const intracom = items.filter(i => i.vat_reverse_charge && EU_COUNTRIES.has(i.party_country) && i.party_country !== "FR")
+          const horsUe = items.filter(i => i.vat_reverse_charge && !EU_COUNTRIES.has(i.party_country))
+
+          const vat_deductible_fr_missed = deductibleFr.reduce((s: number, i) => s + Number(i.amount_vat || 0), 0)
+          const base_intracom_missed = intracom.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
+          const base_hors_ue_missed = horsUe.reduce((s: number, i) => s + Number(i.amount_ht || 0), 0)
+
+          if (vat_deductible_fr_missed > 0 || base_intracom_missed > 0 || base_hors_ue_missed > 0) {
+            retroactive_available.push({
+              period_month: `${m}-01`,
+              vat_deductible_fr_missed,
+              base_intracom_missed,
+              base_hors_ue_missed,
+              factures_count: deductibleFr.length + intracom.length + horsUe.length,
+            })
+          }
+        }
+      }
+
+      res.json({
+        period_month: month,
+        filing_deadline: deadline,
+        filing_window_open,
+        computed,
+        retroactive_available,
+        credit_reported_from_previous,
+        existing_return,
+      })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[vat-returns] preparation error:", msg)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.post("/api/compta/vat-returns", auth, async (req: Request, res: Response) => {
+    try {
+      const userClient = userScopedClient((req as any).userToken)
+      const body = req.body
+      const errors: string[] = []
+
+      const period_month = normalizePeriodMonth(body.period_month || "")
+      if (!/^\d{4}-\d{2}-01$/.test(period_month)) {
+        errors.push("period_month invalide (attendu: YYYY-MM ou YYYY-MM-01)")
+      }
+
+      if (body.status === "submitted") {
+        if (!body.submitted_at) errors.push("submitted_at obligatoire quand status='submitted'")
+        if (!body.filing_reference) errors.push("filing_reference obligatoire quand status='submitted'")
+      }
+
+      if (body.credit_action === "refund_requested") {
+        if (!body.refund_requested_amount || Number(body.refund_requested_amount) <= 0) {
+          errors.push("refund_requested_amount doit être > 0 quand credit_action='refund_requested'")
+        }
+        if (Number(body.vat_credit || 0) < 760) {
+          errors.push("vat_credit doit être >= 760 € pour demander un remboursement")
+        }
+      }
+
+      const expectedTotal = Number(body.vat_deductible_immo || 0)
+        + Number(body.vat_deductible_other || 0)
+        + Number(body.vat_other_deduction || 0)
+      if (Math.abs(Number(body.vat_deductible_total || 0) - expectedTotal) > 1) {
+        errors.push(`vat_deductible_total (${body.vat_deductible_total}) incohérent avec la somme des composantes (${expectedTotal.toFixed(2)})`)
+      }
+
+      const expectedCredit = Math.max(0, Number(body.vat_deductible_total || 0) - Number(body.vat_brute_due || 0))
+      if (Math.abs(Number(body.vat_credit || 0) - expectedCredit) > 1) {
+        errors.push(`vat_credit (${body.vat_credit}) incohérent avec max(0, deductible_total - brute_due) = ${expectedCredit.toFixed(2)}`)
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({ errors })
+      }
+
+      const month = period_month.slice(0, 7)
+      const snapshot = await computeVatMonth(userClient, month)
+
+      const record = {
+        user_id: (req as any).userId,
+        period_month,
+        submitted_at: body.submitted_at || null,
+        filing_deadline: body.filing_deadline || vatFilingDeadline(month),
+        filing_reference: body.filing_reference || null,
+        acknowledgment_url: body.acknowledgment_url || null,
+        base_ventes_fr_taxable: body.base_ventes_fr_taxable,
+        base_acquisitions_intracom: body.base_acquisitions_intracom,
+        base_achats_hors_ue: body.base_achats_hors_ue,
+        vat_brute_due: body.vat_brute_due,
+        vat_intracom: body.vat_intracom,
+        vat_deductible_immo: body.vat_deductible_immo,
+        vat_deductible_other: body.vat_deductible_other,
+        vat_other_deduction: body.vat_other_deduction,
+        vat_deductible_total: body.vat_deductible_total,
+        vat_to_pay: body.vat_to_pay,
+        vat_credit: body.vat_credit,
+        credit_action: body.credit_action || null,
+        refund_requested_amount: body.refund_requested_amount || null,
+        retroactive_periods: body.retroactive_periods || null,
+        retroactive_notes: body.retroactive_notes || null,
+        status: body.status || "draft",
+        notes: body.notes || null,
+        dashboard_snapshot: snapshot,
+      }
+
+      const { data, error } = await userClient
+        .from("fhf_vat_returns")
+        .insert(record)
+        .select()
+        .single()
+
+      if (error) {
+        console.error("[vat-returns] create error:", error.message)
+        if (error.code === "23505") {
+          return res.status(409).json({ error: "Une déclaration CA3 existe déjà pour ce mois" })
+        }
+        return res.status(500).json({ error: error.message })
+      }
+
+      res.status(201).json(data)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[vat-returns] create error:", msg)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.put("/api/compta/vat-returns/:id", auth, async (req: Request, res: Response) => {
+    try {
+      const userClient = userScopedClient((req as any).userToken)
+      const id = req.params.id
+      const body = { ...req.body }
+
+      delete body.id
+      delete body.user_id
+      delete body.created_at
+
+      if (body.refund_bank_transaction_id) {
+        const { data: tx, error: txErr } = await userClient
+          .from("fhf_bank_transactions")
+          .select("id, settlement_date, amount")
+          .eq("id", body.refund_bank_transaction_id)
+          .maybeSingle()
+
+        if (txErr || !tx) {
+          console.error("[vat-returns] refund tx lookup:", txErr?.message || "not found")
+          return res.status(400).json({ error: "Transaction bancaire introuvable ou non autorisée" })
+        }
+
+        const { data: linked } = await userClient
+          .from("fhf_vat_returns")
+          .select("id")
+          .eq("refund_bank_transaction_id", body.refund_bank_transaction_id)
+          .neq("id", id)
+          .maybeSingle()
+
+        if (linked) {
+          return res.status(400).json({ error: "Cette transaction est déjà liée à une autre déclaration CA3" })
+        }
+
+        const { data: current } = await userClient
+          .from("fhf_vat_returns")
+          .select("refund_received_at, refund_amount_actual, status")
+          .eq("id", id)
+          .maybeSingle()
+
+        if (!current) {
+          return res.status(404).json({ error: "Déclaration CA3 introuvable" })
+        }
+
+        if (!body.refund_received_at && !current.refund_received_at) {
+          body.refund_received_at = tx.settlement_date
+        }
+        if (body.refund_amount_actual == null && current.refund_amount_actual == null) {
+          body.refund_amount_actual = tx.amount
+        }
+        if (!body.status && current.status === "refund_pending") {
+          body.status = "refund_received"
+        }
+      }
+
+      body.updated_at = new Date().toISOString()
+
+      const { data, error } = await userClient
+        .from("fhf_vat_returns")
+        .update(body)
+        .eq("id", id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error("[vat-returns] update error:", error.message)
+        if (error.code === "PGRST116") {
+          return res.status(404).json({ error: "Déclaration CA3 introuvable" })
+        }
+        return res.status(500).json({ error: error.message })
+      }
+
+      res.json(data)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[vat-returns] update error:", msg)
+      res.status(500).json({ error: msg })
+    }
+  })
+
+  app.delete("/api/compta/vat-returns/:id", auth, async (req: Request, res: Response) => {
+    try {
+      const userClient = userScopedClient((req as any).userToken)
+      const { error } = await userClient
+        .from("fhf_vat_returns")
+        .delete()
+        .eq("id", req.params.id)
+
+      if (error) {
+        console.error("[vat-returns] delete error:", error.message)
+        return res.status(500).json({ error: error.message })
+      }
+
+      res.status(204).send()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[vat-returns] delete error:", msg)
+      res.status(500).json({ error: msg })
     }
   })
 }
