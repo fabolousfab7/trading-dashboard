@@ -4,6 +4,7 @@ import { Upload, FileText, RefreshCw, X, Check, Eye, Pencil, Trash2, Link2Off, B
 import { useToast } from "@/hooks/use-toast"
 import InfoTip from "@/components/InfoTip"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import { VatReturnsBlock } from "@/components/VatReturnsBlock"
 
 const COLORS = ["#7d2b1d", "#cfb88f", "#3a6e3f", "#c08a4d", "#5b5a55", "#9a988f", "#4a4540", "#d4a057", "#6b8f71", "#8b6b4a"]
 
@@ -779,6 +780,9 @@ export default function Compta() {
         )}
         <div style={{ fontFamily: "var(--font-serif)", fontSize: 10, fontStyle: "italic", color: "var(--ink3)", marginTop: 12 }}>Ces montants sont indicatifs. Valide avec ta CA3 sur impots.gouv.</div>
       </div>
+
+      {/* ── TVA CA3 TRACKING ──────────────────────────────────── */}
+      <VatReturnsBlock />
 
       {/* ── CHARTS ─────────────────────────────────────────────── */}
       {stats && (stats.charges_by_category?.length > 0 || stats.monthly_by_category?.length > 0) && (
