@@ -616,7 +616,7 @@ export default function Ibkr() {
                           <td style={tdNum}>{Number(t.quantity)}</td>
                           <td style={tdNum}>{fmtCcy(Number(t.price), ccy)}</td>
                           <td style={tdNum}>{t.net_cash != null ? fmtCcy(Number(t.net_cash), ccy) : "—"}</td>
-                          <td style={{ ...tdNum, color: "var(--ink3)" }}>{t.commission != null ? fmtCcy(-Math.abs(Number(t.commission)), ccy) : "—"}</td>
+                          <td style={{ ...tdNum, color: "var(--ink3)" }}>{t.commission != null && Number(t.commission) !== 0 ? fmtEur(-Math.abs(Number(t.commission) * (Number(t.fx_rate_to_eur) || 1))) : "—"}</td>
                           <td style={{ ...tdNum, fontWeight: 600, color: pnlColor }}>
                             {pnl != null ? (pnl >= 0 ? "+" : "") + fmtCcy(pnl, ccy) : "—"}
                           </td>
@@ -633,8 +633,9 @@ export default function Ibkr() {
                         <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink)" }}>
                           {tradesSummary.total_net_cash_eur != null ? (tradesSummary.total_net_cash_eur >= 0 ? "+" : "") + fmtEur(tradesSummary.total_net_cash_eur) : "—"}
                         </td>
-                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--ink3)" }}>
-                          {tradesSummary.total_commissions_eur != null ? fmtEur(-Math.abs(tradesSummary.total_commissions_eur)) : "—"}
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--ink3)" }}>
+                          <span style={{ fontWeight: 700 }}>{tradesSummary.total_commissions_eur != null ? fmtEur(-Math.abs(tradesSummary.total_commissions_eur)) : "—"}</span>
+                          <span style={{ fontSize: 8, display: "block", marginTop: 1 }}>(inclus dans P&L)</span>
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: (tradesSummary.realized_pnl_total_eur ?? 0) >= 0 ? "var(--at-pos)" : "var(--at-neg)" }}>
                           {tradesSummary.realized_pnl_total_eur != null ? (tradesSummary.realized_pnl_total_eur >= 0 ? "+" : "") + fmtEur(tradesSummary.realized_pnl_total_eur) : "—"}
@@ -646,7 +647,7 @@ export default function Ibkr() {
               </div>
               {tradesSummary && (
                 <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ink3)", fontFamily: "var(--font-serif)", marginTop: 6 }}>
-                  Conversion EUR au taux FX du jour du trade
+                  Conversion EUR au taux FX du jour du trade · Frais déjà inclus dans le P&L réalisé IBKR
                 </div>
               )}
               {statsLine && (
