@@ -38,6 +38,7 @@ interface Position {
   fx_rate_to_base?: string | number
   currency: string
   previous_close?: string | number
+  unrealized_pnl?: string | number | null
 }
 
 interface CashBalance {
@@ -208,6 +209,9 @@ export default function Ibkr() {
   const nlv = positionsBase + cashBase
   const unrealizedPnl = positions.reduce((s, p) => {
     const fx = p.fx_rate_to_base ? Number(p.fx_rate_to_base) : 1
+    if (p.unrealized_pnl != null) {
+      return s + Number(p.unrealized_pnl) * fx
+    }
     const qty = Number(p.quantity)
     const price = Number(p.market_price)
     const cost = Number(p.avg_cost)
@@ -390,8 +394,10 @@ export default function Ibkr() {
                     const value = qty * price
                     const valueFx = value * fx
                     const cost = qty * pru
-                    const pnl = value - cost
-                    const pnlPct = cost === 0 ? 0 : (pnl / cost) * 100
+                    const pnlEur = p.unrealized_pnl != null
+                      ? Number(p.unrealized_pnl) * fx
+                      : (value - cost) * fx
+                    const pnlPct = cost === 0 ? 0 : ((price - pru) / pru) * 100
                     const sym = p.currency === "USD" ? "$" : "€"
 
                     // TODO: brancher prev close dans l'API (regularMarketPreviousClose depuis Yahoo)
@@ -431,8 +437,8 @@ export default function Ibkr() {
                           {dayVar === null ? "—" : `${dayVar >= 0 ? "+" : ""}${dayVar.toFixed(2)} %`}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                          <span style={{ color: pnl >= 0 ? "var(--at-pos)" : "var(--at-neg)", fontWeight: 600 }}>
-                            {pnl >= 0 ? "+" : ""}{pnl.toFixed(0)} {sym}
+                          <span style={{ color: pnlEur >= 0 ? "var(--at-pos)" : "var(--at-neg)", fontWeight: 600 }}>
+                            {pnlEur >= 0 ? "+" : ""}{pnlEur.toFixed(0)} €
                           </span>
                           <span style={{ color: "var(--ink3)", marginLeft: 6, fontSize: 10 }}>
                             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%

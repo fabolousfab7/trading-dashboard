@@ -242,6 +242,9 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
         }, 0)
         const unrealizedPnl = activePositions.reduce((s: number, p: any) => {
           const fx = Number(p.fx_rate_to_base) || 1
+          if (p.unrealized_pnl != null) {
+            return s + Number(p.unrealized_pnl) * fx
+          }
           return s + (Number(p.quantity) * (Number(p.market_price) - Number(p.avg_cost))) * fx
         }, 0)
         const cashValue = (freshCash || []).reduce((s: number, c: any) => {
