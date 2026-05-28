@@ -233,8 +233,16 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
         const { data: freshCash } = await serviceClient
           .from("cash_balances").select("*").eq("account_id", account.id)
 
-        const posValue = (freshPositions || []).reduce((s: number, p: any) => {
-          return s + getPositionValueEur(p)
+        const activePositions = (freshPositions || []).filter((p: any) =>
+          Number(p.quantity) !== 0 && Number(p.market_price) !== 0
+        )
+        const posValue = activePositions.reduce((s: number, p: any) => {
+          const fx = Number(p.fx_rate_to_base) || 1
+          return s + Number(p.quantity) * Number(p.market_price) * fx
+        }, 0)
+        const unrealizedPnl = activePositions.reduce((s: number, p: any) => {
+          const fx = Number(p.fx_rate_to_base) || 1
+          return s + (Number(p.quantity) * (Number(p.market_price) - Number(p.avg_cost))) * fx
         }, 0)
         const cashValue = (freshCash || []).reduce((s: number, c: any) => {
           const fx = Number(c.fx_rate_to_base) || 1
@@ -248,6 +256,7 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
           nlv_base: nlvBase,
           capital_invested: account.capital_invested || null,
           cash_total: cashValue || null,
+          unrealized_pnl: unrealizedPnl,
         }, { onConflict: "account_id,snapshot_date" })
         accountResult.actions.push(`snapshot_saved: ${nlvBase.toFixed(2)}`)
         console.log("[cron]", "action", account.label, `snapshot_saved: ${nlvBase.toFixed(2)}`)
