@@ -261,13 +261,18 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
             } else {
               // No pending or expired → request a new report
               console.log("[sync] IBKR requesting new report for query", config.query_id)
-              const ref = await requestFlexReport(config.flex_token, config.query_id)
-              await userClient.from("ibkr_config").update({
-                pending_reference_code: ref,
-                pending_requested_at: new Date().toISOString(),
-              }).eq("account_id", ibkrAccount.id)
-              console.log("[sync] IBKR pending ref stored:", ref)
-              steps.push({ step: "ibkr", status: "ok", message: `Rapport demandé (ref ${ref}), récupéré au prochain sync`, durationMs: Date.now() - s0 })
+              try {
+                const ref = await requestFlexReport(config.flex_token, config.query_id)
+                await userClient.from("ibkr_config").update({
+                  pending_reference_code: ref,
+                  pending_requested_at: new Date().toISOString(),
+                }).eq("account_id", ibkrAccount.id)
+                console.log("[sync] IBKR pending ref stored:", ref)
+                steps.push({ step: "ibkr", status: "ok", message: `Rapport demandé (ref ${ref}), récupéré au prochain sync`, durationMs: Date.now() - s0 })
+              } catch (reqErr: any) {
+                console.warn("[sync] IBKR request failed:", reqErr.message)
+                steps.push({ step: "ibkr", status: "ok", message: "IBKR occupé, nouvelle demande au prochain sync", durationMs: Date.now() - s0 })
+              }
             }
           }
         }

@@ -285,7 +285,7 @@ export async function fetchFlexReport(token: string, queryId: string): Promise<F
 }
 
 export async function requestFlexReport(token: string, queryId: string): Promise<string> {
-  return sendRequest(token, queryId)
+  return sendRequest(token, queryId, 2, 3000)
 }
 
 async function getStatementOnce(token: string, referenceCode: string): Promise<{ ready: true; xml: string } | { ready: false }> {

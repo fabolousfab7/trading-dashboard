@@ -171,13 +171,18 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
                 console.log("[cron]", "action", account.label, "ibkr_flex_pending: rapport en cours de génération")
 
               } else {
-                const ref = await requestFlexReport(ibkrCfg.flex_token, ibkrCfg.query_id)
-                await serviceClient.from("ibkr_config").update({
-                  pending_reference_code: ref,
-                  pending_requested_at: new Date().toISOString(),
-                }).eq("account_id", account.id)
-                accountResult.actions.push(`ibkr_flex_requested: ref ${ref}`)
-                console.log("[cron]", "action", account.label, `ibkr_flex_requested: ref ${ref}`)
+                try {
+                  const ref = await requestFlexReport(ibkrCfg.flex_token, ibkrCfg.query_id)
+                  await serviceClient.from("ibkr_config").update({
+                    pending_reference_code: ref,
+                    pending_requested_at: new Date().toISOString(),
+                  }).eq("account_id", account.id)
+                  accountResult.actions.push(`ibkr_flex_requested: ref ${ref}`)
+                  console.log("[cron]", "action", account.label, `ibkr_flex_requested: ref ${ref}`)
+                } catch (reqErr: any) {
+                  console.warn("[cron]", "IBKR request failed:", reqErr.message)
+                  accountResult.actions.push("ibkr_flex_busy: nouvelle demande au prochain cron")
+                }
               }
 
             } catch (e: any) {
