@@ -284,6 +284,43 @@ export async function fetchFlexReport(token: string, queryId: string): Promise<F
   return parseFlexReport(xml)
 }
 
+export async function requestFlexReport(token: string, queryId: string): Promise<string> {
+  return sendRequest(token, queryId)
+}
+
+async function getStatementOnce(token: string, referenceCode: string): Promise<{ ready: true; xml: string } | { ready: false }> {
+  const url = `${FLEX_BASE_URL}.${GET_STATEMENT_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(referenceCode)}&v=${API_VERSION}`
+  const response = await fetchWithTimeout(url)
+  if (!response.ok) {
+    throw new Error(`Flex GetStatement failed: HTTP ${response.status}`)
+  }
+  const xml = await response.text()
+
+  if (xml.includes("<FlexStatementResponse")) {
+    const parsed = xmlParser.parse(xml)
+    const root = parsed.FlexStatementResponse
+    const status = root?.Status
+    const errorCode = root?.ErrorCode
+
+    if (status === "Warn" || errorCode === 1019) {
+      console.log(`[ibkr-flex] getStatementOnce: report not ready (${errorCode})`)
+      return { ready: false }
+    }
+    if (status !== "Success") {
+      const errorMessage = root?.ErrorMessage || "Unknown error"
+      throw new Error(`Flex GetStatement error ${errorCode}: ${errorMessage}`)
+    }
+  }
+
+  return { ready: true, xml }
+}
+
+export async function retrieveFlexReport(token: string, referenceCode: string): Promise<FlexStatementData | null> {
+  const result = await getStatementOnce(token, referenceCode)
+  if (!result.ready) return null
+  return parseFlexReport(result.xml)
+}
+
 export function calculateNlvInBase(data: FlexStatementData, baseCurrency = "EUR"): {
   nlvBase: number
   positionsValueBase: number

@@ -5,7 +5,7 @@ import { z } from "zod"
 import {
   insertAccountSchema,
 } from "../shared/schema.js"
-import { fetchFlexReport, calculateNlvInBase, type FlexTrade, type FlexStatementData } from "./ibkr-flex.js"
+import { fetchFlexReport, calculateNlvInBase, requestFlexReport, retrieveFlexReport, type FlexTrade, type FlexStatementData } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchCoinGeckoPrices, fetchCoinGeckoHistory } from "./coingecko.js"
@@ -108,40 +108,77 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
           const ibkrCfg = account.ibkr_config?.[0] || account.ibkr_config
           if (ibkrCfg?.flex_token && ibkrCfg?.query_id) {
             try {
-              const flexData = await fetchFlexReport(ibkrCfg.flex_token, ibkrCfg.query_id)
-              const now = new Date().toISOString()
-              const hasRealPositions = flexData.openPositions.some((p: any) => p.quantity !== 0)
+              const PENDING_MAX_AGE_MS = 15 * 60 * 1000
+              const pendingRef = ibkrCfg.pending_reference_code as string | null
+              const pendingAt = ibkrCfg.pending_requested_at ? new Date(ibkrCfg.pending_requested_at).getTime() : 0
+              const pendingFresh = pendingRef && (Date.now() - pendingAt < PENDING_MAX_AGE_MS)
 
-              if (hasRealPositions) {
-                await serviceClient.from("positions").delete().eq("account_id", account.id)
-                const positionRows = flexData.openPositions.map((p: any) => ({
-                  account_id: account.id,
-                  ticker: p.symbol, name: p.description, quantity: p.quantity,
-                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-                }))
-                await serviceClient.from("positions").insert(positionRows)
-                accountResult.actions.push(`ibkr_flex_positions: ${positionRows.length}`)
-                console.log("[cron]", "action", account.label, `ibkr_flex_positions: ${positionRows.length}`)
+              let flexData: FlexStatementData | null = null
+
+              if (pendingRef) {
+                try {
+                  console.log("[cron] IBKR retrieve pending ref", pendingRef)
+                  flexData = await retrieveFlexReport(ibkrCfg.flex_token, pendingRef)
+                } catch (e: any) {
+                  console.warn("[cron] IBKR retrieve failed, will re-request:", e.message)
+                }
+              }
+
+              if (flexData) {
+                const now = new Date().toISOString()
+                const hasRealPositions = flexData.openPositions.some((p: any) => p.quantity !== 0)
+
+                if (hasRealPositions) {
+                  await serviceClient.from("positions").delete().eq("account_id", account.id)
+                  const positionRows = flexData.openPositions.map((p: any) => ({
+                    account_id: account.id,
+                    ticker: p.symbol, name: p.description, quantity: p.quantity,
+                    currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                    unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                    fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                  }))
+                  await serviceClient.from("positions").insert(positionRows)
+                  accountResult.actions.push(`ibkr_flex_positions: ${positionRows.length}`)
+                  console.log("[cron]", "action", account.label, `ibkr_flex_positions: ${positionRows.length}`)
+                } else {
+                  accountResult.actions.push("ibkr_flex_skipped_zero")
+                  console.log("[cron]", "action", account.label, "ibkr_flex_skipped_zero")
+                }
+
+                if (flexData.cashBalances.length > 0) {
+                  await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
+                  const cashRows = flexData.cashBalances.map((c: any) => ({
+                    account_id: account.id, currency: c.currency,
+                    amount: c.endingCash, last_synced_at: now,
+                  }))
+                  await serviceClient.from("cash_balances").insert(cashRows)
+                  accountResult.actions.push(`ibkr_flex_cash: ${cashRows.length}`)
+                }
+
+                if (flexData.trades.length > 0) {
+                  const tr = await upsertIbkrTrades(serviceClient, account, flexData.trades)
+                  accountResult.actions.push(`ibkr_flex_trades: ${tr.inserted}+${tr.updated}`)
+                  console.log("[cron]", "action", account.label, `ibkr_flex_trades: ${tr.inserted} ins, ${tr.updated} upd`)
+                }
+
+                await serviceClient.from("ibkr_config").update({
+                  last_synced_at: now, last_sync_status: "success", last_sync_error: null,
+                  pending_reference_code: null, pending_requested_at: null,
+                }).eq("account_id", account.id)
+
+              } else if (pendingFresh) {
+                accountResult.actions.push("ibkr_flex_pending: rapport en cours")
+                console.log("[cron]", "action", account.label, "ibkr_flex_pending: rapport en cours de génération")
+
               } else {
-                accountResult.actions.push("ibkr_flex_skipped_zero")
-                console.log("[cron]", "action", account.label, "ibkr_flex_skipped_zero: all quantities=0, positions inchangées")
+                const ref = await requestFlexReport(ibkrCfg.flex_token, ibkrCfg.query_id)
+                await serviceClient.from("ibkr_config").update({
+                  pending_reference_code: ref,
+                  pending_requested_at: new Date().toISOString(),
+                }).eq("account_id", account.id)
+                accountResult.actions.push(`ibkr_flex_requested: ref ${ref}`)
+                console.log("[cron]", "action", account.label, `ibkr_flex_requested: ref ${ref}`)
               }
-
-              if (flexData.cashBalances.length > 0) {
-                await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
-                const cashRows = flexData.cashBalances.map((c: any) => ({
-                  account_id: account.id, currency: c.currency,
-                  amount: c.endingCash, last_synced_at: now,
-                }))
-                await serviceClient.from("cash_balances").insert(cashRows)
-                accountResult.actions.push(`ibkr_flex_cash: ${cashRows.length}`)
-              }
-
-              await serviceClient.from("ibkr_config")
-                .update({ last_synced_at: now, last_sync_status: "success", last_sync_error: null })
-                .eq("account_id", account.id)
 
             } catch (e: any) {
               console.warn("[cron] IBKR Flex failed, positions inchangées:", e.message)

@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
-import { runDailySnapshot, syncIbkrTradesForAccount, upsertIbkrTrades } from "./routes-portfolio.js"
+import { runDailySnapshot, upsertIbkrTrades } from "./routes-portfolio.js"
+import { requestFlexReport, retrieveFlexReport } from "./ibkr-flex.js"
 import type { FlexStatementData } from "./ibkr-flex.js"
 import { fetchYahooPrice, yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
@@ -182,83 +183,99 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
 
     const ibkrAccount = accounts.find((a: any) => a.broker === "IBKR")
     const krakenAccount = accounts.find((a: any) => a.broker === "Kraken")
-    let ibkrFlexData: FlexStatementData | null = null
 
-    // Step 1: IBKR positions
+    // Step 1: IBKR (async two-phase: request then retrieve)
     {
       const s0 = Date.now()
       try {
         if (!ibkrAccount) {
-          steps.push({ step: "ibkr_positions", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
+          steps.push({ step: "ibkr", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
         } else {
           const config = ibkrAccount.ibkr_config?.[0] || ibkrAccount.ibkr_config
           if (!config?.flex_token || !config?.query_id) {
-            steps.push({ step: "ibkr_positions", status: "skipped", message: "Flex Query non configurée", durationMs: 0 })
+            steps.push({ step: "ibkr", status: "skipped", message: "Flex Query non configurée", durationMs: 0 })
           } else {
-            const { fetchFlexReport, calculateNlvInBase } = await import("./ibkr-flex.js")
-            ibkrFlexData = await fetchFlexReport(config.flex_token, config.query_id)
-            const baseCurrency = ibkrAccount.currency_base || "EUR"
-            const nlv = calculateNlvInBase(ibkrFlexData, baseCurrency)
-            const now = new Date().toISOString()
+            const PENDING_MAX_AGE_MS = 15 * 60 * 1000
+            const pendingRef = config.pending_reference_code as string | null
+            const pendingAt = config.pending_requested_at ? new Date(config.pending_requested_at).getTime() : 0
+            const pendingFresh = pendingRef && (Date.now() - pendingAt < PENDING_MAX_AGE_MS)
 
-            const hasRealPositions = ibkrFlexData.openPositions.some((p: any) => p.quantity !== 0)
-            if (hasRealPositions) {
-              await userClient.from("positions").delete().eq("account_id", ibkrAccount.id)
-              const positionRows = ibkrFlexData.openPositions.map((p: any) => ({
-                account_id: ibkrAccount.id,
-                ticker: p.symbol, name: p.description, quantity: p.quantity,
-                currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-              }))
-              await userClient.from("positions").insert(positionRows)
+            let ibkrFlexData: FlexStatementData | null = null
+
+            // Phase 1: try to retrieve a pending report
+            if (pendingRef) {
+              try {
+                console.log("[sync] IBKR retrieve pending ref", pendingRef)
+                ibkrFlexData = await retrieveFlexReport(config.flex_token, pendingRef)
+              } catch (e: any) {
+                console.warn("[sync] IBKR retrieve failed, will re-request:", e.message)
+              }
             }
 
-            await userClient.from("cash_balances").delete().eq("account_id", ibkrAccount.id)
-            if (ibkrFlexData.cashBalances.length > 0) {
-              const cashRows = ibkrFlexData.cashBalances.map((c: any) => ({
-                account_id: ibkrAccount.id, currency: c.currency,
-                amount: c.endingCash, last_synced_at: now,
-              }))
-              await userClient.from("cash_balances").insert(cashRows)
+            // If retrieved → ingest positions + trades
+            if (ibkrFlexData) {
+              const now = new Date().toISOString()
+              const posMsg: string[] = []
+
+              const hasRealPositions = ibkrFlexData.openPositions.some((p: any) => p.quantity !== 0)
+              if (hasRealPositions) {
+                await userClient.from("positions").delete().eq("account_id", ibkrAccount.id)
+                const positionRows = ibkrFlexData.openPositions.map((p: any) => ({
+                  account_id: ibkrAccount.id,
+                  ticker: p.symbol, name: p.description, quantity: p.quantity,
+                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                }))
+                await userClient.from("positions").insert(positionRows)
+                posMsg.push(`${positionRows.length} positions`)
+              } else {
+                posMsg.push("positions inchangées (qty=0)")
+              }
+
+              if (ibkrFlexData.cashBalances.length > 0) {
+                await userClient.from("cash_balances").delete().eq("account_id", ibkrAccount.id)
+                const cashRows = ibkrFlexData.cashBalances.map((c: any) => ({
+                  account_id: ibkrAccount.id, currency: c.currency,
+                  amount: c.endingCash, last_synced_at: now,
+                }))
+                await userClient.from("cash_balances").insert(cashRows)
+              }
+
+              if (ibkrFlexData.trades.length > 0) {
+                const tr = await upsertIbkrTrades(userClient, ibkrAccount, ibkrFlexData.trades)
+                posMsg.push(`${tr.inserted}+${tr.updated} trades`)
+              }
+
+              await userClient.from("ibkr_config").update({
+                last_synced_at: now, last_sync_status: "success", last_sync_error: null,
+                pending_reference_code: null, pending_requested_at: null,
+              }).eq("account_id", ibkrAccount.id)
+
+              steps.push({ step: "ibkr", status: "ok", message: posMsg.join(", "), durationMs: Date.now() - s0 })
+
+            } else if (pendingFresh) {
+              // Pending exists but not ready yet — don't re-request
+              steps.push({ step: "ibkr", status: "ok", message: "Rapport en cours de génération, récupéré au prochain sync", durationMs: Date.now() - s0 })
+
+            } else {
+              // No pending or expired → request a new report
+              console.log("[sync] IBKR requesting new report for query", config.query_id)
+              const ref = await requestFlexReport(config.flex_token, config.query_id)
+              await userClient.from("ibkr_config").update({
+                pending_reference_code: ref,
+                pending_requested_at: new Date().toISOString(),
+              }).eq("account_id", ibkrAccount.id)
+              console.log("[sync] IBKR pending ref stored:", ref)
+              steps.push({ step: "ibkr", status: "ok", message: `Rapport demandé (ref ${ref}), récupéré au prochain sync`, durationMs: Date.now() - s0 })
             }
-
-            await userClient.from("ibkr_config")
-              .update({ last_synced_at: now, last_sync_status: "success", last_sync_error: null })
-              .eq("account_id", ibkrAccount.id)
-
-            steps.push({ step: "ibkr_positions", status: "ok", message: `${ibkrFlexData.openPositions.length} positions`, durationMs: Date.now() - s0 })
           }
         }
       } catch (e: any) {
         if (ibkrAccount) {
           try { await userClient.from("ibkr_config").update({ last_sync_status: "error", last_sync_error: e.message }).eq("account_id", ibkrAccount.id) } catch {}
         }
-        steps.push({ step: "ibkr_positions", status: "error", message: e.message, durationMs: Date.now() - s0 })
-      }
-    }
-
-    // Step 1b: IBKR trades (reuse ibkrFlexData when possible, fallback to separate query)
-    {
-      const s0 = Date.now()
-      try {
-        if (!ibkrAccount) {
-          steps.push({ step: "ibkr_trades", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
-        } else {
-          const config = ibkrAccount.ibkr_config?.[0] || ibkrAccount.ibkr_config
-
-          if (ibkrFlexData && ibkrFlexData.trades.length > 0) {
-            const result = await upsertIbkrTrades(userClient, ibkrAccount, ibkrFlexData.trades)
-            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj (query positions)`, durationMs: Date.now() - s0 })
-          } else if (config?.flex_token && config?.trades_query_id && config.trades_query_id !== config.query_id) {
-            const result = await syncIbkrTradesForAccount(userClient, ibkrAccount, { flex_token: config.flex_token, trades_query_id: config.trades_query_id })
-            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj (query trades)`, durationMs: Date.now() - s0 })
-          } else {
-            steps.push({ step: "ibkr_trades", status: "skipped", message: "Aucun trade dans la réponse Flex", durationMs: Date.now() - s0 })
-          }
-        }
-      } catch (e: any) {
-        steps.push({ step: "ibkr_trades", status: "error", message: e.message, durationMs: Date.now() - s0 })
+        steps.push({ step: "ibkr", status: "error", message: e.message, durationMs: Date.now() - s0 })
       }
     }
 
