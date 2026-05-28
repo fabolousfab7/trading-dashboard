@@ -103,7 +103,7 @@ function fetchWithTimeout(url: string, timeoutMs = 12_000): Promise<Response> {
     .finally(() => clearTimeout(timer))
 }
 
-async function sendRequest(token: string, queryId: string, maxAttempts = 2, delayMs = 5000): Promise<string> {
+async function sendRequest(token: string, queryId: string, maxAttempts = 5, delayMs = 25_000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -148,8 +148,8 @@ async function sendRequest(token: string, queryId: string, maxAttempts = 2, dela
 async function getStatement(
   token: string,
   referenceCode: string,
-  maxAttempts = 5,
-  delayMs = 3000,
+  maxAttempts = 8,
+  delayMs = 10_000,
 ): Promise<string> {
   const url = `${FLEX_BASE_URL}.${GET_STATEMENT_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(referenceCode)}&v=${API_VERSION}`
 
@@ -168,6 +168,7 @@ async function getStatement(
 
       if (status === "Warn" || errorCode === 1019) {
         if (attempt < maxAttempts) {
+          console.log(`[ibkr-flex] GetStatement attempt ${attempt}/${maxAttempts}: report not ready (${errorCode}). Retrying in ${delayMs / 1000}s...`)
           await sleep(delayMs)
           continue
         }
@@ -278,7 +279,7 @@ export function parseFlexReport(xml: string): FlexStatementData {
 
 export async function fetchFlexReport(token: string, queryId: string): Promise<FlexStatementData> {
   const referenceCode = await sendRequest(token, queryId)
-  await sleep(2000)
+  await sleep(3000)
   const xml = await getStatement(token, referenceCode)
   return parseFlexReport(xml)
 }
