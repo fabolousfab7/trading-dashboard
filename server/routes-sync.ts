@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
-import { runDailySnapshot, syncIbkrTradesForAccount } from "./routes-portfolio.js"
+import { runDailySnapshot, syncIbkrTradesForAccount, upsertIbkrTrades } from "./routes-portfolio.js"
+import type { FlexStatementData } from "./ibkr-flex.js"
 import { fetchYahooPrice, yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
@@ -181,6 +182,7 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
 
     const ibkrAccount = accounts.find((a: any) => a.broker === "IBKR")
     const krakenAccount = accounts.find((a: any) => a.broker === "Kraken")
+    let ibkrFlexData: FlexStatementData | null = null
 
     // Step 1: IBKR positions
     {
@@ -194,15 +196,15 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
             steps.push({ step: "ibkr_positions", status: "skipped", message: "Flex Query non configurée", durationMs: 0 })
           } else {
             const { fetchFlexReport, calculateNlvInBase } = await import("./ibkr-flex.js")
-            const data = await fetchFlexReport(config.flex_token, config.query_id)
+            ibkrFlexData = await fetchFlexReport(config.flex_token, config.query_id)
             const baseCurrency = ibkrAccount.currency_base || "EUR"
-            const nlv = calculateNlvInBase(data, baseCurrency)
+            const nlv = calculateNlvInBase(ibkrFlexData, baseCurrency)
             const now = new Date().toISOString()
 
-            const hasRealPositions = data.openPositions.some((p: any) => p.quantity !== 0)
+            const hasRealPositions = ibkrFlexData.openPositions.some((p: any) => p.quantity !== 0)
             if (hasRealPositions) {
               await userClient.from("positions").delete().eq("account_id", ibkrAccount.id)
-              const positionRows = data.openPositions.map((p: any) => ({
+              const positionRows = ibkrFlexData.openPositions.map((p: any) => ({
                 account_id: ibkrAccount.id,
                 ticker: p.symbol, name: p.description, quantity: p.quantity,
                 currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
@@ -213,8 +215,8 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
             }
 
             await userClient.from("cash_balances").delete().eq("account_id", ibkrAccount.id)
-            if (data.cashBalances.length > 0) {
-              const cashRows = data.cashBalances.map((c: any) => ({
+            if (ibkrFlexData.cashBalances.length > 0) {
+              const cashRows = ibkrFlexData.cashBalances.map((c: any) => ({
                 account_id: ibkrAccount.id, currency: c.currency,
                 amount: c.endingCash, last_synced_at: now,
               }))
@@ -225,7 +227,7 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
               .update({ last_synced_at: now, last_sync_status: "success", last_sync_error: null })
               .eq("account_id", ibkrAccount.id)
 
-            steps.push({ step: "ibkr_positions", status: "ok", message: `${data.openPositions.length} positions`, durationMs: Date.now() - s0 })
+            steps.push({ step: "ibkr_positions", status: "ok", message: `${ibkrFlexData.openPositions.length} positions`, durationMs: Date.now() - s0 })
           }
         }
       } catch (e: any) {
@@ -236,7 +238,7 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
       }
     }
 
-    // Step 1b: IBKR trades
+    // Step 1b: IBKR trades (reuse ibkrFlexData when possible, fallback to separate query)
     {
       const s0 = Date.now()
       try {
@@ -244,11 +246,15 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
           steps.push({ step: "ibkr_trades", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
         } else {
           const config = ibkrAccount.ibkr_config?.[0] || ibkrAccount.ibkr_config
-          if (!config?.flex_token || !config?.trades_query_id) {
-            steps.push({ step: "ibkr_trades", status: "skipped", message: "trades_query_id non configuré", durationMs: 0 })
-          } else {
+
+          if (ibkrFlexData && ibkrFlexData.trades.length > 0) {
+            const result = await upsertIbkrTrades(userClient, ibkrAccount, ibkrFlexData.trades)
+            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj (query positions)`, durationMs: Date.now() - s0 })
+          } else if (config?.flex_token && config?.trades_query_id && config.trades_query_id !== config.query_id) {
             const result = await syncIbkrTradesForAccount(userClient, ibkrAccount, { flex_token: config.flex_token, trades_query_id: config.trades_query_id })
-            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj`, durationMs: Date.now() - s0 })
+            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj (query trades)`, durationMs: Date.now() - s0 })
+          } else {
+            steps.push({ step: "ibkr_trades", status: "skipped", message: "Aucun trade dans la réponse Flex", durationMs: Date.now() - s0 })
           }
         }
       } catch (e: any) {

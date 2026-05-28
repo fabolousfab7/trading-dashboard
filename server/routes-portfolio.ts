@@ -5,7 +5,7 @@ import { z } from "zod"
 import {
   insertAccountSchema,
 } from "../shared/schema.js"
-import { fetchFlexReport, calculateNlvInBase } from "./ibkr-flex.js"
+import { fetchFlexReport, calculateNlvInBase, type FlexTrade, type FlexStatementData } from "./ibkr-flex.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchCoinGeckoPrices, fetchCoinGeckoHistory } from "./coingecko.js"
@@ -309,30 +309,27 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
   }
 }
 
-export async function syncIbkrTradesForAccount(
+function parseFlexDate(d: string | undefined): string | null {
+  if (!d || d.length !== 8) return null
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+}
+
+function parseFlexDateTime(d: string | undefined, time: string | undefined): string | null {
+  const dateStr = parseFlexDate(d)
+  if (!dateStr) return null
+  if (time && time.length >= 6) {
+    return `${dateStr}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`
+  }
+  return dateStr
+}
+
+export async function upsertIbkrTrades(
   client: SupabaseClient,
   account: { id: string; label: string },
-  config: { flex_token: string; trades_query_id: string },
+  trades: FlexTrade[],
 ): Promise<{ inserted: number; updated: number }> {
-  console.log("[ibkr-trades-sync]", account.label, "fetching flex report with query", config.trades_query_id)
-  const data = await fetchFlexReport(config.flex_token, config.trades_query_id)
-  console.log("[ibkr-trades-sync]", account.label, `got ${data.trades.length} trades from IBKR`)
-
-  const parseFlexDate = (d: string | undefined): string | null => {
-    if (!d || d.length !== 8) return null
-    return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
-  }
-  const parseFlexDateTime = (d: string | undefined, time: string | undefined): string | null => {
-    const dateStr = parseFlexDate(d)
-    if (!dateStr) return null
-    if (time && time.length >= 6) {
-      return `${dateStr}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`
-    }
-    return dateStr
-  }
-
   let inserted = 0, updated = 0
-  for (const t of data.trades) {
+  for (const t of trades) {
     if (!t.tradeID) continue
 
     const row = {
@@ -407,6 +404,17 @@ export async function syncIbkrTradesForAccount(
 
   console.log("[ibkr-trades-sync]", account.label, `done: ${inserted} inserted, ${updated} updated`)
   return { inserted, updated }
+}
+
+export async function syncIbkrTradesForAccount(
+  client: SupabaseClient,
+  account: { id: string; label: string },
+  config: { flex_token: string; trades_query_id: string },
+): Promise<{ inserted: number; updated: number }> {
+  console.log("[ibkr-trades-sync]", account.label, "fetching flex report with query", config.trades_query_id)
+  const data = await fetchFlexReport(config.flex_token, config.trades_query_id)
+  console.log("[ibkr-trades-sync]", account.label, `got ${data.trades.length} trades from IBKR`)
+  return upsertIbkrTrades(client, account, data.trades)
 }
 
 export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) {
