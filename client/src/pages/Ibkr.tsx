@@ -65,6 +65,7 @@ interface PortfolioData {
   latestSnapshot?: { capital_invested?: string | number }
   account?: { capital_invested?: string | number }
   ibkrSync?: IbkrSync
+  pricesLastRefreshedAt?: string | null
 }
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -216,9 +217,29 @@ export default function Ibkr() {
   const totalPerfPct = capital ? (totalPerf / capital) * 100 : 0
 
   const lastSyncedAt = data.ibkrSync?.last_synced_at
-  const syncTimeStr = lastSyncedAt
-    ? new Date(lastSyncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    : null
+  const pricesRefreshedAt = data.pricesLastRefreshedAt
+
+  function formatSyncDate(iso: string | null | undefined): string | null {
+    if (!iso) return null
+    const d = new Date(iso)
+    const now = new Date()
+    const isToday = d.toDateString() === now.toDateString()
+    const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    if (isToday) return `auj. ${time}`
+    return `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${time}`
+  }
+
+  function isPricesStale(iso: string | null | undefined): boolean {
+    if (!iso) return true
+    const age = Date.now() - new Date(iso).getTime()
+    const day = new Date().getDay()
+    const maxAge = (day === 0 || day === 1) ? 3 * 24 * 3600_000 : 24 * 3600_000
+    return age > maxAge
+  }
+
+  const pricesStr = formatSyncDate(pricesRefreshedAt)
+  const syncStr = formatSyncDate(lastSyncedAt)
+  const pricesStale = isPricesStale(pricesRefreshedAt)
 
   const sortedPositions = [...positions].sort((a, b) => {
     const fxA = Number(a.fx_rate_to_base) || 1
@@ -253,11 +274,18 @@ export default function Ibkr() {
           </h1>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)" }}>
-            {syncTimeStr
-              ? <>Synced à {syncTimeStr} &middot; base {account?.currency_base || "EUR"}</>
-              : <>base {account?.currency_base || "EUR"}</>
-            }
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 12, fontStyle: "italic", color: "var(--ink3)", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            {pricesStr && (
+              <span style={{ color: pricesStale ? "var(--red)" : "var(--green, #3a6e3f)" }}>
+                Prix MAJ : {pricesStr}
+              </span>
+            )}
+            {syncStr && (
+              <span style={{ color: "var(--ink3)" }}>
+                Positions synced : {syncStr}
+              </span>
+            )}
+            <span>base {account?.currency_base || "EUR"}</span>
           </div>
         </div>
       </div>

@@ -105,8 +105,56 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
         }
 
         if (account.broker === "IBKR") {
-          console.log("[cron]", "ibkr_skip_position_sync", account.label, "(positions managed manually)")
-          accountResult.actions.push("ibkr_positions_skipped (managed manually)")
+          const ibkrCfg = account.ibkr_config?.[0] || account.ibkr_config
+          if (ibkrCfg?.flex_token && ibkrCfg?.query_id) {
+            try {
+              const flexData = await fetchFlexReport(ibkrCfg.flex_token, ibkrCfg.query_id)
+              const now = new Date().toISOString()
+              const hasRealPositions = flexData.openPositions.some((p: any) => p.quantity !== 0)
+
+              if (hasRealPositions) {
+                await serviceClient.from("positions").delete().eq("account_id", account.id)
+                const positionRows = flexData.openPositions.map((p: any) => ({
+                  account_id: account.id,
+                  ticker: p.symbol, name: p.description, quantity: p.quantity,
+                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
+                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
+                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                }))
+                await serviceClient.from("positions").insert(positionRows)
+                accountResult.actions.push(`ibkr_flex_positions: ${positionRows.length}`)
+                console.log("[cron]", "action", account.label, `ibkr_flex_positions: ${positionRows.length}`)
+              } else {
+                accountResult.actions.push("ibkr_flex_skipped_zero")
+                console.log("[cron]", "action", account.label, "ibkr_flex_skipped_zero: all quantities=0, positions inchangées")
+              }
+
+              if (flexData.cashBalances.length > 0) {
+                await serviceClient.from("cash_balances").delete().eq("account_id", account.id)
+                const cashRows = flexData.cashBalances.map((c: any) => ({
+                  account_id: account.id, currency: c.currency,
+                  amount: c.endingCash, last_synced_at: now,
+                }))
+                await serviceClient.from("cash_balances").insert(cashRows)
+                accountResult.actions.push(`ibkr_flex_cash: ${cashRows.length}`)
+              }
+
+              await serviceClient.from("ibkr_config")
+                .update({ last_synced_at: now, last_sync_status: "success", last_sync_error: null })
+                .eq("account_id", account.id)
+
+            } catch (e: any) {
+              console.warn("[cron] IBKR Flex failed, positions inchangées:", e.message)
+              accountResult.actions.push(`ibkr_flex_error: ${e.message}`)
+              try {
+                await serviceClient.from("ibkr_config")
+                  .update({ last_sync_status: "error", last_sync_error: e.message })
+                  .eq("account_id", account.id)
+              } catch {}
+            }
+          } else {
+            accountResult.actions.push("ibkr_flex_skipped: no config")
+          }
         }
 
         const { data: positions } = await serviceClient
@@ -259,6 +307,106 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
     console.log("[cron]", "error", { durationMs, error: e.message })
     return { success: false, date: today, durationMs, results, error: e.message }
   }
+}
+
+export async function syncIbkrTradesForAccount(
+  client: SupabaseClient,
+  account: { id: string; label: string },
+  config: { flex_token: string; trades_query_id: string },
+): Promise<{ inserted: number; updated: number }> {
+  console.log("[ibkr-trades-sync]", account.label, "fetching flex report with query", config.trades_query_id)
+  const data = await fetchFlexReport(config.flex_token, config.trades_query_id)
+  console.log("[ibkr-trades-sync]", account.label, `got ${data.trades.length} trades from IBKR`)
+
+  const parseFlexDate = (d: string | undefined): string | null => {
+    if (!d || d.length !== 8) return null
+    return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+  }
+  const parseFlexDateTime = (d: string | undefined, time: string | undefined): string | null => {
+    const dateStr = parseFlexDate(d)
+    if (!dateStr) return null
+    if (time && time.length >= 6) {
+      return `${dateStr}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`
+    }
+    return dateStr
+  }
+
+  let inserted = 0, updated = 0
+  for (const t of data.trades) {
+    if (!t.tradeID) continue
+
+    const row = {
+      account_id: account.id,
+      ibkr_trade_id: String(t.tradeID),
+      trade_date: parseFlexDateTime(t.tradeDate, t.tradeTime) || parseFlexDate(t.tradeDate),
+      settle_date: parseFlexDate(t.settleDateTarget),
+      ticker: t.symbol,
+      name: t.description || null,
+      asset_class: t.assetCategory || null,
+      currency: t.currency,
+      exchange: t.exchange || null,
+      side: t.buySell || (t.quantity < 0 ? "SELL" : "BUY"),
+      quantity: Math.abs(t.quantity),
+      price: t.tradePrice,
+      proceeds: t.proceeds ?? null,
+      commission: t.ibCommission != null ? Math.abs(t.ibCommission) : null,
+      net_cash: t.netCash,
+      realized_pnl: t.fifoPnlRealized ?? null,
+      fx_rate_to_eur: t.fxRateToBase ?? null,
+      source: "flex_query",
+      raw_data: t,
+    }
+
+    const { data: existing } = await client
+      .from("ibkr_trades")
+      .select("id")
+      .eq("account_id", account.id)
+      .eq("ibkr_trade_id", String(t.tradeID))
+      .maybeSingle()
+
+    if (existing) {
+      await client.from("ibkr_trades").update(row).eq("id", existing.id)
+      updated++
+    } else {
+      await client.from("ibkr_trades").insert(row)
+      inserted++
+    }
+  }
+
+  // Dedup: remove SYNTH rows (flex_query_xml_import) that now have a real flex_query counterpart
+  const { data: synthRows } = await client
+    .from("ibkr_trades")
+    .select("id, account_id, ticker, side, trade_date, realized_pnl")
+    .eq("account_id", account.id)
+    .eq("source", "flex_query_xml_import")
+
+  if (synthRows && synthRows.length > 0) {
+    const toDelete: string[] = []
+    for (const synth of synthRows) {
+      const synthDate = synth.trade_date ? synth.trade_date.slice(0, 10) : null
+      if (!synthDate) continue
+      const { data: realMatch } = await client
+        .from("ibkr_trades")
+        .select("id")
+        .eq("account_id", synth.account_id)
+        .eq("ticker", synth.ticker)
+        .eq("side", synth.side)
+        .eq("source", "flex_query")
+        .gte("trade_date", synthDate)
+        .lt("trade_date", synthDate + "T23:59:60")
+        .eq("realized_pnl", synth.realized_pnl)
+        .limit(1)
+        .maybeSingle()
+      if (realMatch) toDelete.push(synth.id)
+    }
+    if (toDelete.length > 0) {
+      await client.from("ibkr_trades").delete().in("id", toDelete)
+      console.log("[ibkr-trades-sync]", account.label, `dedup: removed ${toDelete.length} SYNTH rows`)
+    }
+  }
+
+  console.log("[ibkr-trades-sync]", account.label, `done: ${inserted} inserted, ${updated} updated`)
+  return { inserted, updated }
 }
 
 export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) {
@@ -532,7 +680,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       .single()
     if (!account) return res.status(404).json({ error: "Account not found" })
 
-    const [positionsRes, cashRes, snapshotRes, configRes] = await Promise.all([
+    const [positionsRes, cashRes, snapshotRes, configRes, pricesAtRes] = await Promise.all([
       userClient.from("positions").select("*").eq("account_id", accountId).order("ticker"),
       userClient.from("cash_balances").select("*").eq("account_id", accountId).order("currency"),
       userClient
@@ -547,6 +695,13 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
         .select("last_synced_at, last_sync_status, last_sync_error")
         .eq("account_id", accountId)
         .maybeSingle(),
+      userClient
+        .from("positions")
+        .select("last_synced_at")
+        .eq("account_id", accountId)
+        .order("last_synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     return res.json({
@@ -555,6 +710,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       cashBalances: cashRes.data || [],
       latestSnapshot: snapshotRes.data,
       ibkrSync: configRes.data,
+      pricesLastRefreshedAt: pricesAtRes.data?.last_synced_at || null,
     })
   })
 
@@ -933,64 +1089,7 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
       if (!tradesQueryId) { errors.push(`${acc.label}: no trades_query_id`); continue }
 
       try {
-        console.log("[ibkr-trades-sync]", acc.label, "fetching flex report with query", tradesQueryId)
-        const data = await fetchFlexReport(config.flex_token, tradesQueryId)
-        console.log("[ibkr-trades-sync]", acc.label, `got ${data.trades.length} trades from IBKR`)
-
-        const parseFlexDate = (d: string | undefined): string | null => {
-          if (!d || d.length !== 8) return null
-          return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
-        }
-        const parseFlexDateTime = (d: string | undefined, time: string | undefined): string | null => {
-          const dateStr = parseFlexDate(d)
-          if (!dateStr) return null
-          if (time && time.length >= 6) {
-            return `${dateStr}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`
-          }
-          return dateStr
-        }
-
-        let inserted = 0, updated = 0
-        for (const t of data.trades) {
-          if (!t.tradeID) continue
-
-          const row = {
-            account_id: acc.id,
-            ibkr_trade_id: String(t.tradeID),
-            trade_date: parseFlexDateTime(t.tradeDate, t.tradeTime) || parseFlexDate(t.tradeDate),
-            settle_date: parseFlexDate(t.settleDateTarget),
-            ticker: t.symbol,
-            name: t.description || null,
-            asset_class: t.assetCategory || null,
-            currency: t.currency,
-            exchange: t.exchange || null,
-            side: t.buySell || (t.quantity < 0 ? "SELL" : "BUY"),
-            quantity: Math.abs(t.quantity),
-            price: t.tradePrice,
-            proceeds: t.proceeds ?? null,
-            commission: t.ibCommission != null ? Math.abs(t.ibCommission) : null,
-            net_cash: t.netCash,
-            realized_pnl: t.fifoPnlRealized ?? null,
-            fx_rate_to_eur: t.fxRateToBase ?? null,
-            source: "flex_query",
-            raw_data: t,
-          }
-
-          const { data: existing } = await userClient
-            .from("ibkr_trades")
-            .select("id")
-            .eq("account_id", acc.id)
-            .eq("ibkr_trade_id", String(t.tradeID))
-            .maybeSingle()
-
-          if (existing) {
-            await userClient.from("ibkr_trades").update(row).eq("id", existing.id)
-            updated++
-          } else {
-            await userClient.from("ibkr_trades").insert(row)
-            inserted++
-          }
-        }
+        const result = await syncIbkrTradesForAccount(userClient, acc, { flex_token: config.flex_token, trades_query_id: tradesQueryId })
 
         await userClient.from("ibkr_config").update({
           last_synced_at: new Date().toISOString(),
@@ -998,10 +1097,9 @@ export function registerPortfolioRoutes(app: Express, supabase: SupabaseClient) 
           last_sync_error: null,
         }).eq("id", config.id)
 
-        totalInserted += inserted
-        totalUpdated += updated
+        totalInserted += result.inserted
+        totalUpdated += result.updated
         accountsSynced++
-        console.log("[ibkr-trades-sync]", acc.label, `done: ${inserted} inserted, ${updated} updated`)
       } catch (e: any) {
         console.error("[ibkr-trades-sync]", acc.label, "error:", e.message)
         errors.push(`${acc.label}: ${e.message}`)

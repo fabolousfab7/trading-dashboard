@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { syncKrakenAccount, KrakenConfig } from "./kraken-api.js"
 import { syncKrakenFuturesAccount } from "./kraken-futures-api.js"
 import { syncKrakenTradesForAccount } from "./routes-kraken-trades.js"
-import { runDailySnapshot } from "./routes-portfolio.js"
+import { runDailySnapshot, syncIbkrTradesForAccount } from "./routes-portfolio.js"
 import { fetchYahooPrice, yahooSuffix, YAHOO_DE_TICKERS } from "./yahoo-finance.js"
 import { fetchStooqPrice, defaultStooqSymbol } from "./stooq.js"
 import { fetchCoinGeckoPrices } from "./coingecko.js"
@@ -233,6 +233,26 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
           try { await userClient.from("ibkr_config").update({ last_sync_status: "error", last_sync_error: e.message }).eq("account_id", ibkrAccount.id) } catch {}
         }
         steps.push({ step: "ibkr_positions", status: "error", message: e.message, durationMs: Date.now() - s0 })
+      }
+    }
+
+    // Step 1b: IBKR trades
+    {
+      const s0 = Date.now()
+      try {
+        if (!ibkrAccount) {
+          steps.push({ step: "ibkr_trades", status: "skipped", message: "Pas de compte IBKR", durationMs: 0 })
+        } else {
+          const config = ibkrAccount.ibkr_config?.[0] || ibkrAccount.ibkr_config
+          if (!config?.flex_token || !config?.trades_query_id) {
+            steps.push({ step: "ibkr_trades", status: "skipped", message: "trades_query_id non configuré", durationMs: 0 })
+          } else {
+            const result = await syncIbkrTradesForAccount(userClient, ibkrAccount, { flex_token: config.flex_token, trades_query_id: config.trades_query_id })
+            steps.push({ step: "ibkr_trades", status: "ok", message: `${result.inserted} insérés, ${result.updated} màj`, durationMs: Date.now() - s0 })
+          }
+        }
+      } catch (e: any) {
+        steps.push({ step: "ibkr_trades", status: "error", message: e.message, durationMs: Date.now() - s0 })
       }
     }
 

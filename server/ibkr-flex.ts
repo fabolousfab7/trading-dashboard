@@ -92,11 +92,22 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function fetchWithTimeout(url: string, timeoutMs = 12_000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { method: "GET", signal: controller.signal })
+    .catch((err) => {
+      if (err.name === "AbortError") throw new Error("IBKR_FLEX_TIMEOUT")
+      throw err
+    })
+    .finally(() => clearTimeout(timer))
+}
+
 async function sendRequest(token: string, queryId: string, maxAttempts = 2, delayMs = 5000): Promise<string> {
   const url = `${FLEX_BASE_URL}.${SEND_REQUEST_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await fetch(url, { method: "GET" })
+    const response = await fetchWithTimeout(url)
     if (!response.ok) {
       throw new Error(`Flex SendRequest failed: HTTP ${response.status}`)
     }
@@ -143,7 +154,7 @@ async function getStatement(
   const url = `${FLEX_BASE_URL}.${GET_STATEMENT_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(referenceCode)}&v=${API_VERSION}`
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await fetch(url, { method: "GET" })
+    const response = await fetchWithTimeout(url)
     if (!response.ok) {
       throw new Error(`Flex GetStatement failed: HTTP ${response.status}`)
     }
