@@ -116,6 +116,7 @@ export default function Ibkr() {
   const [tradesRange, setTradesRange] = useState("30J")
   const [tradesSyncing, setTradesSyncing] = useState(false)
   const [tradesSyncMsg, setTradesSyncMsg] = useState<string | null>(null)
+  const [showAllFills, setShowAllFills] = useState(false)
 
   async function loadData() {
     setLoading(true); setError(null)
@@ -509,6 +510,21 @@ export default function Ibkr() {
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", gap: 2, marginLeft: 8 }}>
+              {(["Clôturés", "Tous"] as const).map(label => {
+                const active = label === "Clôturés" ? !showAllFills : showAllFills
+                return (
+                  <button key={label} onClick={() => setShowAllFills(label === "Tous")}
+                    style={{
+                      padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: "pointer", border: "none", transition: "all .15s",
+                      background: active ? "var(--at-accent)" : "transparent",
+                      color: active ? "var(--at-bg)" : "var(--ink2)",
+                    }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
             <button onClick={syncTrades} disabled={tradesSyncing}
               style={{
                 padding: "4px 12px", fontSize: 10, fontFamily: "var(--font-mono)", borderRadius: 3, cursor: tradesSyncing ? "wait" : "pointer",
@@ -524,11 +540,16 @@ export default function Ibkr() {
           </div>
         </div>
 
-        {trades.length === 0 ? (
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
-            Aucun trade enregistré.<br />Configurez votre Flex Query Trades dans Settings pour syncer.
-          </div>
-        ) : (() => {
+        {(() => {
+          const closedTrades = trades.filter((t: any) => t.side === "SELL" && t.realized_pnl != null && Number(t.realized_pnl) !== 0)
+          const displayTrades = showAllFills ? trades : closedTrades
+          if (displayTrades.length === 0) return (
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink3)", textAlign: "center", padding: "28px 0", lineHeight: 1.7 }}>
+              {trades.length === 0
+                ? <>Aucun trade enregistré.<br />Configurez votre Flex Query Trades dans Settings pour syncer.</>
+                : "Aucun trade clôturé sur la période."}
+            </div>
+          )
           const thStyle = (right?: boolean): React.CSSProperties => ({
             padding: "10px 12px", textAlign: right ? "right" : "left",
             fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600,
@@ -564,7 +585,7 @@ export default function Ibkr() {
                     </tr>
                   </thead>
                   <tbody>
-                    {trades.map((t: any) => {
+                    {displayTrades.map((t: any) => {
                       const pnl = t.realized_pnl != null ? Number(t.realized_pnl) : null
                       const pnlColor = pnl == null ? "var(--ink3)" : pnl > 0 ? "var(--at-pos)" : pnl < 0 ? "var(--at-neg)" : "var(--ink3)"
                       const isSell = t.side === "SELL"
