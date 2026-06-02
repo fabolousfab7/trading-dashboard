@@ -127,19 +127,40 @@ export async function runDailySnapshot(serviceClient: SupabaseClient): Promise<{
               if (flexData) {
                 const now = new Date().toISOString()
                 const hasRealPositions = flexData.openPositions.some((p: any) => p.quantity !== 0)
+                const hasValidCostData = flexData.openPositions.some((p: any) => Number(p.openPrice) > 0)
 
-                if (hasRealPositions) {
+                if (hasRealPositions && hasValidCostData) {
+                  const { data: existingPositions } = await serviceClient
+                    .from("positions").select("ticker, avg_cost, unrealized_pnl")
+                    .eq("account_id", account.id)
+                  const existingCosts = new Map((existingPositions || []).map((p: any) => [p.ticker, p]))
+
                   await serviceClient.from("positions").delete().eq("account_id", account.id)
-                  const positionRows = flexData.openPositions.map((p: any) => ({
-                    account_id: account.id,
-                    ticker: p.symbol, name: p.description, quantity: p.quantity,
-                    currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                    unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                    fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-                  }))
+                  const positionRows = flexData.openPositions.map((p: any) => {
+                    const existing = existingCosts.get(p.symbol)
+                    const newAvgCost = Number(p.openPrice) > 0 ? p.openPrice : (existing?.avg_cost ?? 0)
+                    const newPnl = (p.fifoPnlUnrealized != null && Number(p.fifoPnlUnrealized) !== 0)
+                      ? p.fifoPnlUnrealized : (existing?.unrealized_pnl ?? null)
+                    return {
+                      account_id: account.id,
+                      ticker: p.symbol, name: p.description, quantity: p.quantity,
+                      currency: p.currency, avg_cost: newAvgCost, market_price: p.markPrice,
+                      unrealized_pnl: newPnl, asset_class: p.assetCategory,
+                      fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                    }
+                  })
                   await serviceClient.from("positions").insert(positionRows)
                   accountResult.actions.push(`ibkr_flex_positions: ${positionRows.length}`)
                   console.log("[cron]", "action", account.label, `ibkr_flex_positions: ${positionRows.length}`)
+                } else if (hasRealPositions && !hasValidCostData) {
+                  console.warn("[cron] ibkr_cost_data_missing —", account.label, "positions avg_cost/pnl préservées, markPrice rafraîchi")
+                  for (const p of flexData.openPositions) {
+                    await serviceClient.from("positions").update({
+                      market_price: p.markPrice, fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                    }).eq("account_id", account.id).eq("ticker", p.symbol)
+                  }
+                  accountResult.actions.push("ibkr_flex_cost_missing: markPrice rafraîchi, avg_cost préservé")
+                  console.log("[cron]", "action", account.label, "ibkr_flex_cost_missing: positions préservées")
                 } else {
                   accountResult.actions.push("ibkr_flex_skipped_zero")
                   console.log("[cron]", "action", account.label, "ibkr_flex_skipped_zero")

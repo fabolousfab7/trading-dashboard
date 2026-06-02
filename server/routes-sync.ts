@@ -218,17 +218,38 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
               const posMsg: string[] = []
 
               const hasRealPositions = ibkrFlexData.openPositions.some((p: any) => p.quantity !== 0)
-              if (hasRealPositions) {
+              const hasValidCostData = ibkrFlexData.openPositions.some((p: any) => Number(p.openPrice) > 0)
+
+              if (hasRealPositions && hasValidCostData) {
+                const { data: existingPositions } = await userClient
+                  .from("positions").select("ticker, avg_cost, unrealized_pnl")
+                  .eq("account_id", ibkrAccount.id)
+                const existingCosts = new Map((existingPositions || []).map((p: any) => [p.ticker, p]))
+
                 await userClient.from("positions").delete().eq("account_id", ibkrAccount.id)
-                const positionRows = ibkrFlexData.openPositions.map((p: any) => ({
-                  account_id: ibkrAccount.id,
-                  ticker: p.symbol, name: p.description, quantity: p.quantity,
-                  currency: p.currency, avg_cost: p.openPrice, market_price: p.markPrice,
-                  unrealized_pnl: p.fifoPnlUnrealized, asset_class: p.assetCategory,
-                  fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
-                }))
+                const positionRows = ibkrFlexData.openPositions.map((p: any) => {
+                  const existing = existingCosts.get(p.symbol)
+                  const newAvgCost = Number(p.openPrice) > 0 ? p.openPrice : (existing?.avg_cost ?? 0)
+                  const newPnl = (p.fifoPnlUnrealized != null && Number(p.fifoPnlUnrealized) !== 0)
+                    ? p.fifoPnlUnrealized : (existing?.unrealized_pnl ?? null)
+                  return {
+                    account_id: ibkrAccount.id,
+                    ticker: p.symbol, name: p.description, quantity: p.quantity,
+                    currency: p.currency, avg_cost: newAvgCost, market_price: p.markPrice,
+                    unrealized_pnl: newPnl, asset_class: p.assetCategory,
+                    fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                  }
+                })
                 await userClient.from("positions").insert(positionRows)
                 posMsg.push(`${positionRows.length} positions`)
+              } else if (hasRealPositions && !hasValidCostData) {
+                console.warn("[sync] ibkr_cost_data_missing — positions avg_cost/pnl préservées, markPrice rafraîchi")
+                for (const p of ibkrFlexData.openPositions) {
+                  await userClient.from("positions").update({
+                    market_price: p.markPrice, fx_rate_to_base: p.fxRateToBase, last_synced_at: now,
+                  }).eq("account_id", ibkrAccount.id).eq("ticker", p.symbol)
+                }
+                posMsg.push("positions préservées (cost data manquant), markPrice rafraîchi")
               } else {
                 posMsg.push("positions inchangées (qty=0)")
               }
@@ -271,7 +292,7 @@ export function registerSyncRoutes(app: Express, supabase: SupabaseClient) {
                 steps.push({ step: "ibkr", status: "ok", message: `Rapport demandé (ref ${ref}), récupéré au prochain sync`, durationMs: Date.now() - s0 })
               } catch (reqErr: any) {
                 console.warn("[sync] IBKR request failed:", reqErr.message)
-                steps.push({ step: "ibkr", status: "ok", message: "IBKR occupé, nouvelle demande au prochain sync", durationMs: Date.now() - s0 })
+                steps.push({ step: "ibkr", status: "skipped", message: "IBKR occupé, nouvelle tentative au prochain sync", durationMs: Date.now() - s0 })
               }
             }
           }
