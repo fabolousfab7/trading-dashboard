@@ -431,12 +431,15 @@ export async function upsertIbkrTrades(
 
     const { data: existing } = await client
       .from("ibkr_trades")
-      .select("id")
+      .select("id, realized_pnl, currency, commission")
       .eq("account_id", account.id)
       .eq("ibkr_trade_id", String(t.tradeID))
       .maybeSingle()
 
     if (existing) {
+      if (!row.realized_pnl && existing.realized_pnl) row.realized_pnl = existing.realized_pnl
+      if (!row.currency && existing.currency) row.currency = existing.currency
+      if (!row.commission && existing.commission) row.commission = existing.commission
       await client.from("ibkr_trades").update(row).eq("id", existing.id)
       updated++
     } else {
